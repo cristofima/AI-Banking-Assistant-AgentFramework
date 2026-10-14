@@ -1,0 +1,62 @@
+# Hosted source ZIP exclusions. Uses gitignore syntax.
+
+# Keep main.py, src/, pyproject.toml, uv.lock, requirements.txt and README.md for installation.
+
+# Deployment tooling
+
+azure.yaml
+agent.yaml
+agent.manifest.yaml
+connection.yaml
+connection.yml
+toolbox.yaml
+toolbox.yml
+.agentignore
+.azdignore
+.azure/
+.foundry/
+.agent_configs/
+appPackage.zip
+.appPackage.zip.azd-generated
+
+# Secrets and local configuration
+
+.env
+.env.\*
+\*.local
+.git/
+.github/
+.vscode/
+.idea/
+
+# Local environments and generated artifacts
+
+.venv/
+venv/
+env/
+**pycache**/
+_.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage._
+htmlcov/
+build/
+dist/
+\*.egg-info/
+junit.xml
+
+# Development-only evaluation assets
+
+tests/
+datasets/
+evaluators/
+eval.yaml
+
+# Container-only files
+
+Dockerfile
+.dockerignore

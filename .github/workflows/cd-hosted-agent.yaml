@@ -25,6 +25,16 @@ jobs:
     environment: Development
     steps:
       - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v8.3.2
+      - name: Verify hosted requirements
+        working-directory: app/agent
+        run: |
+          set -euo pipefail
+          generated="$(mktemp)"
+          trap 'rm -f "$generated"' EXIT
+          uv export --frozen --no-dev --no-editable --no-hashes --no-header \
+            --output-file "$generated" > /dev/null
+          diff -u requirements.txt "$generated"
       - uses: ./.github/actions/cd-azure
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}

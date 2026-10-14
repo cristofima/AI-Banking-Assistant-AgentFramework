@@ -154,7 +154,7 @@ Install dependencies and run the local Responses host:
 cd app/agent
 uv sync --dev --frozen
 $env:PROFILE="dev"
-uv run python -m app.main_responses_host
+uv run python main.py
 ```
 
 The agent listens on port `8088`. Browser traffic should go through the BFF on port `8080`, not directly to this process. The root `DEV - Full Stack Ordered` VS Code launch starts the supported local topology.
@@ -162,6 +162,11 @@ The agent listens on port `8088`. Browser traffic should go through the BFF on p
 The hosted code package contains only this project. Its manifest and lockfile must
 not depend on repository-root evaluation packages or other external local paths.
 The evaluation project owns the optional dependency on the agent, not the reverse.
+[.agentignore](.agentignore) controls the hosted source ZIP exclusions using gitignore
+syntax. It excludes local environments, secrets, caches and development-only tests
+and evaluation assets, while retaining `main.py`, `src/`, `pyproject.toml`, `uv.lock`, `README.md`
+and runtime logging YAML. This is the hosted-agent packaging ignore file, not
+`.azdignore`. Exclusions do not install the `app` package or establish hosted readiness.
 Run the complete agent suite, including evaluation integration tests, from the
 repository root using the combined evaluation environment:
 
@@ -205,10 +210,34 @@ For hosted provisioning with `azd`, make sure the agent environment includes at 
 - `MODEL_DEPLOYMENT_NAME`
 - `ACCOUNT_MCP_URL`
 - `TRANSACTION_MCP_URL`
+- `INTERNAL_IDENTITY_SECRET`: the existing BFF transport signer, at least 32 characters.
 
 Local tasks load the agent's own `.env` and use the developer's Azure credential. Keep MCP URLs, Foundry settings, and the shared transport identity secret in that file; use `.env.example` as the credential-free template.
 
-Hosted deployment is owned by the [agent manifest](azure.yaml) and uses managed identity. Its `ai-project` service declares `model-router` and `gpt-5.4` deployments for provisioning; the hosted agent references that project. Foundry injects `FOUNDRY_PROJECT_ENDPOINT` into the container. Shared and per-agent environment settings select runtime deployments; manifest declarations and local tests do not verify available capacity or hosted end-to-end behavior.
+Hosted deployment is owned by the [agent manifest](azure.yaml) and uses managed identity. Its `ai-project` service declares `model-router` and `gpt-5.4` deployments for provisioning; the hosted agent references that project. The manifest explicitly maps `FOUNDRY_PROJECT_ENDPOINT` and `INTERNAL_IDENTITY_SECRET` from the selected agent azd environment into the container. The signer must match the existing BFF signer; the agent environment does not inherit the BFF's local dotenv settings. An empty signer prevents startup through `Settings` validation and can surface as HTTP 424 / `session_not_ready`. Synchronize the existing value only with explicit authorization; never print it, rotate it as a workaround, or weaken validation. `AUTH_INTERNAL_SECRET` is a separate Identity introspection secret. Shared and per-agent environment settings select runtime deployments; manifest declarations and local tests do not verify available capacity or hosted end-to-end behavior.
+
+### Hosted source dependency installation
+
+The source deployment explicitly uses `dependencyResolution: remote_build`. Keep
+[requirements.txt](requirements.txt) synchronized with [uv.lock](uv.lock):
+
+```powershell
+rtk proxy uv export --project app\agent --frozen --no-dev --no-editable --no-hashes --no-header --output-file app\agent\requirements.txt
+```
+
+Run this command from the repository root. The deliberate `.` entry installs the
+local distribution noneditably, including `src/app` and its logging configuration.
+Do not add `--no-emit-project`: dependencies alone do not make this src-layout
+package importable. The source ZIP must retain `main.py`, `src/`, `pyproject.toml`,
+`README.md` and `requirements.txt`; moving the entrypoint alone does not install
+`app`. A reference project with a package at its root can import it without this
+installation, so that layout is not evidence of src-layout support.
+
+Hosted-agent CI checks the frozen export and installs the requirements into an
+isolated Python 3.13 environment. CD rejects a stale requirements artifact before
+deployment. These checks do not establish that the remote builder successfully
+installs the application: verify hosted build logs and `/readiness` returning HTTP
+200 after deployment before claiming the HTTP 424 startup failure is resolved.
 
 ### Optional per-agent model deployments
 

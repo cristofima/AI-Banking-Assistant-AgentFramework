@@ -1,6 +1,6 @@
 # Agent Customization
 
-The active workflow contains a triage agent plus Account and Transaction specialists. It is built in [hosted_workflow.py](app/agent/src/app/agents/azure_chat/hosted_workflow.py) and served through Foundry Responses by [main_responses_host.py](app/agent/src/app/main_responses_host.py).
+The active workflow contains a triage agent plus Account and Transaction specialists. It is built in [hosted_workflow.py](app/agent/src/app/agents/azure_chat/hosted_workflow.py) and served through Foundry Responses by [main.py](app/agent/main.py).
 
 ## Supported Changes
 

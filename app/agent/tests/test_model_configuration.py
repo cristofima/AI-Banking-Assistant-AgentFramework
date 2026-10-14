@@ -1,12 +1,20 @@
 """Offline checks for per-agent deployment selection and client reuse."""
 
+import importlib.util
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app import main_responses_host
 from app.agents.azure_chat import hosted_workflow
+
+
+entrypoint_path = Path(__file__).resolve().parents[1] / "main.py"
+entrypoint_spec = importlib.util.spec_from_file_location("banking_agent_entrypoint", entrypoint_path)
+assert entrypoint_spec is not None and entrypoint_spec.loader is not None
+main_responses_host = importlib.util.module_from_spec(entrypoint_spec)
+entrypoint_spec.loader.exec_module(main_responses_host)
 
 
 @pytest.mark.parametrize(

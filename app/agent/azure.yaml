@@ -31,7 +31,8 @@ services:
     language: python
     codeConfiguration:
       runtime: python_3_13
-      entryPoint: src/app/main_responses_host.py
+      entryPoint: main.py
+      dependencyResolution: remote_build
     uses:
       - ai-project
     kind: hosted
@@ -47,6 +48,7 @@ services:
       - protocol: responses
         version: 2.0.0
     env:
+      FOUNDRY_PROJECT_ENDPOINT: ${FOUNDRY_PROJECT_ENDPOINT}
       MODEL_DEPLOYMENT_NAME: ${MODEL_DEPLOYMENT_NAME}
       TRIAGE_MODEL_DEPLOYMENT_NAME: ${TRIAGE_MODEL_DEPLOYMENT_NAME}
       ACCOUNT_MODEL_DEPLOYMENT_NAME: ${ACCOUNT_MODEL_DEPLOYMENT_NAME}
