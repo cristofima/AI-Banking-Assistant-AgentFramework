@@ -1,22 +1,22 @@
 .
 agent-detector==2.0.0 ; sys_platform != 'emscripten'
     # via fastapi-cloud-cli
-agent-framework-core==1.19.0 ; sys_platform != 'emscripten'
+agent-framework-core==1.21.0 ; sys_platform != 'emscripten'
     # via
     #   agent-framework-foundry
     #   agent-framework-foundry-hosting
     #   agent-framework-openai
     #   agent-framework-orchestrations
     #   banking-assistant-agent
-agent-framework-foundry==1.13.1 ; sys_platform != 'emscripten'
+agent-framework-foundry==1.14.1 ; sys_platform != 'emscripten'
     # via banking-assistant-agent
-agent-framework-foundry-hosting==1.0.0b260918 ; sys_platform != 'emscripten'
+agent-framework-foundry-hosting==1.0.0b261008 ; sys_platform != 'emscripten'
     # via banking-assistant-agent
-agent-framework-openai==1.14.4 ; sys_platform != 'emscripten'
+agent-framework-openai==1.16.0 ; sys_platform != 'emscripten'
     # via
     #   agent-framework-foundry
     #   banking-assistant-agent
-agent-framework-orchestrations==1.2.0 ; sys_platform != 'emscripten'
+agent-framework-orchestrations==1.3.1 ; sys_platform != 'emscripten'
     # via banking-assistant-agent
 aiohappyeyeballs==2.7.1 ; sys_platform != 'emscripten'
     # via aiohttp
@@ -51,14 +51,14 @@ attrs==26.1.0 ; sys_platform != 'emscripten'
     #   aiohttp
     #   jsonschema
     #   referencing
-azure-ai-agentserver-core==2.1.0 ; sys_platform != 'emscripten'
+azure-ai-agentserver-core==2.2.0 ; sys_platform != 'emscripten'
     # via
     #   agent-framework-foundry-hosting
     #   azure-ai-agentserver-invocations
     #   azure-ai-agentserver-responses
-azure-ai-agentserver-invocations==1.1.0 ; sys_platform != 'emscripten'
+azure-ai-agentserver-invocations==1.2.0 ; sys_platform != 'emscripten'
     # via agent-framework-foundry-hosting
-azure-ai-agentserver-responses==2.2.0b1 ; sys_platform != 'emscripten'
+azure-ai-agentserver-responses==2.3.0 ; sys_platform != 'emscripten'
     # via
     #   agent-framework-foundry-hosting
     #   banking-assistant-agent
@@ -84,15 +84,15 @@ azure-core-tracing-opentelemetry==1.0.0b13 ; sys_platform != 'emscripten'
     # via
     #   azure-monitor-opentelemetry
     #   microsoft-opentelemetry
-azure-identity==1.25.3 ; sys_platform != 'emscripten'
+azure-identity==1.26.0 ; sys_platform != 'emscripten'
     # via
     #   azure-ai-agentserver-core
     #   azure-ai-projects
     #   azure-monitor-opentelemetry-exporter
     #   banking-assistant-agent
-azure-monitor-opentelemetry==1.8.10 ; sys_platform != 'emscripten'
+azure-monitor-opentelemetry==1.8.11 ; sys_platform != 'emscripten'
     # via banking-assistant-agent
-azure-monitor-opentelemetry-exporter==1.0.0b57 ; sys_platform != 'emscripten'
+azure-monitor-opentelemetry-exporter==1.0.0b58 ; sys_platform != 'emscripten'
     # via
     #   azure-monitor-opentelemetry
     #   microsoft-opentelemetry
@@ -212,7 +212,7 @@ mcp==1.30.0 ; sys_platform != 'emscripten'
     #   banking-assistant-agent
 mdurl==0.1.2 ; sys_platform != 'emscripten'
     # via markdown-it-py
-microsoft-opentelemetry==1.3.9 ; sys_platform != 'emscripten'
+microsoft-opentelemetry==1.4.0 ; sys_platform != 'emscripten'
     # via azure-ai-agentserver-core
 msal==1.39.0 ; sys_platform != 'emscripten'
     # via
@@ -234,13 +234,15 @@ openai==3.19.2 ; sys_platform != 'emscripten'
     # via
     #   agent-framework-openai
     #   azure-ai-projects
-opentelemetry-api==1.44.0 ; sys_platform != 'emscripten'
+opentelemetry-api==1.45.1 ; sys_platform != 'emscripten'
     # via
     #   agent-framework-core
     #   azure-ai-agentserver-core
+    #   azure-ai-agentserver-invocations
     #   azure-core-tracing-opentelemetry
     #   azure-monitor-opentelemetry-exporter
     #   microsoft-opentelemetry
+    #   opentelemetry-exporter-http-transport
     #   opentelemetry-exporter-otlp-proto-http
     #   opentelemetry-instrumentation
     #   opentelemetry-instrumentation-asgi
@@ -260,11 +262,15 @@ opentelemetry-api==1.44.0 ; sys_platform != 'emscripten'
     #   opentelemetry-sdk
     #   opentelemetry-semantic-conventions
     #   opentelemetry-util-genai
-opentelemetry-exporter-otlp-proto-common==1.44.0 ; sys_platform != 'emscripten'
+opentelemetry-exporter-http-transport==0.66b1 ; sys_platform != 'emscripten'
     # via opentelemetry-exporter-otlp-proto-http
-opentelemetry-exporter-otlp-proto-http==1.44.0 ; sys_platform != 'emscripten'
+opentelemetry-exporter-otlp-common==0.66b1 ; sys_platform != 'emscripten'
+    # via opentelemetry-exporter-otlp-proto-http
+opentelemetry-exporter-otlp-proto-common==1.45.1 ; sys_platform != 'emscripten'
+    # via opentelemetry-exporter-otlp-proto-http
+opentelemetry-exporter-otlp-proto-http==1.45.1 ; sys_platform != 'emscripten'
     # via microsoft-opentelemetry
-opentelemetry-instrumentation==0.65b0 ; sys_platform != 'emscripten'
+opentelemetry-instrumentation==0.66b1 ; sys_platform != 'emscripten'
     # via
     #   microsoft-opentelemetry
     #   opentelemetry-instrumentation-asgi
@@ -283,27 +289,27 @@ opentelemetry-instrumentation==0.65b0 ; sys_platform != 'emscripten'
     #   opentelemetry-instrumentation-wsgi
     #   opentelemetry-resource-detector-azure
     #   opentelemetry-util-genai
-opentelemetry-instrumentation-asgi==0.65b0 ; sys_platform != 'emscripten'
+opentelemetry-instrumentation-asgi==0.66b1 ; sys_platform != 'emscripten'
     # via opentelemetry-instrumentation-fastapi
-opentelemetry-instrumentation-dbapi==0.65b0 ; sys_platform != 'emscripten'
+opentelemetry-instrumentation-dbapi==0.66b1 ; sys_platform != 'emscripten'
     # via opentelemetry-instrumentation-psycopg2
-opentelemetry-instrumentation-django==0.65b0 ; sys_platform != 'emscripten'
+opentelemetry-instrumentation-django==0.66b1 ; sys_platform != 'emscripten'
     # via
     #   azure-monitor-opentelemetry
     #   microsoft-opentelemetry
-opentelemetry-instrumentation-fastapi==0.65b0 ; sys_platform != 'emscripten'
+opentelemetry-instrumentation-fastapi==0.66b1 ; sys_platform != 'emscripten'
     # via
     #   azure-monitor-opentelemetry
     #   microsoft-opentelemetry
-opentelemetry-instrumentation-flask==0.65b0 ; sys_platform != 'emscripten'
+opentelemetry-instrumentation-flask==0.66b1 ; sys_platform != 'emscripten'
     # via
     #   azure-monitor-opentelemetry
     #   microsoft-opentelemetry
-opentelemetry-instrumentation-httpx==0.65b0 ; sys_platform != 'emscripten'
+opentelemetry-instrumentation-httpx==0.66b1 ; sys_platform != 'emscripten'
     # via
     #   azure-monitor-opentelemetry
     #   microsoft-opentelemetry
-opentelemetry-instrumentation-logging==0.65b0 ; sys_platform != 'emscripten'
+opentelemetry-instrumentation-logging==0.66b1 ; sys_platform != 'emscripten'
     # via
     #   azure-monitor-opentelemetry
     #   microsoft-opentelemetry
@@ -311,44 +317,45 @@ opentelemetry-instrumentation-openai-agents-v2==0.1.0 ; sys_platform != 'emscrip
     # via microsoft-opentelemetry
 opentelemetry-instrumentation-openai-v2==2.3b0 ; sys_platform != 'emscripten'
     # via microsoft-opentelemetry
-opentelemetry-instrumentation-psycopg2==0.65b0 ; sys_platform != 'emscripten'
+opentelemetry-instrumentation-psycopg2==0.66b1 ; sys_platform != 'emscripten'
     # via
     #   azure-monitor-opentelemetry
     #   microsoft-opentelemetry
-opentelemetry-instrumentation-requests==0.65b0 ; sys_platform != 'emscripten'
+opentelemetry-instrumentation-requests==0.66b1 ; sys_platform != 'emscripten'
     # via
     #   azure-monitor-opentelemetry
     #   microsoft-opentelemetry
-opentelemetry-instrumentation-urllib==0.65b0 ; sys_platform != 'emscripten'
+opentelemetry-instrumentation-urllib==0.66b1 ; sys_platform != 'emscripten'
     # via
     #   azure-monitor-opentelemetry
     #   microsoft-opentelemetry
-opentelemetry-instrumentation-urllib3==0.65b0 ; sys_platform != 'emscripten'
+opentelemetry-instrumentation-urllib3==0.66b1 ; sys_platform != 'emscripten'
     # via
     #   azure-monitor-opentelemetry
     #   microsoft-opentelemetry
-opentelemetry-instrumentation-wsgi==0.65b0 ; sys_platform != 'emscripten'
+opentelemetry-instrumentation-wsgi==0.66b1 ; sys_platform != 'emscripten'
     # via
     #   opentelemetry-instrumentation-django
     #   opentelemetry-instrumentation-flask
-opentelemetry-proto==1.44.0 ; sys_platform != 'emscripten'
+opentelemetry-proto==1.45.1 ; sys_platform != 'emscripten'
     # via
     #   opentelemetry-exporter-otlp-proto-common
     #   opentelemetry-exporter-otlp-proto-http
-opentelemetry-resource-detector-azure==0.2.0 ; sys_platform != 'emscripten'
+opentelemetry-resource-detector-azure==0.3.0 ; sys_platform != 'emscripten'
     # via
     #   azure-monitor-opentelemetry
     #   microsoft-opentelemetry
-opentelemetry-sdk==1.44.0 ; sys_platform != 'emscripten'
+opentelemetry-sdk==1.45.1 ; sys_platform != 'emscripten'
     # via
     #   azure-ai-agentserver-core
     #   azure-monitor-opentelemetry
     #   azure-monitor-opentelemetry-exporter
     #   microsoft-opentelemetry
+    #   opentelemetry-exporter-otlp-common
     #   opentelemetry-exporter-otlp-proto-http
     #   opentelemetry-resource-detector-azure
     #   opentelemetry-semantic-conventions-ai
-opentelemetry-semantic-conventions==0.65b0 ; sys_platform != 'emscripten'
+opentelemetry-semantic-conventions==0.66b1 ; sys_platform != 'emscripten'
     # via
     #   opentelemetry-instrumentation
     #   opentelemetry-instrumentation-asgi
@@ -373,7 +380,7 @@ opentelemetry-util-genai==0.3b0 ; sys_platform != 'emscripten'
     # via
     #   microsoft-opentelemetry
     #   opentelemetry-instrumentation-openai-agents-v2
-opentelemetry-util-http==0.65b0 ; sys_platform != 'emscripten'
+opentelemetry-util-http==0.66b1 ; sys_platform != 'emscripten'
     # via
     #   opentelemetry-instrumentation-asgi
     #   opentelemetry-instrumentation-django
@@ -446,12 +453,15 @@ referencing==0.37.0 ; sys_platform != 'emscripten'
     # via
     #   jsonschema
     #   jsonschema-specifications
+regex==2026.9.29 ; sys_platform != 'emscripten'
+    # via agent-framework-core
 requests==2.34.2 ; sys_platform != 'emscripten'
     # via
     #   azure-core
     #   microsoft-opentelemetry
     #   msal
     #   msrest
+    #   opentelemetry-exporter-http-transport
     #   opentelemetry-exporter-otlp-proto-http
     #   requests-oauthlib
 requests-oauthlib==2.0.0 ; sys_platform != 'emscripten'

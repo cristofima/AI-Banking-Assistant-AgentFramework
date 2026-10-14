@@ -8,8 +8,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from agent_framework import (
-    Agent, AgentContext, AgentResponse, AgentResponseUpdate, AgentSession, BaseChatClient, ChatResponse,
-    ChatResponseUpdate, Content, Message, ResponseStream, WorkflowAgent, tool,
+    Agent, AgentContext, AgentResponse, AgentResponseUpdate, AgentSession, ChatResponse,
+    ChatResponseUpdate, Content, InMemoryCheckpointStorage, Message, ResponseStream, WorkflowAgent,
+    tool,
 )
 from agent_framework.foundry import FoundryChatClient
 from agent_framework.orchestrations import HandoffBuilder
@@ -27,7 +28,6 @@ from app.agents.azure_chat.transaction_agent import TransactionHistoryAgent
 from app.adapters.no_history_provider import NoHistoryProvider
 from app.adapters.handoff_middleware import HandoffNarrationMiddleware
 from app.adapters.tool_error_middleware import OwnershipErrorMiddleware
-from app.adapters.isolated_responses_host import IsolatedResponsesHostServer
 from app.context.user_profile_provider import UserProfileProvider
 
 
@@ -258,32 +258,6 @@ async def test_foundry_function_loop_handoff_queries_account_and_finishes(
     assert not any(event.type == "request_info" for event in events)
     assert any("ACCESS_DENIED" in result for result in model_results) == denied
 
-    def create_agent() -> WorkflowAgent:
-        return HandoffBuilder(
-            participants=[triage, specialist], termination_condition=_has_completed_agent_response,
-        ).with_start_agent(triage).add_handoff(triage, [specialist]).build().as_agent(
-            name="home_banking_agent",
-        )
-
-    host = IsolatedResponsesHostServer(create_agent)
-
-    async def run_request(
-        server: ResponsesHostServer, *args: Any, **kwargs: Any,
-    ) -> AsyncIterator[AgentResponse]:
-        yield await server._agent.run(
-            "Show a different account", session=AgentSession(), stream=True,
-        ).get_final_response()
-
-    with patch.object(client, "_inner_get_response", model_response):
-        with patch.object(ResponsesHostServer, "_handle_inner_workflow", run_request):
-            responses = [response async for response in host._handle_inner_workflow()]
-
-    assert lookup_numbers == ["ACCOUNT-NUMBER", "ACCOUNT-NUMBER"]
-    response = responses[0]
-    assert response.text == (
-        "The requested account is unavailable." if denied else "Your balance is USD 12.00."
-    )
-
 
 @pytest.mark.parametrize("decision", ["accept", "decline", "unclear", "rest-accepted"])
 async def test_dispute_sdk_continuation_preserves_proposal_and_receipt(decision: str) -> None:
@@ -377,37 +351,160 @@ async def test_dispute_sdk_continuation_preserves_proposal_and_receipt(decision:
     assert "synthetic-preview" not in receipt.text
 
 
-async def test_host_isolates_concurrent_workflow_requests() -> None:
+@pytest.mark.parametrize("peer_outcome", ["success", "error", "cancellation"])
+async def test_host_isolates_concurrent_workflow_requests(peer_outcome: str) -> None:
+    client = FoundryChatClient(
+        project_endpoint="https://example.services.ai.azure.com/api/projects/test",
+        model="test-model", credential=MagicMock(),
+    )
+    entered = {name: asyncio.Event() for name in ("primary", "peer", "later")}
+    release = {name: asyncio.Event() for name in entered}
+    exited = {name: asyncio.Event() for name in entered}
+    model_inputs: dict[str, list[list[str]]] = {name: [] for name in entered}
+    request_agents: dict[str, WorkflowAgent] = {}
+    outputs: dict[str, list[str]] = {name: [] for name in entered}
+
+    def model_response(*args: Any, **kwargs: Any) -> ResponseStream:
+        texts = [message.text for message in kwargs["messages"]]
+        name = next(name for name in entered if f"Request {name}" in texts)
+        model_inputs[name].append(texts)
+        is_triage = kwargs["options"]["instructions"] == "Route requests"
+
+        async def updates() -> AsyncIterator[ChatResponseUpdate]:
+            if is_triage:
+                contents = [Content.from_function_call(
+                    f"handoff-{name}", "handoff_to_AccountAgent", arguments="{}",
+                )]
+            else:
+                entered[name].set()
+                try:
+                    await release[name].wait()
+                    if name == "peer" and peer_outcome == "error":
+                        raise RuntimeError("synthetic model failure")
+                    contents = [Content.from_text(f"Answer {name}")]
+                finally:
+                    exited[name].set()
+            yield ChatResponseUpdate(role="assistant", contents=contents)
+
+        return ResponseStream(updates(), finalizer=ChatResponse.from_updates)
+
     def create_agent() -> WorkflowAgent:
-        return build_hosted_workflow(
-            MagicMock(), "http://127.0.0.1:1/mcp", "http://127.0.0.1:2/mcp",
-            "test-secret-key-with-at-least-32-bytes",
-        ).as_agent(name="home_banking_agent")
+        triage = Agent(
+            client=client, name="triage_agent", instructions="Route requests",
+            context_providers=[NoHistoryProvider()],
+            middleware=[HandoffNarrationMiddleware()],
+            require_per_service_call_history_persistence=True,
+        )
+        specialist = Agent(
+            client=client, name="AccountAgent", instructions="Find balances",
+            context_providers=[NoHistoryProvider()],
+            require_per_service_call_history_persistence=True,
+        )
+        return HandoffBuilder(
+            participants=[triage, specialist], termination_condition=_has_completed_agent_response,
+        ).with_start_agent(triage).add_handoff(triage, [specialist]).build().as_agent(
+            name="home_banking_agent",
+        )
 
-    host = IsolatedResponsesHostServer(create_agent)
-    template = host._agent
-    request_agents: list[WorkflowAgent] = []
-    both_started = asyncio.Event()
+    host = ResponsesHostServer(create_agent)
+    stores: dict[str, InMemoryCheckpointStorage] = {}
+    host._checkpoint_storage_provider = MagicMock()
+    host._checkpoint_storage_provider.get_store.side_effect = lambda **kwargs: stores.setdefault(
+        kwargs["context_id"], InMemoryCheckpointStorage(),
+    )
+    host._function_approval_storage_provider = MagicMock()
 
-    async def handle_request(
-        server: ResponsesHostServer, *args: Any, **kwargs: Any,
-    ) -> AsyncIterator[WorkflowAgent]:
-        request_agents.append(server._agent)
-        if len(request_agents) == 2:
-            both_started.set()
-        await both_started.wait()
-        yield server._agent
+    async def run_prepared(
+        server: ResponsesHostServer, request: Any, context: Any,
+        cancellation_signal: Any, response_event_stream: Any, agent: WorkflowAgent,
+        *args: Any,
+    ) -> AsyncIterator[Any]:
+        name = request["input"].removeprefix("Request ")
+        request_agents[name] = agent
+        tracker = MagicMock()
 
-    async def consume() -> list[WorkflowAgent]:
-        return [agent async for agent in host._handle_inner_workflow()]
+        async def handle_update(update: Any, **kwargs: Any) -> AsyncIterator[Any]:
+            for content in update.contents:
+                if content.type == "text":
+                    outputs[name].append(content.text or "")
+            if False:
+                yield None
 
-    with patch.object(ResponsesHostServer, "_handle_inner_workflow", handle_request):
-        results = await asyncio.gather(consume(), consume())
+        tracker.handle_update = handle_update
+        async for event in server._handle_inner_workflow(
+            request, context, response_event_stream, tracker, cancellation_signal, agent,
+        ):
+            yield event
 
-    assert results == [[request_agents[0]], [request_agents[1]]]
-    assert request_agents[0].workflow is not request_agents[1].workflow
-    assert all(agent is not template for agent in request_agents)
-    assert host._agent is template
+    async def consume(name: str, cancellation: asyncio.Event) -> None:
+        context = MagicMock()
+        context.get_input_items = AsyncMock(return_value=[{
+            "type": "message", "role": "user", "content": f"Request {name}",
+        }])
+        context.response_id = f"response-{name}"
+        context.conversation_id = None
+        context.is_recovery = False
+        context.shutdown = asyncio.Event()
+        request = {"model": "test-model", "input": f"Request {name}"}
+        async for _ in host._handle_response(request, context, cancellation):
+            pass
+
+    cancellation = asyncio.Event()
+    with patch.object(client, "_inner_get_response", model_response), patch.object(
+        ResponsesHostServer, "_handle_prepared_response", run_prepared,
+    ), patch(
+        "agent_framework_foundry_hosting._responses.get_request_context",
+        return_value=MagicMock(session_id=None, user_id=None, call_id=None),
+    ):
+        primary = asyncio.create_task(consume("primary", asyncio.Event()))
+        peer = asyncio.create_task(consume("peer", cancellation))
+        try:
+            async with asyncio.timeout(10):
+                await asyncio.gather(entered["primary"].wait(), entered["peer"].wait())
+                assert not primary.done()
+                assert not peer.done()
+                if peer_outcome == "cancellation":
+                    cancellation.set()
+                else:
+                    release["peer"].set()
+                if peer_outcome == "error":
+                    with pytest.raises(RuntimeError, match="synthetic model failure"):
+                        await peer
+                else:
+                    await peer
+                await exited["peer"].wait()
+                assert not primary.done()
+                assert not exited["primary"].is_set()
+                assert outputs["primary"] == []
+                release["primary"].set()
+                await primary
+                release["later"].set()
+                await consume("later", asyncio.Event())
+        finally:
+            for task in (primary, peer):
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(primary, peer, return_exceptions=True)
+
+    assert outputs == {
+        "primary": ["Answer primary"],
+        "peer": ["Answer peer"] if peer_outcome == "success" else [],
+        "later": ["Answer later"],
+    }
+    agents = list(request_agents.values())
+    assert len(agents) == 3
+    assert len({id(agent) for agent in agents}) == 3
+    assert len({id(agent.workflow) for agent in agents}) == 3
+    for executor_id in agents[0].workflow.executors:
+        assert len({id(agent.workflow.executors[executor_id]) for agent in agents}) == 3
+    assert set(stores) == {"response-primary", "response-peer", "response-later"}
+    assert len({id(store) for store in stores.values()}) == 3
+    for name, calls in model_inputs.items():
+        assert len(calls) == 2
+        for texts in calls:
+            assert texts.count(f"Request {name}") == 1
+            assert not any(f"Request {other}" in texts for other in entered if other != name)
+    assert host._agent_source is create_agent
 
 
 @pytest.mark.parametrize("stream", [False, True])
@@ -448,91 +545,61 @@ async def test_ownership_error_is_safe_and_operational_errors_are_not_denials() 
         )
 
 
-async def test_streaming_handoff_emits_specialist_response() -> None:
-    async def updates(agent_name: str) -> AsyncIterator[AgentResponseUpdate]:
-        if agent_name == "triage_agent":
-            yield AgentResponseUpdate(role="assistant", author_name=agent_name, contents=[
-                Content(type="text", text="Transferring you to the account specialist."),
-                Content.from_function_call("handoff-call", "handoff_to_AccountAgent", arguments="{}"),
-            ])
-            yield AgentResponseUpdate(role="tool", author_name=agent_name, contents=[
-                Content(type="function_result", call_id="handoff-call",
-                        result={"handoff_to": "AccountAgent"}),
-            ])
-        else:
-            yield AgentResponseUpdate(role="assistant", author_name=agent_name, contents=[
-                Content(type="text", text="The requested account is unavailable."),
-            ])
+@pytest.mark.parametrize("stream", [False, True])
+async def test_handoff_executes_correlated_tool_before_specialist(stream: bool) -> None:
+    client = FoundryChatClient(
+        project_endpoint="https://example.services.ai.azure.com/api/projects/test",
+        model="test-model", credential=MagicMock(),
+    )
+    model_calls: list[str] = []
 
-    def run_agent(agent: Agent, *args: object, **kwargs: object) -> ResponseStream:
-        async def sanitized_updates() -> AsyncIterator[AgentResponseUpdate]:
-            context = AgentContext(agent=agent, messages=[], stream=True)
-            context.result = ResponseStream(updates(agent.name), finalizer=AgentResponse.from_updates)
-            await HandoffNarrationMiddleware().process(context, AsyncMock())
-            async for update in context.result:
-                yield update
+    def model_response(*args: Any, **kwargs: Any) -> Any:
+        instructions = kwargs.get("options", {}).get("instructions", "")
+        model_calls.append(instructions)
+        contents = (
+            [Content.from_text("Transferring you to the account specialist."),
+             Content.from_function_call(
+                 "handoff-call", "handoff_to_AccountAgent", arguments="{}",
+             )] if instructions == "Route requests"
+            else [Content.from_text("The requested account is unavailable.")]
+        )
+        if not kwargs.get("stream", False):
+            async def response() -> ChatResponse:
+                return ChatResponse(messages=[Message(role="assistant", contents=contents)])
 
-        return ResponseStream(sanitized_updates(), finalizer=AgentResponse.from_updates)
+            return response()
 
-    participants = [
-        Agent(client=MagicMock(), name=name,
-              require_per_service_call_history_persistence=True,
-              context_providers=[NoHistoryProvider()])
-        for name in ("triage_agent", "AccountAgent")
-    ]
+        async def updates() -> AsyncIterator[ChatResponseUpdate]:
+            yield ChatResponseUpdate(role="assistant", contents=contents)
+
+        return ResponseStream(updates(), finalizer=ChatResponse.from_updates)
+
+    triage = Agent(
+        client=client, name="triage_agent", instructions="Route requests",
+        middleware=[HandoffNarrationMiddleware()],
+        require_per_service_call_history_persistence=True,
+        context_providers=[NoHistoryProvider()],
+    )
+    specialist = Agent(
+        client=client, name="AccountAgent", instructions="Find balances",
+        require_per_service_call_history_persistence=True,
+        context_providers=[NoHistoryProvider()],
+    )
     workflow = HandoffBuilder(
-        participants=participants,
-        termination_condition=_has_completed_agent_response,
-    ).with_start_agent(participants[0]).build()
+        participants=[triage, specialist], termination_condition=_has_completed_agent_response,
+    ).with_start_agent(triage).add_handoff(triage, [specialist]).build()
 
-    with patch.object(Agent, "run", run_agent):
-        events = [event async for event in workflow.run("Show account details", stream=True)]
+    with patch.object(client, "_inner_get_response", model_response):
+        if stream:
+            events = [event async for event in workflow.run("Show account details", stream=True)]
+        else:
+            events = await workflow.run("Show account details")
 
+    assert model_calls == ["Route requests", "Find balances"]
     assert any(
-        event.type == "output" and event.data.author_name == "AccountAgent"
-        and event.data.text == "The requested account is unavailable."
+        event.type == "output" and event.data.text == "The requested account is unavailable."
         for event in events
     )
-
-
-async def test_handoff_reaches_specialist_before_terminating() -> None:
-    client = MagicMock(spec=BaseChatClient)
-    client.get_response = AsyncMock(
-        side_effect=[
-            ChatResponse(messages=[
-                Message(role="assistant", contents=[
-                    Content.from_function_call(
-                        "handoff-call", "handoff_to_AccountAgent", arguments="{}"
-                    ),
-                ], author_name="triage_agent"),
-                Message(role="tool", contents=[Content(
-                    type="function_result",
-                    call_id="handoff-call",
-                    result={"handoff_to": "AccountAgent"},
-                )]),
-            ]),
-            ChatResponse(messages=[Message(role="assistant", contents=[
-                "The requested account is unavailable.",
-            ], author_name="AccountAgent")]),
-        ]
-    )
-    participants = [
-        Agent(
-            client=client,
-            name=name,
-            require_per_service_call_history_persistence=True,
-            context_providers=[NoHistoryProvider()],
-        )
-        for name in ("triage_agent", "AccountAgent")
-    ]
-    workflow = HandoffBuilder(
-        participants=participants,
-        termination_condition=_has_completed_agent_response,
-    ).with_start_agent(participants[0]).build()
-
-    await workflow.run("Show details for the requested account")
-
-    assert client.get_response.call_count == 2
 
 
 def test_tool_only_or_empty_assistant_message_does_not_complete_turn() -> None:

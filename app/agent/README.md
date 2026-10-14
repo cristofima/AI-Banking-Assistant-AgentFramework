@@ -348,11 +348,28 @@ cancellation and temporary versus saved case-history limits. This follows the
 [Microsoft multi-turn guidance](https://learn.microsoft.com/azure/foundry/how-to/develop/framework-hosted-agents#multi-turn-conversations);
 offline checkpoint tests do not establish live hosted acceptance.
 
-[The isolated host](src/app/adapters/isolated_responses_host.py) builds a fresh workflow
-for each request. The hosting runtime restores the matching conversation checkpoint
-inside that request before delivering new input; different requests do not share
-mutable executor state. This uses an internal extension point of the installed
-hosting SDK and must be revalidated when upgrading it.
+[The entrypoint](main.py) passes a zero-argument factory to the native
+`ResponsesHostServer`. It builds a fresh workflow for each request while reusing
+clients by deployment. The runtime restores the matching checkpoint before
+new input; requests never share mutable graphs or executors.
+[Native-host tests](tests/test_hosted_workflow.py) execute factory-produced workflows
+under interleaved success, error and cancellation paths. The pinned hosting beta
+still deprecates `WorkflowAgent` hosting; its supported fresh-factory path preserves
+our checkpoint/context semantics without migrating to a different workflow API.
+
+The entrypoint explicitly retains a 100-item transport history limit because
+Responses 2.3.0 otherwise defaults to unlimited history. Workflow continuation uses
+checkpoints, not that transport history; fresh input and immutable intake snapshots
+are not truncated by this limit. [History tests](tests/test_responses_history.py)
+cover the 99/100/101 boundaries and prefetched history IDs.
+
+[Telemetry startup](src/app/telemetry.py) selects `AGENTSERVER_FLUSH_MODE=async`
+before host construction. Export runs off the event loop but remains awaited;
+cancellation/shutdown must not abandon an active flush.
+[Mocked lifecycle tests](tests/test_telemetry_lifecycle.py) cover success, failures,
+cancellation and shutdown admission without network exporters. This is telemetry
+lifecycle protection, not durable business execution. Windows offline tests and
+noneditable Python 3.13 installation do not prove Linux or hosted readiness.
 
 [The checkpoint-aware handoff builder](src/app/adapters/checkpointed_handoff.py)
 also synchronizes each fresh restored turn to the specialists before routing.
