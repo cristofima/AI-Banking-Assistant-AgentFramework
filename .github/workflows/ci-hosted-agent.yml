@@ -59,10 +59,19 @@ jobs:
           set -euo pipefail
           package_dir="$(mktemp -d)"
           trap 'rm -rf "$package_dir"' EXIT
-          cp app/agent/pyproject.toml app/agent/uv.lock app/agent/README.md "$package_dir/"
+          cp app/agent/pyproject.toml app/agent/uv.lock app/agent/README.md \
+             app/agent/requirements.txt app/agent/main.py "$package_dir/"
           cp -R app/agent/src "$package_dir/src"
           uv lock --project "$package_dir" --check
-          uv sync --project "$package_dir" --python 3.13 --dev --frozen
+          cd "$package_dir"
+          uv export --frozen --no-dev --no-editable --no-hashes --no-header \
+            --output-file requirements.generated.txt > /dev/null
+          diff -u requirements.txt requirements.generated.txt
+          uv venv --python 3.13 .venv
+          uv pip install --python .venv/bin/python --requirements requirements.txt
+          .venv/bin/python -c "import main"
+          cd ..
+          "$package_dir/.venv/bin/python" -c "import app; from importlib.resources import files; assert all('site-packages' in path for path in app.__path__); assert files('app').joinpath('logging-default.yaml').is_file()"
       - name: Install agent and evaluation dependencies
         run: uv sync --project evals --extra offline --extra model --frozen
       - name: Compile agent source

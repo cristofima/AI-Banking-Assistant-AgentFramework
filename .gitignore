@@ -56,7 +56,7 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
-
+.github/skills/*
 # Temporary shared package copies created by azd prepackage hooks
 app/business-api/account/banking_shared/
 app/business-api/transaction/banking_shared/
@@ -188,3 +188,5 @@ uploads
 *.db
 *.db-shm
 *.db-wal
+
+articles/*

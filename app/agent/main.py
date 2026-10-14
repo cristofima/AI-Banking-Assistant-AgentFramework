@@ -2,14 +2,15 @@
 
 import asyncio
 
+from agent_framework import WorkflowAgent
 from agent_framework.foundry import FoundryChatClient
 from agent_framework_foundry_hosting import ResponsesHostServer
+from azure.ai.agentserver.responses import ResponsesServerOptions
 
 from app.agents.azure_chat.hosted_workflow import build_hosted_workflow
 from app.config.azure_credential import get_azure_credential
 from app.config.settings import settings
-from app.adapters.isolated_responses_host import IsolatedResponsesHostServer
-from agent_framework import WorkflowAgent
+from app.telemetry import configure_telemetry_flush
 
 
 def _required_setting(value: str | None, name: str) -> str:
@@ -62,7 +63,10 @@ def create_server() -> ResponsesHostServer:
             description="Answers authenticated account and transaction questions.",
         )
 
-    return IsolatedResponsesHostServer(create_agent)
+    configure_telemetry_flush()
+    return ResponsesHostServer(
+        create_agent, options=ResponsesServerOptions(default_fetch_history_count=100),
+    )
 
 
 async def main() -> None:

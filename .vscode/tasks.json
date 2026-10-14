@@ -96,7 +96,7 @@
     {
       "label": "run responses agent dev",
       "type": "shell",
-      "command": "uv run --env-file .env python -m app.main_responses_host",
+      "command": "uv run --env-file .env python main.py",
       "options": {
         "cwd": "${workspaceFolder}/app/agent",
         "env": {

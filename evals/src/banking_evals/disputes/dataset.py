@@ -108,6 +108,7 @@ def required_dependencies() -> set[str]:
         for path in directory.rglob("*.py")
     }
     paths.update({
+        "app/agent/main.py",
         "app/business-api/transaction/src/banking_transaction/__init__.py",
         "app/business-api/transaction/src/banking_transaction/models/__init__.py",
         "app/business-api/transaction/src/banking_transaction/models/conversation.py",

@@ -1,0 +1,563 @@
+.
+agent-detector==2.0.0 ; sys_platform != 'emscripten'
+    # via fastapi-cloud-cli
+agent-framework-core==1.21.0 ; sys_platform != 'emscripten'
+    # via
+    #   agent-framework-foundry
+    #   agent-framework-foundry-hosting
+    #   agent-framework-openai
+    #   agent-framework-orchestrations
+    #   banking-assistant-agent
+agent-framework-foundry==1.14.1 ; sys_platform != 'emscripten'
+    # via banking-assistant-agent
+agent-framework-foundry-hosting==1.0.0b261008 ; sys_platform != 'emscripten'
+    # via banking-assistant-agent
+agent-framework-openai==1.16.0 ; sys_platform != 'emscripten'
+    # via
+    #   agent-framework-foundry
+    #   banking-assistant-agent
+agent-framework-orchestrations==1.3.1 ; sys_platform != 'emscripten'
+    # via banking-assistant-agent
+aiohappyeyeballs==2.7.1 ; sys_platform != 'emscripten'
+    # via aiohttp
+aiohttp==3.13.5 ; sys_platform != 'emscripten'
+    # via
+    #   agent-framework-foundry
+    #   azure-ai-agentserver-core
+    #   azure-ai-agentserver-invocations
+    #   azure-ai-agentserver-responses
+    #   microsoft-opentelemetry
+aiosignal==1.4.0 ; sys_platform != 'emscripten'
+    # via aiohttp
+annotated-doc==0.0.5 ; sys_platform != 'emscripten'
+    # via
+    #   fastapi
+    #   typer
+annotated-types==0.8.0 ; sys_platform != 'emscripten'
+    # via pydantic
+anyio==4.15.1 ; sys_platform != 'emscripten'
+    # via
+    #   httpx
+    #   httpx2
+    #   mcp
+    #   openai
+    #   sse-starlette
+    #   starlette
+    #   watchfiles
+asgiref==3.12.1 ; sys_platform != 'emscripten'
+    # via opentelemetry-instrumentation-asgi
+attrs==26.1.0 ; sys_platform != 'emscripten'
+    # via
+    #   aiohttp
+    #   jsonschema
+    #   referencing
+azure-ai-agentserver-core==2.2.0 ; sys_platform != 'emscripten'
+    # via
+    #   agent-framework-foundry-hosting
+    #   azure-ai-agentserver-invocations
+    #   azure-ai-agentserver-responses
+azure-ai-agentserver-invocations==1.2.0 ; sys_platform != 'emscripten'
+    # via agent-framework-foundry-hosting
+azure-ai-agentserver-responses==2.3.0 ; sys_platform != 'emscripten'
+    # via
+    #   agent-framework-foundry-hosting
+    #   banking-assistant-agent
+azure-ai-inference==1.0.0b9 ; sys_platform != 'emscripten'
+    # via agent-framework-foundry
+azure-ai-projects==2.6.1 ; sys_platform != 'emscripten'
+    # via agent-framework-foundry
+azure-core==1.41.0 ; sys_platform != 'emscripten'
+    # via
+    #   azure-ai-agentserver-core
+    #   azure-ai-agentserver-invocations
+    #   azure-ai-agentserver-responses
+    #   azure-ai-inference
+    #   azure-ai-projects
+    #   azure-core-tracing-opentelemetry
+    #   azure-identity
+    #   azure-monitor-opentelemetry
+    #   azure-monitor-opentelemetry-exporter
+    #   azure-storage-blob
+    #   microsoft-opentelemetry
+    #   msrest
+azure-core-tracing-opentelemetry==1.0.0b13 ; sys_platform != 'emscripten'
+    # via
+    #   azure-monitor-opentelemetry
+    #   microsoft-opentelemetry
+azure-identity==1.26.0 ; sys_platform != 'emscripten'
+    # via
+    #   azure-ai-agentserver-core
+    #   azure-ai-projects
+    #   azure-monitor-opentelemetry-exporter
+    #   banking-assistant-agent
+azure-monitor-opentelemetry==1.8.11 ; sys_platform != 'emscripten'
+    # via banking-assistant-agent
+azure-monitor-opentelemetry-exporter==1.0.0b58 ; sys_platform != 'emscripten'
+    # via
+    #   azure-monitor-opentelemetry
+    #   microsoft-opentelemetry
+azure-storage-blob==12.30.3 ; sys_platform != 'emscripten'
+    # via azure-ai-projects
+certifi==2026.7.22 ; sys_platform != 'emscripten'
+    # via
+    #   httpcore
+    #   httpx
+    #   msrest
+    #   requests
+    #   sentry-sdk
+cffi==2.1.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'
+    # via cryptography
+charset-normalizer==3.5.1 ; sys_platform != 'emscripten'
+    # via requests
+click==8.5.0 ; sys_platform != 'emscripten'
+    # via
+    #   rich-toolkit
+    #   uvicorn
+colorama==0.4.6 ; sys_platform == 'win32'
+    # via typer
+cryptography==50.0.1 ; sys_platform != 'emscripten'
+    # via
+    #   azure-identity
+    #   azure-storage-blob
+    #   msal
+    #   pyjwt
+detect-installer==0.2.1 ; sys_platform != 'emscripten'
+    # via fastapi-cloud-cli
+dnspython==2.8.0 ; sys_platform != 'emscripten'
+    # via email-validator
+email-validator==2.3.0 ; sys_platform != 'emscripten'
+    # via
+    #   fastapi
+    #   pydantic
+fastapi==0.141.1 ; sys_platform != 'emscripten'
+    # via banking-assistant-agent
+fastapi-cli==0.0.32 ; sys_platform != 'emscripten'
+    # via fastapi
+fastapi-cloud-cli==0.26.0 ; sys_platform != 'emscripten'
+    # via fastapi-cli
+fastar==0.12.0 ; sys_platform != 'emscripten'
+    # via fastapi-cloud-cli
+frozenlist==1.8.0 ; sys_platform != 'emscripten'
+    # via
+    #   aiohttp
+    #   aiosignal
+googleapis-common-protos==1.75.4 ; sys_platform != 'emscripten'
+    # via opentelemetry-exporter-otlp-proto-http
+h11==0.16.0 ; sys_platform != 'emscripten'
+    # via
+    #   httpcore
+    #   httpcore2
+    #   hypercorn
+    #   uvicorn
+    #   wsproto
+h2==4.4.1 ; sys_platform != 'emscripten'
+    # via hypercorn
+hpack==4.2.0 ; sys_platform != 'emscripten'
+    # via h2
+httpcore==1.0.9 ; sys_platform != 'emscripten'
+    # via httpx
+httpcore2==2.13.1 ; sys_platform != 'emscripten'
+    # via httpx2
+httptools==0.8.0 ; sys_platform != 'emscripten'
+    # via uvicorn
+httpx==0.28.1 ; sys_platform != 'emscripten'
+    # via
+    #   agent-framework-foundry
+    #   agent-framework-foundry-hosting
+    #   banking-assistant-agent
+    #   fastapi
+    #   fastapi-cloud-cli
+    #   mcp
+httpx-sse==0.4.3 ; sys_platform != 'emscripten'
+    # via mcp
+httpx2==2.13.1 ; sys_platform != 'emscripten'
+    # via openai
+hypercorn==0.18.0 ; sys_platform != 'emscripten'
+    # via azure-ai-agentserver-core
+hyperframe==6.1.0 ; sys_platform != 'emscripten'
+    # via h2
+idna==3.20 ; sys_platform != 'emscripten'
+    # via
+    #   anyio
+    #   email-validator
+    #   httpx
+    #   httpx2
+    #   requests
+    #   yarl
+isodate==0.7.2 ; sys_platform != 'emscripten'
+    # via
+    #   azure-ai-agentserver-core
+    #   azure-ai-agentserver-responses
+    #   azure-ai-inference
+    #   azure-ai-projects
+    #   azure-storage-blob
+    #   msrest
+itsdangerous==2.2.0 ; sys_platform != 'emscripten'
+    # via fastapi
+jinja2==3.1.6 ; sys_platform != 'emscripten'
+    # via fastapi
+jiter==0.17.0 ; sys_platform != 'emscripten'
+    # via openai
+jsonschema==4.26.0 ; sys_platform != 'emscripten'
+    # via mcp
+jsonschema-specifications==2025.9.1 ; sys_platform != 'emscripten'
+    # via jsonschema
+markdown-it-py==4.2.0 ; sys_platform != 'emscripten'
+    # via rich
+markupsafe==3.0.3 ; sys_platform != 'emscripten'
+    # via jinja2
+mcp==1.30.0 ; sys_platform != 'emscripten'
+    # via
+    #   agent-framework-foundry-hosting
+    #   banking-assistant-agent
+mdurl==0.1.2 ; sys_platform != 'emscripten'
+    # via markdown-it-py
+microsoft-opentelemetry==1.4.0 ; sys_platform != 'emscripten'
+    # via azure-ai-agentserver-core
+msal==1.39.0 ; sys_platform != 'emscripten'
+    # via
+    #   azure-identity
+    #   msal-extensions
+msal-extensions==1.3.1 ; sys_platform != 'emscripten'
+    # via azure-identity
+msgspec==0.21.1 ; sys_platform != 'emscripten'
+    # via agent-framework-core
+msrest==0.7.1 ; sys_platform != 'emscripten'
+    # via azure-monitor-opentelemetry-exporter
+multidict==6.9.1 ; sys_platform != 'emscripten'
+    # via
+    #   aiohttp
+    #   yarl
+oauthlib==3.3.1 ; sys_platform != 'emscripten'
+    # via requests-oauthlib
+openai==3.19.2 ; sys_platform != 'emscripten'
+    # via
+    #   agent-framework-openai
+    #   azure-ai-projects
+opentelemetry-api==1.45.1 ; sys_platform != 'emscripten'
+    # via
+    #   agent-framework-core
+    #   azure-ai-agentserver-core
+    #   azure-ai-agentserver-invocations
+    #   azure-core-tracing-opentelemetry
+    #   azure-monitor-opentelemetry-exporter
+    #   microsoft-opentelemetry
+    #   opentelemetry-exporter-http-transport
+    #   opentelemetry-exporter-otlp-proto-http
+    #   opentelemetry-instrumentation
+    #   opentelemetry-instrumentation-asgi
+    #   opentelemetry-instrumentation-dbapi
+    #   opentelemetry-instrumentation-django
+    #   opentelemetry-instrumentation-fastapi
+    #   opentelemetry-instrumentation-flask
+    #   opentelemetry-instrumentation-httpx
+    #   opentelemetry-instrumentation-logging
+    #   opentelemetry-instrumentation-openai-agents-v2
+    #   opentelemetry-instrumentation-openai-v2
+    #   opentelemetry-instrumentation-psycopg2
+    #   opentelemetry-instrumentation-requests
+    #   opentelemetry-instrumentation-urllib
+    #   opentelemetry-instrumentation-urllib3
+    #   opentelemetry-instrumentation-wsgi
+    #   opentelemetry-sdk
+    #   opentelemetry-semantic-conventions
+    #   opentelemetry-util-genai
+opentelemetry-exporter-http-transport==0.66b1 ; sys_platform != 'emscripten'
+    # via opentelemetry-exporter-otlp-proto-http
+opentelemetry-exporter-otlp-common==0.66b1 ; sys_platform != 'emscripten'
+    # via opentelemetry-exporter-otlp-proto-http
+opentelemetry-exporter-otlp-proto-common==1.45.1 ; sys_platform != 'emscripten'
+    # via opentelemetry-exporter-otlp-proto-http
+opentelemetry-exporter-otlp-proto-http==1.45.1 ; sys_platform != 'emscripten'
+    # via microsoft-opentelemetry
+opentelemetry-instrumentation==0.66b1 ; sys_platform != 'emscripten'
+    # via
+    #   microsoft-opentelemetry
+    #   opentelemetry-instrumentation-asgi
+    #   opentelemetry-instrumentation-dbapi
+    #   opentelemetry-instrumentation-django
+    #   opentelemetry-instrumentation-fastapi
+    #   opentelemetry-instrumentation-flask
+    #   opentelemetry-instrumentation-httpx
+    #   opentelemetry-instrumentation-logging
+    #   opentelemetry-instrumentation-openai-agents-v2
+    #   opentelemetry-instrumentation-openai-v2
+    #   opentelemetry-instrumentation-psycopg2
+    #   opentelemetry-instrumentation-requests
+    #   opentelemetry-instrumentation-urllib
+    #   opentelemetry-instrumentation-urllib3
+    #   opentelemetry-instrumentation-wsgi
+    #   opentelemetry-resource-detector-azure
+    #   opentelemetry-util-genai
+opentelemetry-instrumentation-asgi==0.66b1 ; sys_platform != 'emscripten'
+    # via opentelemetry-instrumentation-fastapi
+opentelemetry-instrumentation-dbapi==0.66b1 ; sys_platform != 'emscripten'
+    # via opentelemetry-instrumentation-psycopg2
+opentelemetry-instrumentation-django==0.66b1 ; sys_platform != 'emscripten'
+    # via
+    #   azure-monitor-opentelemetry
+    #   microsoft-opentelemetry
+opentelemetry-instrumentation-fastapi==0.66b1 ; sys_platform != 'emscripten'
+    # via
+    #   azure-monitor-opentelemetry
+    #   microsoft-opentelemetry
+opentelemetry-instrumentation-flask==0.66b1 ; sys_platform != 'emscripten'
+    # via
+    #   azure-monitor-opentelemetry
+    #   microsoft-opentelemetry
+opentelemetry-instrumentation-httpx==0.66b1 ; sys_platform != 'emscripten'
+    # via
+    #   azure-monitor-opentelemetry
+    #   microsoft-opentelemetry
+opentelemetry-instrumentation-logging==0.66b1 ; sys_platform != 'emscripten'
+    # via
+    #   azure-monitor-opentelemetry
+    #   microsoft-opentelemetry
+opentelemetry-instrumentation-openai-agents-v2==0.1.0 ; sys_platform != 'emscripten'
+    # via microsoft-opentelemetry
+opentelemetry-instrumentation-openai-v2==2.3b0 ; sys_platform != 'emscripten'
+    # via microsoft-opentelemetry
+opentelemetry-instrumentation-psycopg2==0.66b1 ; sys_platform != 'emscripten'
+    # via
+    #   azure-monitor-opentelemetry
+    #   microsoft-opentelemetry
+opentelemetry-instrumentation-requests==0.66b1 ; sys_platform != 'emscripten'
+    # via
+    #   azure-monitor-opentelemetry
+    #   microsoft-opentelemetry
+opentelemetry-instrumentation-urllib==0.66b1 ; sys_platform != 'emscripten'
+    # via
+    #   azure-monitor-opentelemetry
+    #   microsoft-opentelemetry
+opentelemetry-instrumentation-urllib3==0.66b1 ; sys_platform != 'emscripten'
+    # via
+    #   azure-monitor-opentelemetry
+    #   microsoft-opentelemetry
+opentelemetry-instrumentation-wsgi==0.66b1 ; sys_platform != 'emscripten'
+    # via
+    #   opentelemetry-instrumentation-django
+    #   opentelemetry-instrumentation-flask
+opentelemetry-proto==1.45.1 ; sys_platform != 'emscripten'
+    # via
+    #   opentelemetry-exporter-otlp-proto-common
+    #   opentelemetry-exporter-otlp-proto-http
+opentelemetry-resource-detector-azure==0.3.0 ; sys_platform != 'emscripten'
+    # via
+    #   azure-monitor-opentelemetry
+    #   microsoft-opentelemetry
+opentelemetry-sdk==1.45.1 ; sys_platform != 'emscripten'
+    # via
+    #   azure-ai-agentserver-core
+    #   azure-monitor-opentelemetry
+    #   azure-monitor-opentelemetry-exporter
+    #   microsoft-opentelemetry
+    #   opentelemetry-exporter-otlp-common
+    #   opentelemetry-exporter-otlp-proto-http
+    #   opentelemetry-resource-detector-azure
+    #   opentelemetry-semantic-conventions-ai
+opentelemetry-semantic-conventions==0.66b1 ; sys_platform != 'emscripten'
+    # via
+    #   opentelemetry-instrumentation
+    #   opentelemetry-instrumentation-asgi
+    #   opentelemetry-instrumentation-dbapi
+    #   opentelemetry-instrumentation-django
+    #   opentelemetry-instrumentation-fastapi
+    #   opentelemetry-instrumentation-flask
+    #   opentelemetry-instrumentation-httpx
+    #   opentelemetry-instrumentation-logging
+    #   opentelemetry-instrumentation-openai-agents-v2
+    #   opentelemetry-instrumentation-openai-v2
+    #   opentelemetry-instrumentation-requests
+    #   opentelemetry-instrumentation-urllib
+    #   opentelemetry-instrumentation-urllib3
+    #   opentelemetry-instrumentation-wsgi
+    #   opentelemetry-sdk
+    #   opentelemetry-semantic-conventions-ai
+    #   opentelemetry-util-genai
+opentelemetry-semantic-conventions-ai==0.5.1 ; sys_platform != 'emscripten'
+    # via banking-assistant-agent
+opentelemetry-util-genai==0.3b0 ; sys_platform != 'emscripten'
+    # via
+    #   microsoft-opentelemetry
+    #   opentelemetry-instrumentation-openai-agents-v2
+opentelemetry-util-http==0.66b1 ; sys_platform != 'emscripten'
+    # via
+    #   opentelemetry-instrumentation-asgi
+    #   opentelemetry-instrumentation-django
+    #   opentelemetry-instrumentation-fastapi
+    #   opentelemetry-instrumentation-flask
+    #   opentelemetry-instrumentation-httpx
+    #   opentelemetry-instrumentation-requests
+    #   opentelemetry-instrumentation-urllib
+    #   opentelemetry-instrumentation-urllib3
+    #   opentelemetry-instrumentation-wsgi
+packaging==26.3 ; sys_platform != 'emscripten'
+    # via
+    #   opentelemetry-instrumentation
+    #   opentelemetry-instrumentation-flask
+priority==2.0.0 ; sys_platform != 'emscripten'
+    # via hypercorn
+propcache==0.5.4 ; sys_platform != 'emscripten'
+    # via
+    #   aiohttp
+    #   yarl
+protobuf==7.36.2 ; sys_platform != 'emscripten'
+    # via
+    #   googleapis-common-protos
+    #   opentelemetry-proto
+psutil==7.2.2 ; sys_platform != 'emscripten'
+    # via azure-monitor-opentelemetry-exporter
+pycparser==3.0 ; implementation_name != 'PyPy' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'
+    # via cffi
+pydantic==2.13.5 ; sys_platform != 'emscripten'
+    # via
+    #   agent-framework-core
+    #   fastapi
+    #   fastapi-cloud-cli
+    #   mcp
+    #   openai
+    #   pydantic-extra-types
+    #   pydantic-settings
+pydantic-core==2.46.5 ; sys_platform != 'emscripten'
+    # via pydantic
+pydantic-extra-types==2.11.1 ; sys_platform != 'emscripten'
+    # via fastapi
+pydantic-settings==2.15.0 ; sys_platform != 'emscripten'
+    # via
+    #   fastapi
+    #   mcp
+pygments==2.21.0 ; sys_platform != 'emscripten'
+    # via rich
+pyjwt==2.10.1 ; sys_platform != 'emscripten'
+    # via
+    #   mcp
+    #   microsoft-opentelemetry
+    #   msal
+python-dotenv==1.2.3 ; sys_platform != 'emscripten'
+    # via
+    #   agent-framework-core
+    #   pydantic-settings
+    #   uvicorn
+python-multipart==0.0.32 ; sys_platform != 'emscripten'
+    # via
+    #   fastapi
+    #   mcp
+pywin32==312 ; sys_platform == 'win32'
+    # via mcp
+pyyaml==6.0.3 ; sys_platform != 'emscripten'
+    # via
+    #   agent-framework-core
+    #   fastapi
+    #   uvicorn
+referencing==0.37.0 ; sys_platform != 'emscripten'
+    # via
+    #   jsonschema
+    #   jsonschema-specifications
+regex==2026.9.29 ; sys_platform != 'emscripten'
+    # via agent-framework-core
+requests==2.34.2 ; sys_platform != 'emscripten'
+    # via
+    #   azure-core
+    #   microsoft-opentelemetry
+    #   msal
+    #   msrest
+    #   opentelemetry-exporter-http-transport
+    #   opentelemetry-exporter-otlp-proto-http
+    #   requests-oauthlib
+requests-oauthlib==2.0.0 ; sys_platform != 'emscripten'
+    # via msrest
+rich==15.0.0 ; sys_platform != 'emscripten'
+    # via
+    #   rich-toolkit
+    #   typer
+rich-toolkit==0.20.5 ; sys_platform != 'emscripten'
+    # via
+    #   fastapi-cli
+    #   fastapi-cloud-cli
+rignore==0.8.1 ; sys_platform != 'emscripten'
+    # via fastapi-cloud-cli
+rpds-py==2026.6.3 ; sys_platform != 'emscripten'
+    # via
+    #   jsonschema
+    #   referencing
+sentry-sdk==2.70.0 ; sys_platform != 'emscripten'
+    # via fastapi-cloud-cli
+shellingham==1.5.4 ; sys_platform != 'emscripten'
+    # via typer
+sniffio==1.3.1 ; sys_platform != 'emscripten'
+    # via openai
+sse-starlette==3.4.11 ; sys_platform != 'emscripten'
+    # via mcp
+starlette==1.7.0 ; sys_platform != 'emscripten'
+    # via
+    #   azure-ai-agentserver-core
+    #   fastapi
+    #   mcp
+    #   sse-starlette
+truststore==0.10.4 ; sys_platform != 'emscripten'
+    # via
+    #   httpcore2
+    #   httpx2
+typer==0.27.2 ; sys_platform != 'emscripten'
+    # via
+    #   fastapi-cli
+    #   fastapi-cloud-cli
+typing-extensions==4.16.0 ; sys_platform != 'emscripten'
+    # via
+    #   agent-framework-core
+    #   aiosignal
+    #   anyio
+    #   azure-ai-inference
+    #   azure-ai-projects
+    #   azure-core
+    #   azure-identity
+    #   azure-storage-blob
+    #   fastapi
+    #   httpx2
+    #   mcp
+    #   openai
+    #   opentelemetry-api
+    #   opentelemetry-exporter-otlp-proto-http
+    #   opentelemetry-sdk
+    #   opentelemetry-semantic-conventions
+    #   pydantic
+    #   pydantic-core
+    #   pydantic-extra-types
+    #   referencing
+    #   rich-toolkit
+    #   starlette
+    #   typing-inspection
+typing-inspection==0.4.4 ; sys_platform != 'emscripten'
+    # via
+    #   fastapi
+    #   mcp
+    #   pydantic
+    #   pydantic-settings
+urllib3==2.8.0 ; sys_platform != 'emscripten'
+    # via
+    #   requests
+    #   sentry-sdk
+uvicorn==0.54.0 ; sys_platform != 'emscripten'
+    # via
+    #   banking-assistant-agent
+    #   fastapi
+    #   fastapi-cli
+    #   fastapi-cloud-cli
+    #   mcp
+uvloop==0.22.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'emscripten' and sys_platform != 'win32'
+    # via uvicorn
+watchfiles==1.3.0 ; sys_platform != 'emscripten'
+    # via uvicorn
+websockets==16.1.1 ; sys_platform != 'emscripten'
+    # via uvicorn
+wrapt==1.17.3 ; sys_platform != 'emscripten'
+    # via
+    #   microsoft-opentelemetry
+    #   opentelemetry-instrumentation
+    #   opentelemetry-instrumentation-dbapi
+    #   opentelemetry-instrumentation-httpx
+    #   opentelemetry-instrumentation-urllib3
+wsproto==1.3.2 ; sys_platform != 'emscripten'
+    # via hypercorn
+yarl==1.25.1 ; sys_platform != 'emscripten'
+    # via aiohttp

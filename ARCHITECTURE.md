@@ -63,7 +63,7 @@ boundary. See [ADR 0006: Dedicated auth users and staff identities](docs/adr/000
 
 ### `app/agent/src/app/`
 
-`main_responses_host.py` is the Responses entry point, local and hosted.
+`app/agent/main.py` is the Responses entry point, local and hosted.
 `agents/azure_chat/hosted_workflow.py` builds the triage + Account + Transaction
 specialist agents as one `HandoffBuilder` workflow using `FoundryChatClient` and MCP
 tools; it constructs a request-local workflow per call to avoid shared mutable

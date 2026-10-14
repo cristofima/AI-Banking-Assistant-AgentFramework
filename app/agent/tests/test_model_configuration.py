@@ -1,12 +1,21 @@
 """Offline checks for per-agent deployment selection and client reuse."""
 
+import importlib.util
+import os
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app import main_responses_host
 from app.agents.azure_chat import hosted_workflow
+
+
+entrypoint_path = Path(__file__).resolve().parents[1] / "main.py"
+entrypoint_spec = importlib.util.spec_from_file_location("banking_agent_entrypoint", entrypoint_path)
+assert entrypoint_spec is not None and entrypoint_spec.loader is not None
+main_responses_host = importlib.util.module_from_spec(entrypoint_spec)
+entrypoint_spec.loader.exec_module(main_responses_host)
 
 
 @pytest.mark.parametrize(
@@ -41,7 +50,9 @@ def test_host_selects_and_reuses_clients(
     shared: str | None,
     overrides: tuple[str | None, str | None, str | None],
     expected: tuple[str, str, str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("AGENTSERVER_FLUSH_MODE", "sync")
     configured = SimpleNamespace(
         FOUNDRY_PROJECT_ENDPOINT="https://example.services.ai.azure.com/api/projects/example",
         MODEL_DEPLOYMENT_NAME=shared,
@@ -58,10 +69,17 @@ def test_host_selects_and_reuses_clients(
         patch.object(main_responses_host, "get_azure_credential", return_value=credential),
         patch.object(main_responses_host, "FoundryChatClient") as factory,
         patch.object(main_responses_host, "build_hosted_workflow") as workflow,
-        patch.object(main_responses_host, "IsolatedResponsesHostServer") as server,
+        patch.object(main_responses_host, "ResponsesHostServer") as server,
     ):
         factory.side_effect = lambda **kwargs: SimpleNamespace(**kwargs)
+
+        def construct_host(*args: object, **kwargs: object) -> MagicMock:
+            assert os.environ["AGENTSERVER_FLUSH_MODE"] == "async"
+            return MagicMock()
+
+        server.side_effect = construct_host
         main_responses_host.create_server()
+        assert server.call_args.kwargs["options"].default_fetch_history_count == 100
         create_agent = server.call_args.args[0]
         create_agent()
         create_agent()
@@ -111,7 +129,7 @@ def test_host_requires_specific_deployment_or_shared_fallback(
         patch.object(main_responses_host, "settings", configured),
         patch.object(main_responses_host, "get_azure_credential", return_value=object()),
         patch.object(main_responses_host, "FoundryChatClient"),
-        patch.object(main_responses_host, "IsolatedResponsesHostServer") as server,
+        patch.object(main_responses_host, "ResponsesHostServer") as server,
         pytest.raises(RuntimeError) as error,
     ):
         main_responses_host.create_server()

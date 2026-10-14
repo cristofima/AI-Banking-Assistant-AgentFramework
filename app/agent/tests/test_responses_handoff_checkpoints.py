@@ -14,7 +14,7 @@ from agent_framework.foundry import FoundryChatClient
 from app.agents.azure_chat.hosted_workflow import _has_completed_agent_response
 from app.adapters.checkpointed_handoff import CheckpointedHandoffBuilder as HandoffBuilder
 from app.adapters.handoff_middleware import HandoffNarrationMiddleware
-from app.adapters.isolated_responses_host import IsolatedResponsesHostServer
+from agent_framework_foundry_hosting import ResponsesHostServer
 from app.adapters.no_history_provider import NoHistoryProvider
 
 
@@ -75,7 +75,7 @@ async def test_checkpointed_handoff_delivers_followup_to_specialist(
             termination_condition=_has_completed_agent_response,
         ).with_start_agent(triage).add_handoff(triage, [specialist, account]).build().as_agent()
 
-    server = IsolatedResponsesHostServer(create_agent)
+    server = ResponsesHostServer(create_agent)
     stores: dict[str, InMemoryCheckpointStorage] = {}
     server._checkpoint_storage_provider = MagicMock()
     server._checkpoint_storage_provider.get_store.side_effect = lambda **kwargs: stores.setdefault(
@@ -95,22 +95,32 @@ async def test_checkpointed_handoff_delivers_followup_to_specialist(
         outputs: list[str] = []
         tracker = MagicMock()
 
-        async def handle(content: Content, **kwargs: Any) -> AsyncIterator[Any]:
-            if content.type == "text":
-                outputs.append(content.text or "")
+        async def handle_update(update: Any, **kwargs: Any) -> AsyncIterator[Any]:
+            for content in update.contents:
+                if content.type == "text":
+                    outputs.append(content.text or "")
             if False:
                 yield None
 
-        tracker.handle = handle
+        tracker.handle_update = handle_update
         request: dict[str, Any] = {"model": "test-model", "input": text}
         if previous_id and conversation_id is None:
             request["previous_response_id"] = previous_id
-        with patch(
-            "agent_framework_foundry_hosting._responses.get_request_context", return_value=None,
-        ):
-            async for _ in server._handle_inner_workflow(
-                request, context, MagicMock(), tracker, asyncio.Event(),
+        async def run_prepared(
+            host: ResponsesHostServer, request: Any, context: Any,
+            cancellation_signal: Any, response_event_stream: Any, agent: Any,
+            *args: Any,
+        ) -> AsyncIterator[Any]:
+            async for event in host._handle_inner_workflow(
+                request, context, response_event_stream, tracker, cancellation_signal, agent,
             ):
+                yield event
+
+        with patch(
+            "agent_framework_foundry_hosting._responses.get_request_context",
+            return_value=MagicMock(session_id=None, user_id=None, call_id=None),
+        ), patch.object(ResponsesHostServer, "_handle_prepared_response", run_prepared):
+            async for _ in server._handle_response(request, context, asyncio.Event()):
                 pass
         return outputs
 

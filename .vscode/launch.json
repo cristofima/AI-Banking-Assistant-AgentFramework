@@ -41,7 +41,7 @@
       "name": "DEV - Responses Hosted Agent",
       "type": "debugpy",
       "request": "launch",
-      "module": "app.main_responses_host",
+      "program": "${workspaceFolder}/app/agent/main.py",
       "env": {
         "PROFILE": "dev",
         "ENABLE_SENSITIVE_DATA": "true"
