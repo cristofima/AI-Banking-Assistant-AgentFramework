@@ -2,20 +2,23 @@ name: Frontend CI
 
 on:
   push:
-    branches: ["main", "develop", "feature/*", "refactor/*", "fix/*"]
+    branches: ["main", "develop", "feature/**", "refactor/**", "chore/**", "fix/**"]
     paths:
       - "app/frontend/banking-web/**"
       - "!app/frontend/banking-web/**/*.md"
       - ".github/workflows/ci-frontend.yml"
       - ".github/actions/ci-node/**"
+      - "sonar-project.frontend.properties"
+      - ".github/workflows/sonarqube-frontend.yml"
   pull_request:
-    branches: ["main", "develop"]
     types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - "app/frontend/banking-web/**"
       - "!app/frontend/banking-web/**/*.md"
       - ".github/workflows/ci-frontend.yml"
       - ".github/actions/ci-node/**"
+      - "sonar-project.frontend.properties"
+      - ".github/workflows/sonarqube-frontend.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -36,3 +39,14 @@ jobs:
         with:
           project-path: app/frontend/banking-web
           artifact-name: frontend-coverage-report
+
+  sonarqube:
+    name: SonarQube Frontend
+    needs: build-and-test
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: ./.github/workflows/sonarqube-frontend.yml
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

@@ -25,6 +25,26 @@ on a dev-server proxy. Locally those absolute URLs just happen to share the
 | Transaction   | `http://localhost:8071` |
 | Responses BFF | `http://localhost:8080` |
 
+## CI coverage and SonarQube
+
+[Frontend CI](../../../.github/workflows/ci-frontend.yml) runs Vitest once through
+[ci-node](../../../.github/actions/ci-node/action.yml), producing summary, HTML and
+LCOV coverage in `coverage/`. After build and tests succeed, it calls the reusable
+[SonarQube frontend workflow](../../../.github/workflows/sonarqube-frontend.yml),
+which downloads `frontend-coverage-report` from the same workflow run, requires
+an LCOV report and normalizes its source paths relative to the repository before
+scanning. Tests are not rerun for SonarQube.
+
+Repository variables `SONAR_ORGANIZATION` and `SONAR_PROJECT_KEY_TYPESCRIPT`, plus
+the repository secret `SONAR_TOKEN`, configure the scan. Fork pull requests run CI
+but skip SonarQube because they cannot access that secret. Python coverage is separate.
+
+To generate the same coverage reports locally from this directory:
+
+```powershell
+rtk proxy npm run test -- --coverage.enabled=true --coverage.reporter=text-summary --coverage.reporter=json-summary --coverage.reporter=html --coverage.reporter=lcov
+```
+
 ## Environment
 
 | Variable                   | Purpose                                                     | Local default                     |
