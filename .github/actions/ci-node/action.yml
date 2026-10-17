@@ -42,7 +42,7 @@ runs:
     - name: Run unit tests with coverage
       shell: bash
       working-directory: ${{ inputs.project-path }}
-      run: npm run test -- --coverage.enabled=true --coverage.reporter=text-summary --coverage.reporter=json-summary --coverage.reporter=html
+      run: npm run test -- --coverage.enabled=true --coverage.reporter=text-summary --coverage.reporter=json-summary --coverage.reporter=html --coverage.reporter=lcov
 
     - name: Generate Coverage Job Summary
       if: always()

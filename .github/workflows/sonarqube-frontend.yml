@@ -1,0 +1,60 @@
+name: SonarQube Frontend
+
+on:
+  workflow_call:
+    secrets:
+      SONAR_TOKEN:
+        required: true
+
+jobs:
+  sonarqube_frontend:
+    name: SonarQube Frontend
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+
+      - name: Download frontend coverage
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: frontend-coverage-report
+          path: app/frontend/banking-web/coverage
+
+      - name: Verify and normalize LCOV paths
+        shell: bash
+        run: |
+          test -s app/frontend/banking-web/coverage/lcov.info
+          grep -q '^SF:' app/frontend/banking-web/coverage/lcov.info
+          node --input-type=module -e '
+            import { existsSync, readFileSync, writeFileSync } from "node:fs";
+            const root = "app/frontend/banking-web/";
+            const report = root + "coverage/lcov.info";
+            const normalized = readFileSync(report, "utf8").replace(/^SF:(.+)$/gm, (_, source) => {
+              const path = root + source.trim().replaceAll("\\", "/");
+              if (!existsSync(path)) throw new Error("Unresolved LCOV source: " + path);
+              return "SF:" + path;
+            });
+            writeFileSync(report, normalized);
+          '
+
+      - name: Cache SonarQube packages
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: SonarQube Scan (Frontend)
+        uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
+        with:
+          args: >
+            -Dproject.settings=sonar-project.frontend.properties
+            -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
+            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY_TYPESCRIPT }}
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
