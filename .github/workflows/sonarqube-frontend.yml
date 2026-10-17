@@ -5,7 +5,9 @@ on:
     branches:
       - main
       - develop
-      - chore/SonarQube
+      - 'feature/**'
+      - 'refactor/**'
+      - 'chore/**'
     paths:
       - 'app/frontend/**'
       - 'sonar-project.frontend.properties'
