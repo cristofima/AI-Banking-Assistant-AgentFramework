@@ -16,8 +16,20 @@ from fastapi import Header, HTTPException, status
 INVALID_IDENTITY_MESSAGE = "Invalid customer identity"
 
 
-def get_customer_id(headers: dict[str, str]) -> str:
-    """Return the verified customer ID from an internal authorization header."""
+def get_customer_id(headers: dict[str, str], *, mutation: bool = False) -> str:
+    """Verify the customer for existing MCP reads and dispute mutations."""
+    mode = os.environ.get("MCP_IDENTITY_MODE", "hmac")
+    if mode == "oauth":
+        from banking_shared.oauth_identity import resolve_oauth_customer_id
+
+        return resolve_oauth_customer_id(
+            headers.get("authorization", ""),
+            os.environ.get("OAUTH_ISSUER", ""),
+            os.environ.get("OAUTH_AUDIENCE", ""),
+            os.environ.get("OAUTH_JWKS", ""),
+        )
+    if mode != "hmac":
+        raise RuntimeError("Unsupported MCP identity mode")
     secret = os.environ.get("INTERNAL_IDENTITY_SECRET")
     if not secret:
         raise RuntimeError("Internal identity verification is not configured")

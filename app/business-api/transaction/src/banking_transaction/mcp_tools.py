@@ -61,7 +61,7 @@ async def get_transaction_recognition_context(
 ) -> dict[str, Any]:
     return await run_in_threadpool(
         service.get_transaction_recognition_context,
-        transaction_id, get_customer_id(headers),
+        transaction_id, await run_in_threadpool(get_customer_id, headers),
     )
 
 
@@ -80,7 +80,7 @@ async def preview_transaction_dispute(
 ) -> dict[str, Any]:
     preview = await run_in_threadpool(
         dispute_service.preview_transaction_dispute,
-        transaction_id, get_customer_id(headers), reason,
+        transaction_id, await run_in_threadpool(get_customer_id, headers), reason,
     )
     return preview.model_dump(mode="json")
 
@@ -99,7 +99,8 @@ async def report_transaction_dispute(
     headers: dict[str, str] = CurrentHeaders(),
 ) -> dict[str, Any]:
     case = await run_in_threadpool(
-        dispute_service.accept_transaction_dispute, preview_token, get_customer_id(headers),
+        dispute_service.accept_transaction_dispute, preview_token,
+        await run_in_threadpool(get_customer_id, headers, mutation=True),
     )
     return case.model_dump(mode="json")
 
@@ -117,7 +118,8 @@ async def recover_transaction_dispute(
     headers: dict[str, str] = CurrentHeaders(),
 ) -> dict[str, Any] | None:
     case = await run_in_threadpool(
-        dispute_service.recover_transaction_dispute, preview_token, get_customer_id(headers),
+        dispute_service.recover_transaction_dispute, preview_token,
+        await run_in_threadpool(get_customer_id, headers),
     )
     return case.model_dump(mode="json") if case is not None else None
 
@@ -136,7 +138,9 @@ def respond_to_dispute_approval(
     approved: bool,
     headers: dict[str, str] = CurrentHeaders(),
 ):
-    return dispute_service.respond_to_approval(case_id, get_customer_id(headers), approved)
+    return dispute_service.respond_to_approval(
+        case_id, get_customer_id(headers, mutation=True), approved,
+    )
 
 
 @mcp.tool(name="listSupportCases", description="List the customer's transaction-dispute support cases")
