@@ -7,6 +7,7 @@ from fastapi import FastAPI, HTTPException, Request
 import pytest
 
 from bff.identity.models import AuthenticatedUser
+from bff.identity.oauth_client import OAuthClient, OAuthClientConfig
 from bff.identity.responses import _upstream_headers
 from bff.config.settings import Settings
 
@@ -17,6 +18,7 @@ async def test_foundry_credential_failure_is_controlled() -> None:
         responses_upstream_mode="foundry",
         internal_identity_secret="synthetic-signing-key-with-32-bytes",
     )
+    app.state.oauth_client = OAuthClient(OAuthClientConfig(mcp_identity_mode="hmac"))
     credential = AsyncMock()
     credential.get_token.side_effect = ClientAuthenticationError("private synthetic detail")
     app.state.azure_credential = credential
