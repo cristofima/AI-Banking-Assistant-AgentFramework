@@ -5,10 +5,13 @@ React and Vite frontend for the Banking Assistant prototype. The assistant uses 
 ## Local Development
 
 ```powershell
-cd app/frontend/banking-web
+Set-Location app\frontend\banking-web
 npm install
-npm run dev
+npm run dev -- --mode oauth-local
 ```
+
+These commands start only the frontend and require the localhost TLS files described
+below and running backend services. Use the root task for full-stack preparation.
 
 Node runtime baseline is `>=22` (aligned with `package.json` engines and frontend CI defaults).
 
@@ -51,6 +54,17 @@ that localhost certificate. The development tasks pass it through `SSL_CERT_FILE
 Agent, Account and Transaction, preserving Python HTTPX certificate verification
 for both Identity and public HTTPS services. Windows browser trust alone does not
 configure HTTPX trust. Restart the service tasks after this configuration changes.
+
+Backend tasks load credentials and service configuration from their own `.env` through
+`uv --env-file .env`. Tasks pin the local topology: `PROFILE=dev` for Account,
+Transaction and BFF, `AGENT_RUNTIME=local` for Agent, and BFF
+`RESPONSES_UPSTREAM_MODE=local` with
+`RESPONSES_AGENT_ENDPOINT=http://127.0.0.1:8088/responses`. These overrides keep service
+ports aligned with readiness matchers even when dotenv files omit a profile or
+configure a hosted runtime. Without `PROFILE=dev`, Account and Transaction default
+to port 8080, so the sequence cannot reach their expected readiness on 8070/8071.
+Agent does not use `PROFILE`. Tasks also provide the generated CA bundle and local
+diagnostic message capture; credentials and MCP identity mode remain project configuration.
 
 Vite runs in `oauth-local` mode at `https://localhost:5170`, with exact-port binding.
 Identity runs once at `https://localhost:8091` for both banking authentication and
