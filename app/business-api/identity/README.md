@@ -18,12 +18,20 @@ on both MCP consumers and an audience distinct from `JWT_AUDIENCE`.
 Credential-free configuration outline (supply private PEM externally, not in source):
 
 ```dotenv
-OAUTH_ISSUER=https://identity.example
-OAUTH_FRONTEND_AUTHORIZE_URL=https://web.example/oauth/consent
+OAUTH_ISSUER=https://localhost:8091
+OAUTH_FRONTEND_AUTHORIZE_URL=https://localhost:5170/oauth/consent
 OAUTH_AUDIENCE=banking-mcp
 OAUTH_SIGNING_KEY_ID=
 OAUTH_SIGNING_PRIVATE_KEY=
 ```
+
+The [.env.example](.env.example) targets the local HTTPS stack but contains no
+working credentials or signing material. Supply a nonempty signing key ID and private
+RSA PEM externally; an ignored dotenv can store the PEM as a quoted multiline value
+with actual line breaks. Clear both OAuth URL assignments for HMAC-only compatibility.
+`OAUTH_CLIENT_SECRET` is only for the explicitly authorized provisioning CLI below,
+not startup configuration. Local TLS preparation remains required; these values do
+not configure certificates or prove client registration or OAuth readiness.
 
 For Account and Transaction, configure `MCP_IDENTITY_MODE=oauth`, the same
 `OAUTH_ISSUER`/`OAUTH_AUDIENCE`, and `OAUTH_JWKS` containing public JWKS JSON.
