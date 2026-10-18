@@ -5,6 +5,7 @@ description = "JWT-protected proxy for the banking assistant Responses API"
 requires-python = ">=3.11"
 dependencies = [
     "banking-shared[telemetry]",
+    "authlib==1.9.1",
     "aiohttp>=3.9,<4",
     "azure-identity==1.25.3",
     "fastapi==0.141.1",
