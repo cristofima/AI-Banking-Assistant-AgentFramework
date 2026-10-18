@@ -26,6 +26,39 @@ function remoteHttps(value) {
       !host.endsWith('.invalid') && !host.endsWith('.example');
   } catch { return false; }
 }
+function validateOAuthConfiguration(service, values, required, secrets) {
+  required.push('OAUTH_ISSUER', 'OAUTH_AUDIENCE');
+  requireCheck(remoteHttps(values.OAUTH_ISSUER) && new URL(values.OAUTH_ISSUER).pathname === '/' && !values.OAUTH_ISSUER.endsWith('/'), 'OAUTH_ISSUER must be a public HTTPS Identity origin.');
+  requireCheck(typeof values.OAUTH_AUDIENCE === 'string' && values.OAUTH_AUDIENCE.trim() &&
+    !values.OAUTH_AUDIENCE.startsWith('@Microsoft.KeyVault('), 'OAUTH_AUDIENCE must be an explicit coordinated value.');
+  if (service === 'identity') {
+    required.push('OAUTH_FRONTEND_AUTHORIZE_URL', 'OAUTH_SIGNING_KEY_ID', 'OAUTH_SIGNING_BACKEND', 'OAUTH_SIGNING_KEY_URI');
+    requireCheck(values.OAUTH_SIGNING_BACKEND === 'key_vault', 'Remote Identity requires explicit Key Vault signing.');
+    requireCheck(!Object.hasOwn(values, 'OAUTH_SIGNING_PRIVATE_KEY'), 'Native signing must not receive a private PEM.');
+    requireCheck(/^https:\/\/[a-zA-Z0-9-]+\.vault\.azure\.net\/keys\/[a-zA-Z0-9-]+\/[a-zA-Z0-9]+$/.test(values.OAUTH_SIGNING_KEY_URI), 'Native signing requires a version-pinned Key Vault key URI.');
+    requireCheck(remoteHttps(values.OAUTH_FRONTEND_AUTHORIZE_URL) &&
+      new URL(values.OAUTH_FRONTEND_AUTHORIZE_URL).pathname === '/oauth/consent', 'Identity OAuth consent must use the public frontend /oauth/consent URL.');
+    requireCheck(typeof values.OAUTH_SIGNING_KEY_ID === 'string' && values.OAUTH_SIGNING_KEY_ID.trim() &&
+      !values.OAUTH_SIGNING_KEY_ID.startsWith('@Microsoft.KeyVault('), 'OAUTH_SIGNING_KEY_ID must be explicit.');
+  } else {
+    requireCheck(values.MCP_IDENTITY_MODE === 'oauth', 'This deployment requires explicit MCP_IDENTITY_MODE=oauth; no HMAC fallback.');
+    requireCheck(!Object.hasOwn(values, 'OAUTH_SIGNING_PRIVATE_KEY'), 'Only Identity may receive the OAuth private signing key.');
+    required.push('OAUTH_JWKS');
+    secrets.push('OAUTH_JWKS');
+    requireCheck(values.OAUTH_ISSUER.replace(/\/$/, '') === values.AUTH_USERS_ENDPOINT.replace(/\/$/, ''), 'OAuth issuer and AUTH_USERS_ENDPOINT must identify the same Identity origin.');
+    if (service === 'responses-bff') {
+      required.push('OAUTH_CLIENT_ID', 'OAUTH_CLIENT_SECRET', 'OAUTH_REDIRECT_URI');
+      secrets.push('OAUTH_CLIENT_SECRET');
+      requireCheck(remoteHttps(values.OAUTH_REDIRECT_URI) &&
+        new URL(values.OAUTH_REDIRECT_URI).pathname === '/oauth/callback', 'BFF OAuth redirect must use the public frontend /oauth/callback URL.');
+      let origins;
+      try { origins = JSON.parse(values.ALLOWED_ORIGINS); } catch { origins = []; }
+      requireCheck(Array.isArray(origins) && origins.includes(new URL(values.OAUTH_REDIRECT_URI).origin), 'BFF OAuth callback origin must be in ALLOWED_ORIGINS.');
+    } else {
+      requireCheck(!Object.hasOwn(values, 'OAUTH_CLIENT_SECRET'), 'MCP services must not receive the confidential client secret.');
+    }
+  }
+}
 function validateConfiguration(service, settings, references, config) {
   const values = Object.fromEntries(settings.map(setting => [setting.name, setting.value]));
   const required = ['JWT_SECRET_KEY', 'JWT_ISSUER', 'JWT_AUDIENCE', 'AUTH_INTERNAL_SECRET'];
@@ -42,6 +75,7 @@ function validateConfiguration(service, settings, references, config) {
     requireCheck(!Object.hasOwn(values, 'DATABASE_URL'), 'DATABASE_URL must be absent from the DB-free Responses BFF.');
   }
   if (service === 'account' || service === 'transaction') required.push('CORS_ALLOWED_ORIGINS');
+  validateOAuthConfiguration(service, values, required, secrets);
   for (const name of required) {
     requireCheck(typeof values[name] === 'string' && values[name].trim().length > 0, `Required app setting ${name} is missing.`);
   }

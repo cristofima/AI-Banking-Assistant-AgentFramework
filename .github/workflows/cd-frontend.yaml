@@ -9,6 +9,7 @@ on:
       - "!app/frontend/banking-web/**/*.md"
       - ".github/workflows/cd-frontend.yaml"
       - ".github/actions/cd-azure/**"
+      - ".github/actions/appservice-preflight/**"
       - "azure.yaml"
   workflow_dispatch:
 
@@ -32,9 +33,8 @@ jobs:
           app-service-name: ${{ vars.AZURE_WEB_APP_NAME }}
           app-service-name-variable: AZURE_WEB_APP_NAME
       - name: Configure frontend build-time environment
-        # CI never provisions, so the root azure.yaml postprovision hook (which derives these
-        # from Terraform outputs) never runs here; set the same VITE_* keys directly so Vite
-        # bakes the real backend URLs at build time instead of falling back to .env.local defaults.
+        # Vite consumes public URLs at build time. OAuth reuses the BFF URL;
+        # no browser client secret or separate Identity/agent URL is injected.
         env:
           VITE_ACCOUNT_API_URL: ${{ vars.VITE_ACCOUNT_API_URL }}
           VITE_TRANSACTION_API_URL: ${{ vars.VITE_TRANSACTION_API_URL }}
@@ -42,6 +42,8 @@ jobs:
           VITE_RESPONSES_API_URL: ${{ vars.VITE_RESPONSES_API_URL }}
         run: |
           set -euo pipefail
+          node --test .github/actions/appservice-preflight/preflight.test.cjs
+          node .github/actions/appservice-preflight/frontend.cjs
           for var in VITE_ACCOUNT_API_URL VITE_TRANSACTION_API_URL VITE_RESPONSES_BFF_URL VITE_RESPONSES_API_URL; do
             if [ -z "${!var}" ]; then
               echo "::error::Missing required GitHub environment variable: $var"
