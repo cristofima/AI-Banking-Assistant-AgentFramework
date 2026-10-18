@@ -1,52 +1,28 @@
-import logging
-import logging.config
-import os
 import yaml
 from pathlib import Path
-from typing import Dict, Any, Optional
-from opentelemetry._logs import set_logger_provider
-from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
-from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.semconv.resource import ResourceAttributes
-
-from app.config.settings import settings
+from typing import Any
 
 
-def get_logging_config_path(profile: Optional[str] = None) -> Optional[Path]:
-    """Get the path to the logging configuration file based on the profile.
-
-    Args:
-        profile: The environment profile (dev, prod, test). If None, uses PROFILE env var.
+def get_logging_config_path() -> Path | None:
+    """Get the path to the logging configuration file.
 
     Returns:
         Path to the logging configuration file, or None if not found.
     """
-    if profile is None:
-        profile = os.getenv("PROFILE")
-        if profile is None:
-            print("No PROFILE environment variable set, using default logging configuration.")
-            return Path(__file__).parent.parent.joinpath("logging-default.yaml")
-
-    print(f"App profile is: {profile}")
 
     # Get the project root directory (two levels up from this file)
     config_dir =  Path(__file__).parent.parent
 
-    # Try profile-specific config first, then fall back to default
-    profile_config = config_dir.joinpath(f"logging-{profile}.yaml")
     default_config = config_dir.joinpath("logging-default.yaml")
 
-    if profile_config.exists():
-        return profile_config
-    elif default_config.exists():
+    if default_config.is_file():
         return default_config
     else:
         # If no config files exist, return None to use basic config
         return None
 
 
-def _basic_logging_config() -> Dict[str, Any]:
+def _basic_logging_config() -> dict[str, Any]:
     return {
         "version": 1,
         "disable_existing_loggers": False,
@@ -71,7 +47,7 @@ def _basic_logging_config() -> Dict[str, Any]:
     }
 
 
-def load_logging_config(config_path: Optional[Path] = None) -> Dict[str, Any]:
+def load_logging_config(config_path: Path | None = None) -> dict[str, Any]:
     """Load logging configuration from YAML file.
 
     Args:
@@ -97,49 +73,3 @@ def load_logging_config(config_path: Optional[Path] = None) -> Dict[str, Any]:
         print(f"Error loading logging config from {config_path}: {e}")
         # Return basic configuration on error
         return _basic_logging_config()
-
-
-
-def setup_logging(profile: Optional[str] = None) -> None:
-    """Setup logging configuration based on the profile.
-
-    Args:
-        profile: The environment profile (dev, prod, test). If None, uses PROFILE env var.
-    """
-
-    # Load and apply logging configuration
-    config_path = get_logging_config_path(profile)
-    config = load_logging_config(config_path)
-
-    try:
-        logging.config.dictConfig(config)
-        if config_path:
-            print(f"Logging configured from: {config_path}")
-        else:
-            print("Logging configured with default settings")
-
-    except Exception as e:
-        print(f"Error configuring logging: {e}")
-        # Fallback to basic configuration
-        logging.basicConfig(level=logging.INFO)
-
-
-def get_logger(name: Optional[str] = None) -> logging.Logger:
-    """Get a logger instance.
-
-    Args:
-        name: Logger name. If None, uses the caller's module name.
-
-    Returns:
-        Logger instance.
-    """
-    if name is None:
-        # Get the caller's module name
-        import inspect
-        frame = inspect.currentframe()
-        if frame and frame.f_back:
-            name = frame.f_back.f_globals.get('__name__', 'app')
-        else:
-            name = 'app'
-
-    return logging.getLogger(name)

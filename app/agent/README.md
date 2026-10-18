@@ -378,7 +378,20 @@ For hosted provisioning with `azd`, make sure the agent environment includes at 
 - `TRANSACTION_MCP_URL`
 - `INTERNAL_IDENTITY_SECRET`: the existing BFF transport signer, at least 32 characters.
 
-Local tasks load the agent's own `.env` and use the developer's Azure credential. Keep MCP URLs, Foundry settings, and the shared transport identity secret in that file; use `.env.example` as the credential-free template.
+Local tasks load the agent's own `.env` and use Azure CLI credentials when
+`AGENT_RUNTIME=local`; hosted `foundry` runtime uses managed identity, with optional
+`AZURE_CLIENT_ID` for a user-assigned identity. The credential-free
+[template](.env.example) selects local direct MCP and `MCP_IDENTITY_MODE=oauth`;
+keep that identity mode consistent with the BFF and both MCP services. Supply
+`MCP_IDENTITY_MODE` in the process environment through the root tasks or
+`uv --env-file`, because the MCP identity helper reads it from the environment,
+not from the `Settings` object. The BFF transport signer is required in either mode.
+OAuth client secrets and grants do not belong in this template.
+
+Keep MCP URLs, Foundry settings and the shared transport identity secret in the
+agent's local configuration. The template leaves the optional Application Insights
+connection string unset. `ENABLE_OTEL` currently has no consumer in the Responses
+entrypoint, so it is not a supported telemetry on/off switch.
 
 Hosted deployment is owned by the [agent manifest](azure.yaml) and uses managed identity. Its `ai-project` service declares `model-router` and `gpt-5.4` deployments for provisioning; the hosted agent references that project. The manifest explicitly maps `FOUNDRY_PROJECT_ENDPOINT` and `INTERNAL_IDENTITY_SECRET` from the selected agent azd environment into the container. The signer must match the existing BFF signer; the agent environment does not inherit the BFF's local dotenv settings. An empty signer prevents startup through `Settings` validation and can surface as HTTP 424 / `session_not_ready`. Synchronize the existing value only with explicit authorization; never print it, rotate it as a workaround, or weaken validation. `AUTH_INTERNAL_SECRET` is a separate Identity introspection secret. Shared and per-agent environment settings select runtime deployments; manifest declarations and local tests do not verify available capacity or hosted end-to-end behavior.
 
