@@ -158,12 +158,21 @@ place passwords in command arguments, reports or source control.
 | Variable                   | Purpose                                                                             |
 | -------------------------- | ----------------------------------------------------------------------------------- |
 | `DATABASE_URL`             | PostgreSQL SQLAlchemy connection URL for database scripts                           |
+| `DATA_PROJECT_DIR`         | Absolute data module path anchoring package resources and default artifacts         |
 | `DATA_SOURCE_DIR`          | Required pipeline root containing dimension CSVs and transaction partitions         |
 | `DATA_ARTIFACTS_DIR`       | EDA and scope output directory; defaults to this module's `artifacts`               |
 | `DATA_MANIFEST_DIR`        | Load-manifest directory, not a JSON filename; also defaults to `artifacts`          |
 | `DEMO_USER_PASSWORD`       | Explicit customer identity seeding only; no default                                 |
 | `ADMIN_BOOTSTRAP_EMAIL`    | First-administrator email for Identity's explicit `--credentials-from-env` mode     |
 | `ADMIN_BOOTSTRAP_PASSWORD` | First-administrator password for that mode; must differ from the demo-user password |
+
+Replace the template's absolute Windows paths with your checkout and dataset paths.
+For the documented repository-root commands, set `DATA_PROJECT_DIR` to this module:
+the installed resource helper otherwise defaults to the process working directory,
+not the module directory. Blank `DATA_ARTIFACTS_DIR` and `DATA_MANIFEST_DIR` use
+`DATA_PROJECT_DIR\artifacts`. Single-quoted dotenv paths preserve backslashes.
+Data ingestion does not consume MCP OAuth grants, signing keys or client secrets;
+OAuth schema migration does not require OAuth runtime credentials.
 
 Neither customer-seeding nor administrator credentials are ingestion prerequisites.
 The pipeline does not run Alembic, provision identities, build snapshots or evaluate
