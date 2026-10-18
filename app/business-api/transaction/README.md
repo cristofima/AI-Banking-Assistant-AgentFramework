@@ -41,6 +41,16 @@ Logs are ignored and have no automatic retention cleanup; see the
 
 ## MCP OAuth access tokens
 
+The [.env.example](.env.example) selects local OAuth and `PROFILE=dev`, keeps
+Identity at `https://localhost:8091` and browser CORS at `https://localhost:5170`,
+and leaves public JWKS and database credentials unset. Supply `OAUTH_JWKS` as
+single-line JSON in single quotes, matching Identity's signing key ID. Empty JWKS
+rejects MCP calls; no automatic fetch occurs. For HMAC compatibility, explicitly
+set `MCP_IDENTITY_MODE=hmac` on this service and the agent and configure the separate
+`INTERNAL_IDENTITY_SECRET` to match BFF/agent transport. Login JWT and introspection
+keys remain required and distinct. Optional telemetry is disabled by leaving
+`APPLICATIONINSIGHTS_CONNECTION_STRING` empty.
+
 Set `MCP_IDENTITY_MODE=oauth`, `OAUTH_ISSUER`, `OAUTH_AUDIENCE` and `OAUTH_JWKS`
 (public JWKS JSON from Identity's `/oauth/jwks`, never its private signing key).
 The issuer must exactly match the HTTPS issuer without a trailing slash; use an
