@@ -59,7 +59,7 @@ def test_toolbox_allowlist_matches_active_mcp_tools(
 
 
 @pytest.mark.parametrize("service", ["account", "transaction"])
-def test_declarative_toolbox_uses_no_auth_urls_and_matching_allowlists(
+def test_declarative_toolbox_uses_connection_backed_urls_and_matching_allowlists(
     toolbox_definition: dict[str, Any], service: str,
 ) -> None:
     manifest_path = REPOSITORY_ROOT / "app" / "agent" / "azure.yaml"
@@ -74,7 +74,11 @@ def test_declarative_toolbox_uses_no_auth_urls_and_matching_allowlists(
     assert server["server_url"] == f"${{{service.upper()}_MCP_URL}}"
     assert server["allowed_tools"] == candidate["allowed_tools"]
     assert server["type"] == "mcp"
-    assert set(server) == {"type", "server_label", "server_url", "allowed_tools"}
+    assert server["project_connection_id"] == candidate["project_connection_id"]
+    assert server["project_connection_id"] == f"{service}-mcp"
+    assert set(server) == {
+        "type", "server_label", "server_url", "project_connection_id", "allowed_tools",
+    }
     assert "banking-tools" in manifest["services"]["home-banking-agent"]["uses"]
     assert manifest["services"]["home-banking-agent"]["env"]["AGENT_RUNTIME"] == "foundry"
 
