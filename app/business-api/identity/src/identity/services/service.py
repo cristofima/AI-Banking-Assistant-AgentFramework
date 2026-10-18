@@ -15,6 +15,7 @@ from banking_shared.identity_models import (
 )
 from banking_shared import Customer
 from identity.models.schemas import CustomerProfile, LoginResponse, OperatorCreate, UserProfile
+from identity.services.oauth_signing import OAuthSigner
 from identity.settings import Settings
 
 
@@ -26,6 +27,7 @@ def unauthorized() -> HTTPException:
 class IdentityService:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
+        self.oauth_signer = OAuthSigner(settings)
         self.passwords = PasswordHash.recommended()
         self.dummy_hash = self.passwords.hash("unknown-account-timing-only")
 
