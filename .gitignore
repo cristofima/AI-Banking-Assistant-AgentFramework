@@ -71,6 +71,9 @@ app/business-api/transaction/banking_shared/
 pip-log.txt
 pip-delete-this-directory.txt
 
+# Local service output (may contain private operational data)
+**/logs/
+
 # Unit test / coverage reports
 htmlcov/
 .tox/
