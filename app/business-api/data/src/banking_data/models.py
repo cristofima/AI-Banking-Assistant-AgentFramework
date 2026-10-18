@@ -1,3 +1,4 @@
+from banking_shared.oauth_models import OAuthAccessToken, OAuthAuthorizationCode, OAuthClient
 from banking_shared.models import (
     Branch,
     Customer,

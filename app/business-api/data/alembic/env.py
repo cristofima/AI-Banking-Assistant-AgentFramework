@@ -23,7 +23,7 @@ def include_name(
 ) -> bool:
     """Reflect managed tables only; retained or unrelated tables are not drop candidates."""
     if type_ == "schema":
-        return name in (None, "support")
+        return name in (None, "support", "oauth")
     if type_ == "table":
         return parent_names["schema_qualified_table_name"] in target_metadata.tables
     return True
