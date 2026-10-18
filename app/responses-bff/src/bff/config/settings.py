@@ -20,11 +20,11 @@ class Settings(BaseSettings):
     internal_identity_secret: str | None = Field(default=None, min_length=32)
     jwt_issuer: str = "home-banking-api"
     jwt_audience: str = "home-banking-web"
-    auth_users_endpoint: str = "http://127.0.0.1:8090"
+    auth_users_endpoint: str = "https://localhost:8091"
     auth_internal_secret: str | None = None
     azure_client_id: str | None = None
     applicationinsights_connection_string: str | None = None
-    allowed_origins: list[str] = ["http://localhost:5170"]
+    allowed_origins: list[str] = ["https://localhost:5170"]
 
     model_config = SettingsConfigDict(
         env_file=".env",

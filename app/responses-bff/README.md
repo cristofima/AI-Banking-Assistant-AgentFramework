@@ -173,7 +173,7 @@ when running without `--reload`.
 
 | Variable                                | Purpose / default                                                                                 |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `AUTH_USERS_ENDPOINT`                   | Compatibility name for Identity endpoint; default `http://127.0.0.1:8090`.                        |
+| `AUTH_USERS_ENDPOINT`                   | Compatibility name for Identity endpoint; default `https://localhost:8091`.                       |
 | `AUTH_INTERNAL_SECRET`                  | Protected Identity introspection key; distinct from downstream HMAC secret.                       |
 | `JWT_SECRET_KEY`                        | Application HS256 signing key, at least 32 characters.                                            |
 | `JWT_ISSUER`                            | `home-banking-api`                                                                                |
@@ -184,7 +184,13 @@ when running without `--reload`.
 | `RESPONSES_TOKEN_SCOPE`                 | `https://ai.azure.com/.default`                                                                   |
 | `AZURE_CLIENT_ID`                       | Optional client ID for server-side Azure credentials.                                             |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | Optional Azure Monitor trace and HTTP metric export; propagation works without it.                |
-| `ALLOWED_ORIGINS`                       | JSON array; defaults to `["http://localhost:5170"]`.                                              |
+| `ALLOWED_ORIGINS`                       | JSON array; defaults to `["https://localhost:5170"]`.                                             |
+
+The credential-free [template](.env.example) selects the local upstream, HTTPS
+frontend CORS origin and direct MCP OAuth mode. Populate the registered OAuth client
+and public JWKS values separately; copying the template does not register a client
+or establish an authorized grant. Use explicit `MCP_IDENTITY_MODE=hmac` only when
+all MCP consumers are intentionally configured for compatibility mode.
 
 Keep secrets in ignored environment files or protected deployment settings. Never log
 passwords, password hashes, JWTs, or Azure credentials. `AUTH_USERS` is not a login
