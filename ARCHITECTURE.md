@@ -15,6 +15,10 @@ for triage and conversation, and two FastMCP business services (Account, Transac
 for financial data and business rules. PostgreSQL is the only operational data store;
 Terraform defines the five-site App Service stack separately from the hosted agent.
 
+Banking login uses application JWTs; a separate OAuth authorization-code flow delegates
+customer MCP access. Local execution uses direct MCP; the hosted OAuth Toolbox target
+is explicitly blocked until native caller-to-customer grant binding is proven.
+
 The one deliberate architectural split to internalize before changing anything: the
 BFF is scoped to identity and chat-proxying only. The browser calls Account and
 Transaction directly over REST for every financial read (accounts, cards,
@@ -38,17 +42,25 @@ consumed by `UiLocaleProvider`. `src/components/DisputePreviewConsent.tsx` share
 proposal context, accept/decline and bounded recovery between `ReportDisputeDialog`
 and the chat `DisputePreview` widget. Legacy `DisputeConsent` handles only persisted
 pending-case decisions; generic MCP permission controls remain separate.
+`src/api/oauthClient.ts`, `src/pages/OAuthConsent.tsx` and `OAuthCallback.tsx` own
+explicit access consent and single-use callback completion. `OAuthReadinessContext`
+shares session-bound status across chat controls; `required` is not the inverse of
+`ready`. `src/components/chat/ResponsesChatProvider.tsx` owns streaming, welcome
+prompts, continuation and uncertain-turn recovery. Browser storage never holds MCP grants.
 
 ### `app/responses-bff/src/bff/`
 
-`main.py` wires the FastAPI app. `auth.py` fronts allowlisted Identity
-operations and checks current active identity/version without caching. `responses.py`
-proxies the customer-only Responses SSE stream to the local or Foundry-hosted agent.
-`internal_identity.py` signs the verified identity envelope the agent re-verifies.
-`credentials.py` obtains the Azure access token server-side for hosted mode. This
-package does not import or query Account/Transaction/PostgreSQL financial tables;
-see [ADR 0005: Direct frontend financial API calls](docs/adr/0005-frontend-calls-account-and-transaction-directly.md)
-for the boundary decision.
+`main.py` wires FastAPI; `routers/auth.py` and `routers/admin.py` front allowlisted
+Identity operations. `identity/authentication.py` checks current active identity/version
+without caching. `routers/responses.py` proxies customer-only SSE; `identity/conversation.py`
+and `identity/responses.py` bind continuation to the verified user and upstream.
+`identity/internal_identity.py` signs the envelope the agent re-verifies;
+`clients/credentials.py` obtains Azure credentials for hosted access.
+`routers/oauth.py` and `identity/oauth_client.py` own single-use state, S256 exchange
+and bounded process-memory grant custody, including capacity reservations during
+in-flight token exchange. Restarts/replica changes require fresh consent;
+there is no durable distributed grant store. The package never queries PostgreSQL or
+verifies passwords. ADR 0005 documents direct frontend financial API calls.
 
 ### `app/business-api/identity/src/identity/`
 
@@ -59,24 +71,35 @@ renewal modals are deferred. An explicit seed service bootstraps an admin from e
 credentials; it never runs at startup. Protected introspection uses a separate
 `AUTH_INTERNAL_SECRET`. Staff have no `customer_id` and cannot use customer
 financial REST or customer chat; operator-role review endpoints are a separate
-boundary. See [ADR 0006: Dedicated auth users and staff identities](docs/adr/0006-dedicated-auth-users-and-staff-identities.md).
+boundary. ADR 0006 documents dedicated staff/customer identities.
+`oauth_routes.py` exposes the Authlib provider implemented in `services/oauth.py`:
+fixed confidential clients, exact HTTPS callbacks, mandatory S256, explicit Allow/Deny
+and RS256 MCP access tokens signed with `joserfc`. Authorization codes and BFF state
+expire after 300 seconds; MCP access tokens last 3600 seconds. No refresh tokens
+are implemented. `services/oauth_provisioning.py` explicitly registers clients,
+never at startup. OAuth issuance checks current customer profile/version; it does not
+replace banking login or authorize dispute creation.
 
 ### `app/agent/src/app/`
 
-`app/agent/main.py` is the Responses entry point, local and hosted.
-`agents/azure_chat/hosted_workflow.py` builds the triage + Account + Transaction
-specialist agents as one `HandoffBuilder` workflow using `FoundryChatClient` and MCP
-tools; it constructs a request-local workflow per call to avoid shared mutable
-executor state. `context/user_profile_provider.py` injects authenticated locale and
-localized human-label instructions. Transaction intake requires preview and explicit
-consent before mutation; REST-accepted cases continue via `getSupportCase` readback.
-`tools/` holds the MCP client wiring. `routers/` exposes the local
-`/responses` endpoint that the BFF proxies to.
+Root `app/agent/main.py` serves native `ResponsesHostServer(create_agent)` locally
+and hosted, with a per-request workflow factory and a 100-item history boundary.
+`agents/azure_chat/hosted_workflow.py` builds the single `HandoffBuilder` workflow;
+`account_agent.py` and `transaction_agent.py` own specialist definitions. The host
+reuses `FoundryChatClient` instances by model deployment, not mutable workflow state.
+`tools/` holds direct MCP client wiring; `adapters/runtime_tools.py` selects Foundry
+Toolbox allowlists and explicitly rejects its unverified OAuth passthrough.
+`common/internal_identity.py` verifies signed BFF identity and supplies the selected
+MCP bearer. `context/user_profile_provider.py` injects authenticated profile/locale.
+Transaction intake requires separate preview/consent; existing cases use readback.
+The ZIP installs `src/app` noneditably and starts root `main.py`; package `routers/`
+is not the Responses host entrypoint. History, checkpoints and mutation recovery
+have separate contracts.
 
 ### `app/business-api/account/src/banking_account/` and `app/business-api/transaction/src/banking_transaction/`
 
 Both expose `mcp_tools.py` (agent-only tools via `auth/internal_identity.py`'s
-fresh 60-second bearer), `routers/` (browser REST via `auth/jwt_identity.py`),
+explicit OAuth/HMAC mode), `routers/` (browser REST via `auth/jwt_identity.py`),
 `services/` (business logic and resource ownership), `projections/` (read DTO
 assembly), and `models/` (Pydantic DTOs, not canonical tables).
 Transaction's `services/disputes.py`, `consent/preview.py` and `routers/disputes.py`
@@ -112,6 +135,12 @@ in service DTOs. `models/` groups catalog, products, transactions, cases, effect
 and historical tables; its initializer registers canonical metadata.
 `database.py` owns PostgreSQL engine/session wiring, and `runtime.py` batches
 runtime balance/protection projections without changing persisted anchors.
+`identity_models.py` defines public Identity tables; `oauth_models.py` defines
+clients, hashed authorization codes and hashed token records in schema `oauth`.
+Support tables use schema `support`; banking/Identity tables retain public ownership.
+OAuth foreign keys restrict deletion across clients and users; expiry columns are
+timezone-aware. `oauth_jwt.py` and `oauth_identity.py` share pinned RS256/JWKS
+verification with exact `mcp.access` scope, issuer and audience checks.
 
 ### `app/business-api/data/`
 
@@ -141,14 +170,29 @@ Two independent `azd` project roots: the root manifest provisions the App Servic
 stack via Terraform; `app/agent/azure.yaml` provisions the hosted Foundry agent
 separately. Commands against the agent stack need `--cwd app/agent`.
 
+### `evals/`, `.github/` and `.vscode/`
+
+`evals/src/banking_evals/` is an independently installed evaluation package, with
+held-out scenarios and a separate development-exposed dispute replay. Dataset/dependency
+freeze contracts protect evidence integrity; offline checks do not prove real-model,
+customer-authorization or hosted behavior. `.github/workflows/` owns CI/CD; root
+`.vscode/` owns six-service local launch orchestration. F5 runs
+`DEV - Full Stack Ordered` with `noDebug: true`, using the ordered full-stack task
+without automatically opening a browser. `run-local-service.py` centralizes backend
+console severity colors and per-project daily UTF-8 logs; frontend npm runs directly
+without file logging. `AGENTS.md` owns shared rules
+and focused checks; local Copilot notes complement it, not a second policy source.
+
 ## Cross-Cutting Concerns
 
-- **Dual authentication, never conflated.** Identity issues application JWTs;
-  customer `jwt_identity.py` and operator identity dependencies verify them and
-  check current Identity on every protected REST request, without caching and
-  failing closed. `internal_identity.py` verifies the separate 60-second HMAC
-  bearer minted fresh per MCP call. Neither substitutes for the other.
-- **Authorization lives in `services.py`, not in prompts.** Every method that reads
+- **Three trust paths, never conflated.** Application HS256 JWTs authorize REST
+  and BFF requests with uncached, fail-closed current-Identity checks. Signed BFF-to-agent
+  envelopes carry verified customer context and, in OAuth mode, the delegated grant.
+  MCP verifies RS256 using pinned public JWKS without Identity introspection, or a fresh
+  60-second HMAC bearer in explicit compatibility mode; invalid OAuth never falls back.
+  MCP revocation/profile changes can lag until one-hour access-token expiry. Hosted Azure access
+  is separate from customer identity; native OAuth Toolbox binding remains unverified.
+- **Authorization lives in `services/`, not in prompts.** Every method that reads
   or acts on an `accountId`/`productId`/case id re-derives the owner from the
   verified identity and checks it against the resource before doing anything;
   no caller-supplied `customer_id` is ever trusted.
@@ -160,11 +204,11 @@ separately. Commands against the agent stack need `--cwd app/agent`.
   Card to Card/Tarjeta/Cartão; Spanish generated/display terminology uses
   `reclamo`/`reclamos` with masculine grammar. Customer reasons and original audit
   text remain verbatim; frontend catalogs never translate agent Markdown.
-- **Dispute legitimacy is never an LLM decision.** `dispute_service.py`'s triage
+- **Dispute legitimacy is never an LLM decision.** `services/disputes.py`'s triage
   is a deterministic routing check against the dataset's precomputed `fraud_score`;
   missing scores stay in review without estimation. The agent's only job is intake
   (identify and confirm the transaction), read-only case consultation and routing.
-  `operator_service.py` separately enforces available/assigned lists, owner-only
+  `services/operator.py` separately enforces available/assigned lists, owner-only
   detail, atomic exclusive claims, assigned/versioned verdicts, recorded effects
   and case-specific protection. Claim is not a verdict; valid classification stays
   `PENDING_EFFECTS` until compensation is recorded. Real ownership references
@@ -175,9 +219,20 @@ separately. Commands against the agent stack need `--cwd app/agent`.
 - **`uv` is the supported Python tool runner.** Use each service's project context
   with `uv run`/`uv sync`, either from its directory or with explicit
   `--project`/`--directory` options from the repository root.
+- **Controlled diagnostics, not credential dumps.** BFF/Identity OAuth logs expose
+  rejection categories, never codes, state, PKCE material, tokens or raw exceptions.
+  Agent telemetry and BFF `config/tracing.py` support tracing; configured telemetry
+  is not proof of deployed monitoring or successful execution. Local agent tasks explicitly
+  enable sensitive GenAI message capture for debugging; ignored backend logs can contain
+  conversation content. The local output adapter redacts common credential patterns,
+  not arbitrary personal or sensitive content.
 
 ## Architectural Invariants
 
+- OAuth MCP access consent never substitutes for business dispute consent and never
+  permits replay of an uncertain mutation. Callback exchanges are single-use.
+- No shared customer grant, browser-held MCP token, automatic OAuth refresh or native
+  OAuth Toolbox passthrough is implemented. Proposed ADRs are not deployment evidence.
 - The BFF never queries Account, Transaction, or PostgreSQL financial tables
   directly. If a future change adds that back, it reopens a closed migration
   ([ADR 0005: Direct frontend financial API calls](docs/adr/0005-frontend-calls-account-and-transaction-directly.md)) and needs
