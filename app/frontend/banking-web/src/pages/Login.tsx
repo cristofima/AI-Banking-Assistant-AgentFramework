@@ -1,7 +1,7 @@
 import { FormEvent, useState } from "react";
 import { LoaderCircle, LockKeyhole } from "lucide-react";
 import { Navigate, useLocation } from "react-router-dom";
-import { loginDestination } from "@/api/roleRoutes";
+import { loginDestination, savedLoginDestination } from "@/api/roleRoutes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,8 +10,6 @@ import { ApiError } from "@/api/errors";
 
 const Login = () => {
   const { user, login } = useAuth();
-  const destination = (locationState: unknown): string | undefined =>
-    (locationState as { from?: { pathname?: string } } | null)?.from?.pathname;
   const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -19,7 +17,7 @@ const Login = () => {
   const [submitting, setSubmitting] = useState(false);
 
   if (user) {
-    return <Navigate to={loginDestination(user.role, destination(location.state))} replace />;
+    return <Navigate to={loginDestination(user.role, savedLoginDestination(location.state))} replace />;
   }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
