@@ -23,7 +23,7 @@ from banking_data import seed_demo_users
 @pytest.fixture
 def database(monkeypatch: Any) -> Iterator[Any]:
     engine = create_engine("sqlite://", poolclass=StaticPool)
-    engine = engine.execution_options(schema_translate_map={"support": None})
+    engine = engine.execution_options(schema_translate_map={"support": None, "oauth": None})
     SQLModel.metadata.create_all(engine)
     with Session(engine) as session:
         session.add(Role(name="customer"))
