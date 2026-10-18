@@ -26,7 +26,7 @@ def settings() -> Settings:
 def engine(settings: Settings) -> Iterator[Engine]:
     database = create_engine("sqlite://", connect_args={"check_same_thread": False},
                              poolclass=StaticPool)
-    database = database.execution_options(schema_translate_map={"support": None})
+    database = database.execution_options(schema_translate_map={"support": None, "oauth": None})
     SQLModel.metadata.create_all(database)
     service = IdentityService(settings)
     with Session(database) as session:

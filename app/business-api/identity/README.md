@@ -5,6 +5,111 @@ its browser facade; it has no database access. Identity owns Argon2 verification
 HS256 token issuance, persisted profiles, operator and customer-user lifecycle, and identity audit.
 It does not own financial data, dispute verdicts, or a real reviewer queue.
 
+## Optional OAuth authorization-code provider
+
+OAuth is disabled until `OAUTH_ISSUER` (the public HTTPS Identity origin) and
+`OAUTH_FRONTEND_AUTHORIZE_URL` (the HTTPS frontend consent page) are configured.
+Enabled OAuth also requires `OAUTH_AUDIENCE`, `OAUTH_SIGNING_KEY_ID` and externally
+supplied `OAUTH_SIGNING_PRIVATE_KEY` (an unencrypted RSA PEM, at least 2048 bits).
+Missing or invalid signing configuration fails closed with controlled HTTP 503.
+No signing material is generated, read from a credential file, or persisted by Identity.
+The issuer must have no query or trailing slash. Configure the same issuer/audience
+on both MCP consumers and an audience distinct from `JWT_AUDIENCE`.
+Credential-free configuration outline (supply private PEM externally, not in source):
+
+```dotenv
+OAUTH_ISSUER=https://identity.example
+OAUTH_FRONTEND_AUTHORIZE_URL=https://web.example/oauth/consent
+OAUTH_AUDIENCE=banking-mcp
+OAUTH_SIGNING_KEY_ID=
+OAUTH_SIGNING_PRIVATE_KEY=
+```
+
+For Account and Transaction, configure `MCP_IDENTITY_MODE=oauth`, the same
+`OAUTH_ISSUER`/`OAUTH_AUDIENCE`, and `OAUTH_JWKS` containing public JWKS JSON.
+They never receive `OAUTH_SIGNING_PRIVATE_KEY`. Existing `AUTH_INTERNAL_SECRET`
+and login JWT settings remain required for REST's separate introspection path.
+Application login, HS256 tokens, roles and uncached identity checks remain unchanged.
+OAuth uses Authlib authorization-code validation and S256 PKCE, not OIDC. Only
+confidential, explicitly provisioned clients and the fixed `mcp.access` scope are
+supported. There is no refresh token, offline access, password grant, dynamic client
+registration or staff authorization.
+
+| Method | Route                                     | Contract                                                                                                                                                                                |
+| ------ | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/.well-known/oauth-authorization-server` | RFC 8414 metadata; `/oauth/.well-known/oauth-authorization-server` is an alias                                                                                                          |
+| GET    | `/oauth/authorize`                        | Validates request then redirects to configured frontend consent page with bounded allowlisted protocol parameters only                                                                  |
+| POST   | `/oauth/authorize`                        | Existing customer application bearer plus JSON request and explicit `approved` boolean; returns `{redirect_uri}` containing code/state or access_denied/state, never automatic redirect |
+| POST   | `/oauth/token`                            | RFC form exchange with `client_secret_basic` or `client_secret_post`, exact redirect URI and S256 verifier; issues an RS256 access-token JWT                                            |
+| GET    | `/oauth/jwks`                             | Public RSA JWKS only; advertised by metadata `jwks_uri`                                                                                                                                 |
+| POST   | `/internal/oauth/introspect`              | `AUTH_INTERNAL_SECRET` bearer and `{token}` JSON; returns the existing customer profile or controlled 401                                                                               |
+
+Authorization JSON contains `client_id`, `redirect_uri`, `response_type=code`,
+`scope=mcp.access`, nonempty bounded `state`, `code_challenge`,
+`code_challenge_method=S256`, and `approved`. The frontend/BFF owns login and consent
+presentation; the application bearer must never appear in a browser URL.
+Codes expire after 300 seconds and are consumed once using a conditional ORM update
+in the same transaction as token persistence. RS256 access tokens expire after
+3600 seconds (one hour), with `typ=at+jwt` and an explicit `kid`. Claims bind issuer, audience,
+customer profile, `client_id`, unique `jti`, `iat`, `exp` and exact `mcp.access` scope.
+This customer-only grant permits existing MCP reads and customer dispute mutation
+tools; service ownership, explicit dispute consent and recovery checks remain required.
+Legacy `banking.read` scopes and operator/admin grants are rejected.
+Only SHA-256 code/token digests and Argon2 client-secret hashes are persisted.
+Every exchange and compatibility introspection rechecks the active customer, current
+identity version and profile bindings; client deactivation also rejects introspection.
+Account/Transaction MCP OAuth mode instead validates the signed snapshot locally
+against configured public JWKS, with no per-call introspection or HMAC fallback.
+Deactivation, password/version/profile changes and client revocation therefore take
+up to the remaining 3600-second token lifetime to affect MCP access. This configured
+TTL delay does not apply to login JWTs or REST's uncached introspection;
+[ADR 0012](../../../docs/adr/0012-local-oauth-jwt-validation-for-mcp.md) remains Proposed.
+Legacy opaque tokens can still be introspected but cannot authenticate MCP OAuth.
+OAuth tables belong to PostgreSQL schema `oauth`, with migration `20261017_0013`
+after `20261005_0012`. Applying migrations and deployment are separately authorized
+operations; offline tests do not prove PostgreSQL contention or Foundry integration.
+
+Supply `OAUTH_CLIENT_SECRET` externally (32–512 characters), then explicitly provision:
+
+```powershell
+rtk proxy uv run --directory app\business-api\identity banking-provision-oauth-client --client-id foundry-banking --redirect-uri https://approved-client.example/callback --confirm-provision
+```
+
+The CLI never prints the secret, automatically seeds clients or replaces existing
+clients. HTTPS exact redirects are mandatory; `--allow-loopback-http` permits only
+explicit offline localhost/127.0.0.1/::1 HTTP callbacks. Rotation requires separate
+approval. Token responses are no-store and omit raw protocol exception descriptions.
+
+Client registration is not automatic at startup, login or consent. An empty `oauth`
+schema is consistent with `invalid_client`: authorization cannot create a code without
+an existing active client whose ID matches the request. Persistence proceeds through
+explicit client registration, accepted consent (authorization code), then successful
+code exchange (access token). Diagnostics do not provision clients or apply migrations.
+
+OAuth failures emit controlled diagnostics across Identity authorization, token exchange
+and introspection, BFF authorization/callback and upstream transport, and shared MCP
+JWT verification. Client lookup distinguishes `unregistered` from `inactive`; protocol
+errors use allowlisted codes, and other failures use static categories or HTTP statuses.
+Token exchange distinguishes `code_not_found_for_client`, `code_consumed`, `code_expired`,
+`redirect_binding`, `pkce_binding`, `customer_snapshot` and `code_consumption_conflict`.
+Expiry checks compare instants in UTC, preserving timezone-aware PostgreSQL offsets;
+naive SQLite timestamps are treated as UTC. Authorization codes retain their
+300-second lifetime; access tokens last 3600 seconds.
+These categories preserve native Authlib validation and do not identify the exact
+profile field that changed. Persisted unconsumed codes prove authorization succeeded,
+not that the callback's code, client, redirect and verifier bindings passed validation.
+Successful BFF status polling adds no error diagnostics. Logs omit request contents,
+customer claims, secrets, tokens, callback URLs and raw exception descriptions. Share
+only controlled categories/codes when troubleshooting. Offline regressions verify the
+empty-table rejection behavior, not the configured PostgreSQL state.
+
+Focused offline check:
+
+```powershell
+$env:OTEL_SDK_DISABLED = "true"
+rtk proxy uv run --directory app\business-api\identity python -m pytest tests\test_oauth.py -q
+```
+
 ## Contracts
 
 - Each principal has exactly one controlled role: `customer`, `operator`, or `admin`.
@@ -89,8 +194,15 @@ From repository root, only after authorizing stack startup:
 
 ```powershell
 rtk proxy uv sync --directory app\business-api\identity --frozen --group dev
-rtk proxy uv run --project "app\business-api\identity" --env-file "app\business-api\identity\.env" uvicorn identity.main:create_app --factory --port 8090
+rtk proxy uv run --directory app\business-api\identity --env-file .env python -u ..\..\..\.vscode\run-local-service.py identity
 ```
+
+The root F5 `DEV - Full Stack Ordered` launch uses `noDebug: true` and starts
+Identity HTTPS on `https://localhost:8091`, using certificates prepared outside the
+checkout. It neither attaches a debugger nor opens a browser. The local output runner
+adds severity colors and appends plain UTF-8 output to `logs/identity-YYYY-MM-DD.log`;
+files have no automatic retention cleanup. See the [root startup guide](../../../README.md#run-locally)
+for TLS preparation and the ordered six-service task.
 
 The local tasks load each consumer's ignored `.env`: Identity, Account,
 Transaction, and Responses BFF. Keep `JWT_SECRET_KEY`, `JWT_ISSUER`,
@@ -102,7 +214,9 @@ Each service owns `.env` and a credential-free `.env.example`, including the age
 There is no root dotenv configuration; service tasks load each service's `.env`.
 
 BFF/Account/Transaction retain the compatibility setting `AUTH_USERS_ENDPOINT`
-(default `http://127.0.0.1:8090`) for this service despite the Identity rename.
+(compatibility default `http://127.0.0.1:8090`) for this service despite the Identity rename.
+For the root HTTPS stack, explicitly configure each consumer with
+`AUTH_USERS_ENDPOINT=https://localhost:8091` and trust the prepared localhost CA.
 PostgreSQL connection and statement timeouts are bounded to three seconds.
 
 ## Observability
