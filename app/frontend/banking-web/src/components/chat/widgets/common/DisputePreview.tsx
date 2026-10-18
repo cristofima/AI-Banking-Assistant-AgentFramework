@@ -7,9 +7,12 @@ import { Button } from "@/components/ui/button";
 import { useChat } from "../../ResponsesChatProvider";
 import type { ClientWidgetProps } from "../WidgetRegistry";
 import { recordedDecisionSchema, visibleConversation } from "../../sessionHistory";
+import { useOAuthReadiness } from "@/context/OAuthReadinessContext";
 
 export function DisputePreview({ args, itemId }: ClientWidgetProps) {
   const { t } = useTranslation();
+  const readiness = useOAuthReadiness();
+  const authorizationBlocked = Boolean(readiness && (!readiness.status || (readiness.status.required && !readiness.status.ready) || readiness.busy));
   const { activeThreadId, items, isStreaming, sendWidgetAction, isThreadLocked, markPreviewAttempted, recoverCaseAcknowledgement } = useChat();
   const locked = Boolean(activeThreadId && isThreadLocked(activeThreadId));
   const originalThread = useRef(activeThreadId);
@@ -47,7 +50,7 @@ export function DisputePreview({ args, itemId }: ClientWidgetProps) {
     {recovering && <p role="status">{t("chat.recovery.loading")}</p>}
   </section>;
   if (!preview.success) return <p>{t("Dispute preview unavailable")}</p>;
-  return <DisputePreviewConsent preview={preview.data} conversationHistory={visibleConversation(items)} disabled={locked || unavailable}
+  return <DisputePreviewConsent preview={preview.data} conversationHistory={visibleConversation(items)} disabled={authorizationBlocked || locked || unavailable}
     recoveryDisabled={unavailable} recoveryOnly={args.recoveryOnly === true}
     onAttempt={() => { if (!originalThread.current) throw new Error("Recovery evidence unavailable"); markPreviewAttempted(originalThread.current, itemId); }}
     onAccepted={(supportCase) => void continueChat(supportCase.caseId, false, supportCase.status)}

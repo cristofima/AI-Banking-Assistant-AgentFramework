@@ -66,7 +66,7 @@ async def discover_cards_by_suffix(
     suffix: Annotated[str, "Exactly four final ASCII digits, for example 7036"],
     headers: dict[str, str] = CurrentHeaders(),
 ) -> CardDiscoveryResult:
-    customer_id = get_customer_id(headers)
+    customer_id = await to_thread(get_customer_id, headers)
     return await to_thread(card_service_singleton.discover_cards_by_suffix, suffix, customer_id)
 
 

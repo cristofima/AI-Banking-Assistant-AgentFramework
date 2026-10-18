@@ -6,11 +6,12 @@ import ast
 from pathlib import Path
 import runpy
 from typing import Annotated, Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, call
 
 from fastmcp import Client, FastMCP
 from fastmcp.server.dependencies import CurrentHeaders
 import pytest
+from starlette.concurrency import run_in_threadpool
 
 from banking_transaction.models.transactions import DisputeCase, DisputeCaseEvent
 
@@ -60,7 +61,8 @@ async def test_recognition_tool_delegates_verified_customer_in_threadpool() -> N
     identity = MagicMock(return_value="verified-customer")
     service = MagicMock()
     expected = {"matches": [], "persistedInSupportCase": False}
-    threadpool = AsyncMock(return_value=expected)
+    service.get_transaction_recognition_context.return_value = expected
+    threadpool = AsyncMock(side_effect=run_in_threadpool)
     namespace = {
         "CurrentHeaders": CurrentHeaders, "Any": Any, "service": service,
         "get_customer_id": identity, "run_in_threadpool": threadpool,
@@ -71,14 +73,20 @@ async def test_recognition_tool_delegates_verified_customer_in_threadpool() -> N
 
     assert result == expected
     identity.assert_called_once_with(headers)
-    threadpool.assert_awaited_once_with(
-        service.get_transaction_recognition_context, "selected", "verified-customer",
+    assert threadpool.await_args_list == [
+        call(identity, headers),
+        call(service.get_transaction_recognition_context, "selected", "verified-customer"),
+    ]
+    service.get_transaction_recognition_context.assert_called_once_with(
+        "selected", "verified-customer",
     )
     identity.side_effect = PermissionError("unavailable")
     threadpool.reset_mock()
+    service.reset_mock()
     with pytest.raises(PermissionError, match="unavailable"):
         await namespace["get_transaction_recognition_context"]("selected", headers)
-    threadpool.assert_not_awaited()
+    threadpool.assert_awaited_once_with(identity, headers)
+    service.get_transaction_recognition_context.assert_not_called()
 
 
 def test_dispute_response_models_reject_incomplete_fixture_outputs() -> None:

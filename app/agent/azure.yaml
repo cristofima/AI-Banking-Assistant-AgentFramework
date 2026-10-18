@@ -25,6 +25,38 @@ services:
         sku:
           name: GlobalStandard
           capacity: 10
+  banking-tools:
+    host: azure.ai.toolbox
+    description: >
+      Customer MCP tools through OAuth project connections using mcp.access.
+    tools:
+      - type: mcp
+        server_label: account
+        server_url: ${ACCOUNT_MCP_URL}
+        project_connection_id: account-mcp
+        allowed_tools:
+          - getAccountsByUserName
+          - getAccountDetails
+          - getRegisteredBeneficiary
+          - getCreditCards
+          - discoverCardsBySuffix
+          - getCardDetails
+      - type: mcp
+        server_label: transaction
+        server_url: ${TRANSACTION_MCP_URL}
+        project_connection_id: transaction-mcp
+        allowed_tools:
+          - getTransactionsByRecipientName
+          - getCardTransactions
+          - getLastTransactions
+          - getTransactionRecognitionContext
+          - previewTransactionDispute
+          - reportTransactionDispute
+          - recoverTransactionDispute
+          - respondToDisputeApproval
+          - listSupportCases
+          - getSupportCase
+          - getSupportCaseTimeline
   home-banking-agent:
     host: azure.ai.agent
     project: .
@@ -35,6 +67,7 @@ services:
       dependencyResolution: remote_build
     uses:
       - ai-project
+      - banking-tools
     kind: hosted
     name: home-banking-agent
     metadata:
@@ -48,6 +81,8 @@ services:
       - protocol: responses
         version: 2.0.0
     env:
+      AGENT_RUNTIME: foundry
+      MCP_IDENTITY_MODE: oauth
       FOUNDRY_PROJECT_ENDPOINT: ${FOUNDRY_PROJECT_ENDPOINT}
       MODEL_DEPLOYMENT_NAME: ${MODEL_DEPLOYMENT_NAME}
       TRIAGE_MODEL_DEPLOYMENT_NAME: ${TRIAGE_MODEL_DEPLOYMENT_NAME}

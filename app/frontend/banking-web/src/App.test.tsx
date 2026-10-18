@@ -29,6 +29,33 @@ const renderRoute = (path: string) => renderToStaticMarkup(
 );
 
 describe("role isolated routing", () => {
+  it.each(["admin", "operator", "anonymous", "restoring"] as const)("keeps OAuth consent absent for %s", (role) => {
+    auth.user = role === "admin" || role === "operator" ? staff(role) : null;
+    auth.loading = role === "restoring";
+    try {
+      expect(renderRoute("/oauth/consent")).not.toContain("Authorize banking read access");
+    } finally { auth.loading = false; }
+  });
+  it.each(["admin", "operator", "anonymous", "restoring"] as const)("keeps OAuth callback controls absent for %s", (role) => {
+    auth.user = role === "admin" || role === "operator" ? staff(role) : null;
+    auth.loading = role === "restoring";
+    try { expect(renderRoute("/oauth/callback?state=s&code=c")).not.toContain("Finish authorization"); }
+    finally { auth.loading = false; }
+  });
+  it("mounts standalone customer callback without chat", () => {
+    auth.user = { ...staff("admin"), role: "customer", customerId: "customer" };
+    mounts.customer.mockClear();
+    expect(renderRoute("/oauth/callback?state=s&code=c")).toContain("Finish authorization");
+    expect(mounts.customer).not.toHaveBeenCalled();
+  });
+  it("mounts standalone customer consent without chat", () => {
+    auth.user = { ...staff("admin"), role: "customer", customerId: "customer" };
+    mounts.customer.mockClear();
+    const html = renderRoute("/oauth/consent");
+    expect(html).toContain("Invalid authorization request");
+    expect(html).not.toContain("CUSTOMER_");
+    expect(mounts.customer).not.toHaveBeenCalled();
+  });
   it("changes the shell identity for logout/login, user, role and identity-version transitions", () => {
     const customer: AuthenticatedUser = { id: "customer-user", email: "customer@example.test", role: "customer", customerId: "customer", locale: "en", name: null, identityVersion: 1 };
     const keys: Array<string | null> = [];

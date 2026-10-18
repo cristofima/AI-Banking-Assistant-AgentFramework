@@ -13,4 +13,9 @@ class Settings(BaseSettings):
     jwt_audience: str = Field(min_length=1)
     auth_internal_secret: SecretStr = Field(min_length=32)
     access_token_minutes: int = Field(default=60, ge=1, le=60)
+    oauth_issuer: str = ""
+    oauth_frontend_authorize_url: str = ""
+    oauth_audience: str = ""
+    oauth_signing_private_key: SecretStr = SecretStr("")
+    oauth_signing_key_id: str = ""
     applicationinsights_connection_string: str | None = None

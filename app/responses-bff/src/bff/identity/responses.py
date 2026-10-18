@@ -7,6 +7,7 @@ from fastapi import HTTPException, Request, status
 from bff.identity.models import AuthenticatedUser
 from bff.config.settings import Settings
 from bff.identity.internal_identity import create_internal_identity
+from bff.identity.oauth_client import OAuthClient, session_binding
 
 class AsyncCredential(Protocol):
     """Credential operations used by the BFF."""
@@ -28,7 +29,15 @@ async def _upstream_headers(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={"code": "SERVICE_UNAVAILABLE"},
         )
-    internal_identity = create_internal_identity(user, settings.internal_identity_secret)
+    oauth: OAuthClient = request.app.state.oauth_client
+    grant = None
+    if oauth.config.mcp_identity_mode == "oauth":
+        grant = oauth.current(session_binding(request, user))
+        if grant is None:
+            raise HTTPException(403, detail={"code": "ACCESS_DENIED"})
+    elif oauth.config.mcp_identity_mode != "hmac":
+        raise HTTPException(503, detail={"code": "SERVICE_UNAVAILABLE"})
+    internal_identity = create_internal_identity(user, settings.internal_identity_secret, grant)
     if settings.responses_upstream_mode == "foundry":
         credential: AsyncCredential = request.app.state.azure_credential
         try:

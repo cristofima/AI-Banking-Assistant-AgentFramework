@@ -3,7 +3,7 @@ name = "banking-shared"
 version = "0.1.0"
 description = "Shared SQLModel schema and database helpers for the banking services."
 requires-python = ">=3.11"
-dependencies = ["psycopg[binary]>=3.3.3", "sqlmodel>=0.0.37"]
+dependencies = ["psycopg[binary]>=3.3.3", "sqlmodel>=0.0.37", "joserfc>=1.6,<2"]
 
 [project.optional-dependencies]
 telemetry = ["azure-monitor-opentelemetry==1.8.10"]

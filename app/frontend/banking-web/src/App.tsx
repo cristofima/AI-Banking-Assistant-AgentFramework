@@ -22,6 +22,9 @@ import SupportCases from "./pages/SupportCases";
 import SupportCaseDetail from "./pages/SupportCaseDetail";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
+import OAuthConsent from "./pages/OAuthConsent";
+import OAuthCallback from "./pages/OAuthCallback";
+import { OAuthReadinessProvider } from "@/context/OAuthReadinessContext";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { AgentResponseProvider } from "@/context/AgentResponseContext";
 import { UiLocaleProvider } from "@/context/UiLocaleProvider";
@@ -36,6 +39,7 @@ import CustomerUserManagement from "@/pages/CustomerUserManagement";
 const queryClient = new QueryClient();
 
 const ProtectedShell = () => (
+  <OAuthReadinessProvider>
   <AgentResponseProvider>
     <div className="min-h-screen bg-background flex flex-col w-full">
       <Navigation />
@@ -48,6 +52,7 @@ const ProtectedShell = () => (
       <AIAgent />
     </div>
   </AgentResponseProvider>
+  </OAuthReadinessProvider>
 );
 
 export const RequireRole = ({ children, role }: { children: ReactNode; role: UserRole }) => {
@@ -126,6 +131,8 @@ export const AppRoutes = () => (
       />
       <Route path="*" element={<NotFound />} />
     </Route>
+    <Route path="/oauth/consent" element={<RequireRole role="customer"><OAuthConsent /></RequireRole>} />
+    <Route path="/oauth/callback" element={<OAuthCallback />} />
   </Routes>
 );
 

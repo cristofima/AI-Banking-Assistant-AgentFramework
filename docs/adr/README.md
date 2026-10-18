@@ -18,6 +18,7 @@ decisions produced; read these records for _why_, not _how it works today_.
 | [0009](0009-operator-verdicts-with-recorded-financial-effects.md)   | Assigned-operator verdicts with truthful terminal states and atomic, ingestion-safe financial effects |
 | [0010](0010-bounded-customer-provided-case-conversation.md)         | Immutable bounded customer-provided conversation evidence at accepted intake                          |
 | [0011](0011-support-domain-postgresql-schema.md)                    | One PostgreSQL support-domain schema with record-preserving table migration                           |
+| [0012](0012-local-oauth-jwt-validation-for-mcp.md)                  | Proposed local OAuth JWT validation at direct MCP boundaries with a one-hour revocation bound         |
 
 Once a record's `Status` is `Accepted`, its Context/Decision/Consequences are
 immutable. A changed decision gets a new ADR that supersedes the old one; the old

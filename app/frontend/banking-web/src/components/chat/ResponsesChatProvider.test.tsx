@@ -18,6 +18,7 @@ const h = vi.hoisted(() => ({
   catalog: {} as Record<string, unknown>,
   user: { id: "test-user", identityVersion: 1 } as { id: string; identityVersion: number } | null,
   sessionKey: 1, loading: false, chatServerUrl: "/api", logout: vi.fn(),
+  readiness: null as null | { status: { required: boolean; ready: boolean } | null; verify: ReturnType<typeof vi.fn> },
 }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),
@@ -45,6 +46,7 @@ vi.mock("react", async original => ({
 }));
 vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: h.user, sessionKey: h.sessionKey, loading: h.loading, logout: h.logout }) }));
 vi.mock("@/api/disputeClient", () => ({ getSupportCase: vi.fn() }));
+vi.mock("@/context/OAuthReadinessContext", () => ({ useOAuthReadiness: () => h.readiness }));
 vi.mock("./useThreadStream", () => ({ useThreadStream: (options: typeof h.stream) => {
   h.stream = options;
   return { cancel: h.cancel };
@@ -76,9 +78,31 @@ function act(value = render(), approved = true) {
 
 beforeEach(() => {
   vi.clearAllMocks(); vi.mocked(getSupportCase).mockReset(); h.slots = []; h.effects = []; h.queued = []; h.catalog = {};
-  h.user = { id: "test-user", identityVersion: 1 }; h.sessionKey = 1; h.loading = false; h.chatServerUrl = "/api";
+  h.user = { id: "test-user", identityVersion: 1 }; h.sessionKey = 1; h.loading = false; h.chatServerUrl = "/api"; h.readiness = null;
   const storage = new Map<string, string>();
   vi.stubGlobal("sessionStorage", { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value), removeItem: (key: string) => storage.delete(key) });
+});
+
+describe("OAuth starter prompts", () => {
+  const prompts = [
+    { id: "accounts", title: "Accounts", content: "Show my accounts" },
+    { id: "balance", title: "Balance", content: "Show my balance" },
+    { id: "transactions", title: "Transactions", content: "Show my transactions" },
+  ];
+
+  it.each([false, true])("preserves welcome options with required=%s when ready", required => {
+    h.readiness = { status: { required, ready: true }, verify: vi.fn() };
+    h.cursor = 0;
+    const result = ChatProvider({ children: null, starterPrompts: prompts }).props.value;
+    expect(result.starterPrompts).toEqual(prompts);
+  });
+
+  it.each([null, { required: true, ready: false }])("hides options before readiness", status => {
+    h.readiness = { status, verify: vi.fn() };
+    h.cursor = 0;
+    const result = ChatProvider({ children: null, starterPrompts: prompts }).props.value;
+    expect(result.starterPrompts).toEqual([]);
+  });
 });
 
 describe("Responses provider tool progress", () => {
@@ -462,6 +486,15 @@ describe("Responses preview recovery safeguards", () => {
     expect(JSON.stringify(h.stream.request?.payload)).not.toContain("recovery-token");
     expect(recovered.threads.find(thread => thread.id === value.activeThreadId)?.status.type).toBe("closed");
   });
+  it("does not report recovery success when OAuth readiness blocks continuation", async () => {
+    const { value, widget } = await receipt();
+    h.readiness = { status: null, verify: vi.fn().mockResolvedValue(false) };
+    const gated = render();
+    vi.mocked(getSupportCase).mockResolvedValueOnce(supportCase);
+    await expect(gated.recoverCaseAcknowledgement(value.activeThreadId!, widget.id)).resolves.toBe(false);
+    expect(render().activeThreadId).toBe(value.activeThreadId);
+    expect(h.readiness.verify).not.toHaveBeenCalled();
+  });
   it.each(["null", "error", "case", "transaction", "reason"])("keeps the source locked after %s lookup evidence", async kind => {
     const { value, widget } = await receipt();
     if (kind === "error") vi.mocked(getSupportCase).mockRejectedValueOnce(new ApiError("SERVICE_UNAVAILABLE"));
@@ -748,5 +781,39 @@ describe("Responses provider approval lifecycle", () => {
     expect(render().items.filter(item => item.id === "approval-1")).toHaveLength(1);
     await expect(render().sendWidgetAction(value.activeThreadId!, "unknown", { type: "approval" })).resolves.toBe("error");
     expect(render().isStreaming).toBe(false);
+  });
+});
+
+describe("OAuth dispatch preflight", () => {
+  it.each([null,{required:true,ready:false}])("blocks text and thread initial message before dispatch",status=>{
+    h.readiness={status,verify:vi.fn()}; start();
+    render().createThread("message");render();
+    expect(h.stream.enabled).toBe(false);expect(h.readiness.verify).not.toHaveBeenCalled();
+  });
+  it.each([false,true])("rechecks current readiness before new-thread dispatch with required=%s",async required=>{
+    h.readiness={status:{required,ready:required},verify:vi.fn().mockResolvedValue(true)};
+    start();await Promise.resolve();render();
+    expect(h.readiness.verify).toHaveBeenCalledOnce();expect(h.stream.enabled).toBe(true);
+  });
+  it("does not dispatch or replay when a previously ready grant expires",async()=>{
+    h.readiness={status:{required:true,ready:true},verify:vi.fn().mockResolvedValue(false)};
+    start();await Promise.resolve();render();render();
+    expect(h.stream.enabled).toBe(false);expect(h.readiness.verify).toHaveBeenCalledOnce();
+  });
+  it.each(["session","selection","closed"])("ignores readiness completion after %s changes",async change=>{
+    let resolve!:(ready:boolean)=>void;
+    h.readiness={status:{required:true,ready:true},verify:vi.fn().mockImplementation(()=>new Promise<boolean>(yes=>{resolve=yes;}))};
+    start(); const value=render();
+    if(change==="session")h.sessionKey++;
+    if(change==="selection")value.selectThread("other-thread");
+    if(change==="closed")value.closeThread(value.activeThreadId!);
+    render();resolve(true);await Promise.resolve();render();
+    expect(h.stream.enabled).toBe(false);
+  });
+  it("rejects generic mutation approvals even with a ready read grant",async()=>{
+    const value=approval();
+    h.readiness={status:{required:true,ready:true},verify:vi.fn().mockResolvedValue(true)};
+    expect(await act(render())).toBe("error");
+    expect(h.readiness.verify).not.toHaveBeenCalled();expect(value.activeThreadId).toBeTruthy();
   });
 });

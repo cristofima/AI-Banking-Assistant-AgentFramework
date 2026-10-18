@@ -1,4 +1,6 @@
 """Auth HTTP boundary. Synchronous handlers run database/hash work in worker threads."""
+import logging
+import re
 from collections.abc import Iterator
 from contextlib import asynccontextmanager
 from hmac import compare_digest
@@ -23,6 +25,7 @@ from identity.models.schemas import (
 from identity.services.service import IdentityService, unauthorized
 from identity.settings import Settings
 
+logger = logging.getLogger("uvicorn.error.identity")
 bearer = HTTPBearer(auto_error=False)
 
 
@@ -66,14 +69,28 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
 
     @app.exception_handler(IntegrityError)
     async def conflict(request: Request, exc: IntegrityError) -> JSONResponse:
+        if request.url.path in {"/oauth/authorize", "/oauth/token", "/internal/oauth/introspect"}:
+            logger.error("Identity OAuth database request failed: category=integrity")
         return JSONResponse(status_code=409, content={"detail": {"code": "AUTH_CONFLICT"}})
 
     @app.exception_handler(SQLAlchemyError)
     async def unavailable(request: Request, exc: SQLAlchemyError) -> JSONResponse:
+        original = getattr(exc, "orig", None)
+        sqlstate = getattr(original, "sqlstate", None) or getattr(original, "pgcode", None)
+        safe_sqlstate = (
+            sqlstate if isinstance(sqlstate, str) and re.fullmatch(r"[0-9A-Z]{5}", sqlstate)
+            else "unknown"
+        )
+        logger.error(
+            "Identity database request failed: exception=%s sqlstate=%s",
+            type(exc).__name__, safe_sqlstate,
+        )
         return JSONResponse(status_code=503, content={"detail": {"code": "AUTH_UNAVAILABLE"}})
 
     @app.exception_handler(RequestValidationError)
     async def invalid_request(request: Request, exc: RequestValidationError) -> JSONResponse:
+        if request.url.path in {"/oauth/authorize", "/oauth/token", "/internal/oauth/introspect"}:
+            logger.error("Identity OAuth request rejected: category=validation")
         return JSONResponse(status_code=422, content={"detail": {"code": "AUTH_INVALID_REQUEST"}})
 
     @app.post("/auth/login", response_model=LoginResponse, response_model_exclude_none=True)
@@ -150,4 +167,6 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     ) -> CustomerProfile:
         return service.update_customer(db, token, user_id, "deactivate")
 
+    from identity.oauth_routes import oauth_router
+    app.include_router(oauth_router(config, service, session, token_value, internal))
     return app

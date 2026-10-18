@@ -11,35 +11,13 @@
       "problemMatcher": []
     },
     {
-      "label": "run identity dev",
-      "type": "shell",
-      "command": "uv run --env-file .env uvicorn identity.main:create_app --factory --port 8090",
-      "options": {
-        "cwd": "${workspaceFolder}/app/business-api/identity"
-      },
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated",
-        "group": "identity",
-        "clear": true
-      },
-      "isBackground": true,
-      "problemMatcher": {
-        "pattern": [{ "regexp": "." }],
-        "background": {
-          "activeOnStart": true,
-          "beginsPattern": ".*",
-          "endsPattern": ".*Uvicorn running on http://127\\.0\\.0\\.1:8090.*"
-        }
-      }
-    },
-    {
       "label": "run account mcp dev",
       "type": "shell",
-      "command": "uv run --env-file .env python -m banking_account.main",
+      "command": "rtk proxy uv run --env-file .env python -u ..\\..\\..\\.vscode\\run-local-service.py account",
       "options": {
         "cwd": "${workspaceFolder}/app/business-api/account",
         "env": {
+          "SSL_CERT_FILE": "${env:USERPROFILE}\\.banking-oauth-local\\localhost-ca-bundle.pem",
           "PROFILE": "dev"
         }
       },
@@ -53,7 +31,10 @@
       "problemMatcher": {
         "pattern": [
           {
-            "regexp": "."
+            "regexp": "^(.+):(\\d+): (.+)$",
+            "file": 1,
+            "line": 2,
+            "message": 3
           }
         ],
         "background": {
@@ -66,10 +47,11 @@
     {
       "label": "run transaction mcp dev",
       "type": "shell",
-      "command": "uv run --env-file .env python -m banking_transaction.main",
+      "command": "rtk proxy uv run --env-file .env python -u ..\\..\\..\\.vscode\\run-local-service.py transaction",
       "options": {
         "cwd": "${workspaceFolder}/app/business-api/transaction",
         "env": {
+          "SSL_CERT_FILE": "${env:USERPROFILE}\\.banking-oauth-local\\localhost-ca-bundle.pem",
           "PROFILE": "dev"
         }
       },
@@ -83,7 +65,10 @@
       "problemMatcher": {
         "pattern": [
           {
-            "regexp": "."
+            "regexp": "^(.+):(\\d+): (.+)$",
+            "file": 1,
+            "line": 2,
+            "message": 3
           }
         ],
         "background": {
@@ -96,12 +81,14 @@
     {
       "label": "run responses agent dev",
       "type": "shell",
-      "command": "uv run --env-file .env python main.py",
+      "command": "rtk proxy uv run --env-file .env python -u ..\\..\\.vscode\\run-local-service.py agent",
       "options": {
         "cwd": "${workspaceFolder}/app/agent",
         "env": {
-          "PROFILE": "dev",
-          "ENABLE_SENSITIVE_DATA": "true"
+          "SSL_CERT_FILE": "${env:USERPROFILE}\\.banking-oauth-local\\localhost-ca-bundle.pem",
+          "ENABLE_SENSITIVE_DATA": "true",
+          "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT": "true",
+          "AGENT_RUNTIME": "local"
         }
       },
       "presentation": {
@@ -114,23 +101,27 @@
       "problemMatcher": {
         "pattern": [
           {
-            "regexp": "."
+            "regexp": "^(.+):(\\d+): (.+)$",
+            "file": 1,
+            "line": 2,
+            "message": 3
           }
         ],
         "background": {
           "activeOnStart": true,
-          "beginsPattern": ".*",
-          "endsPattern": ".*Uvicorn running on http://127\\.0\\.0\\.1:8088.*|.*Uvicorn running on http://0\\.0\\.0\\.0:8088.*"
+          "beginsPattern": ".*AgentServerHost starting.*",
+          "endsPattern": ".*(?:Uvicorn running|Running) on http://(?:127\\.0\\.0\\.1|0\\.0\\.0\\.0):8088.*"
         }
       }
     },
     {
       "label": "run responses bff dev",
       "type": "shell",
-      "command": "uv run --env-file .env uvicorn bff.main:app --port 8080",
+      "command": "rtk proxy uv run --env-file .env python -u ..\\..\\.vscode\\run-local-service.py bff",
       "options": {
         "cwd": "${workspaceFolder}/app/responses-bff",
         "env": {
+          "SSL_CERT_FILE": "${env:USERPROFILE}\\.banking-oauth-local\\localhost-ca-bundle.pem",
           "PROFILE": "dev",
           "RESPONSES_UPSTREAM_MODE": "local",
           "RESPONSES_AGENT_ENDPOINT": "http://127.0.0.1:8088/responses"
@@ -146,12 +137,15 @@
       "problemMatcher": {
         "pattern": [
           {
-            "regexp": "."
+            "regexp": "^(.+):(\\d+): (.+)$",
+            "file": 1,
+            "line": 2,
+            "message": 3
           }
         ],
         "background": {
           "activeOnStart": true,
-          "beginsPattern": ".*",
+          "beginsPattern": ".*Started server process.*",
           "endsPattern": ".*Uvicorn running on http://127\\.0\\.0\\.1:8080.*|.*Uvicorn running on http://0\\.0\\.0\\.0:8080.*"
         }
       }
@@ -159,7 +153,8 @@
     {
       "label": "run frontend dev",
       "type": "shell",
-      "command": "npm run dev",
+      "command": "rtk proxy npm run dev -- --mode oauth-local",
+      "dependsOn": "prepare local OAuth TLS",
       "options": {
         "cwd": "${workspaceFolder}/app/frontend/banking-web"
       },
@@ -173,23 +168,68 @@
       "problemMatcher": {
         "pattern": [
           {
-            "regexp": "."
+            "regexp": "^(.+):(\\d+): (.+)$",
+            "file": 1,
+            "line": 2,
+            "message": 3
           }
         ],
         "background": {
           "activeOnStart": true,
-          "beginsPattern": ".*",
-          "endsPattern": ".*Local:.*http://.*:5170/.*"
+          "beginsPattern": ".*VITE.*",
+          "endsPattern": ".*Local:.*https://localhost:5170/.*"
+        }
+      }
+    },
+    {
+      "label": "prepare local OAuth TLS",
+      "type": "shell",
+      "command": "rtk proxy pwsh -NoProfile -ExecutionPolicy Bypass -File .vscode\\setup-local-https.ps1",
+      "problemMatcher": []
+    },
+    {
+      "label": "run identity HTTPS dev",
+      "type": "shell",
+      "command": "rtk proxy uv run --env-file .env python -u ..\\..\\..\\.vscode\\run-local-service.py identity",
+      "options": {
+        "cwd": "${workspaceFolder}/app/business-api/identity"
+      },
+      "dependsOn": "prepare local OAuth TLS",
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "identity-https"
+      },
+      "problemMatcher": {
+        "owner": "banking-dev",
+        "pattern": [
+          {
+            "regexp": "^(.+):(\\d+): (.+)$",
+            "file": 1,
+            "line": 2,
+            "message": 3
+          }
+        ],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*Started server process.*",
+          "endsPattern": ".*Uvicorn running on https://localhost:8091.*"
         }
       }
     },
     {
       "label": "prepare full stack dev",
       "type": "shell",
-      "command": "echo Full stack ready",
+      "command": "Write-Output 'Full stack ready'",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
       "problemMatcher": [],
+      "dependsOrder": "sequence",
       "dependsOn": [
-        "run identity dev",
+        "run identity HTTPS dev",
         "run account mcp dev",
         "run transaction mcp dev",
         "run responses agent dev",

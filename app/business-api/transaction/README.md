@@ -1,7 +1,7 @@
 # Transaction service
 
 Transaction REST reads and customer dispute routes verify the browser application JWT.
-MCP tools use the separate short-lived internal agent bearer; it cannot authorize
+MCP tools use the separate configured OAuth or HMAC agent bearer; neither authorizes
 operator access. Business logic retains customer ownership checks.
 
 ## Package layout and local startup
@@ -32,6 +32,42 @@ rtk proxy uv run --directory app\business-api\transaction --env-file .env python
 Local development uses port 8071. The ASGI target is `banking_transaction.main:app`;
 production uses port 8080. Imports use the nested package namespaces without runtime
 path injection. See the [shared packaging guide](../README.md#python-dependency-artifacts).
+F5 runs the root ordered stack without debugging or automatic browser launch. Its
+local runner adds severity colors and daily UTF-8 `logs/transaction-YYYY-MM-DD.log`
+files; the manual command above does not capture files. For that HTTPS Identity
+stack, configure `AUTH_USERS_ENDPOINT=https://localhost:8091` and trust the prepared CA.
+Logs are ignored and have no automatic retention cleanup; see the
+[root startup guide](../../../README.md#run-locally).
+
+## MCP OAuth access tokens
+
+The [.env.example](.env.example) selects local OAuth and `PROFILE=dev`, keeps
+Identity at `https://localhost:8091` and browser CORS at `https://localhost:5170`,
+and leaves public JWKS and database credentials unset. Supply `OAUTH_JWKS` as
+single-line JSON in single quotes, matching Identity's signing key ID. Empty JWKS
+rejects MCP calls; no automatic fetch occurs. For HMAC compatibility, explicitly
+set `MCP_IDENTITY_MODE=hmac` on this service and the agent and configure the separate
+`INTERNAL_IDENTITY_SECRET` to match BFF/agent transport. Login JWT and introspection
+keys remain required and distinct. Optional telemetry is disabled by leaving
+`APPLICATIONINSIGHTS_CONNECTION_STRING` empty.
+
+Set `MCP_IDENTITY_MODE=oauth`, `OAUTH_ISSUER`, `OAUTH_AUDIENCE` and `OAUTH_JWKS`
+(public JWKS JSON from Identity's `/oauth/jwks`, never its private signing key).
+The issuer must exactly match the HTTPS issuer without a trailing slash; use an
+audience distinct from browser login. RS256, `typ=at+jwt`, known `kid`, strict
+customer claims, exact `mcp.access` and a maximum 3600-second lifetime are checked
+locally. No introspection, network or HMAC fallback occurs in OAuth mode.
+Verified customer grants permit existing MCP reads and customer dispute creation
+and approval tools. Legacy `banking.read` and operator/admin grants are rejected.
+Service-layer ownership, explicit consent and uncertain-mutation recovery remain
+unchanged; the grant does not bypass these checks or authorize automatic replay.
+
+Identity/client revocation and profile changes take effect at expiry, up to 3600 seconds
+later. REST login JWTs still require uncached current-identity introspection.
+Default `hmac` mode and operator authorization remain separate and unchanged.
+Public JWKS rotation is explicit, not fetched at runtime: publish/configure new keys
+before signing with them, and retain old public keys until issued tokens expire.
+See [Identity OAuth configuration](../identity/README.md#optional-oauth-authorization-code-provider).
 
 ## Optional charge-recognition assistance
 

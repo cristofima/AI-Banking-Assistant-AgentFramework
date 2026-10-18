@@ -14,6 +14,8 @@ vi.mock("react", async original => ({
   useRef: (initial: unknown) => h.refs[h.cursor++] ??= { current: initial },
 }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
+const oauth = vi.hoisted(() => ({ value: null as null | { status: { required: boolean; ready: boolean } | null } }));
+vi.mock("@/context/OAuthReadinessContext", () => ({ useOAuthReadiness: () => oauth.value }));
 vi.mock("../../ResponsesChatProvider", () => ({ useChat: () => ({ activeThreadId: h.thread, items: h.items, isThreadLocked: () => h.locked, isStreaming: h.streaming, sendWidgetAction: h.send, markPreviewAttempted: h.attempt, recoverCaseAcknowledgement: h.recover }) }));
 const preview = { previewToken: "signed", transactionId: "tx", reason: "Original reason", expiresAt: "2026-10-04T10:10:00Z", transaction: { id: "tx" } };
 type Element = ReactElement<Record<string, unknown>>;
@@ -25,7 +27,7 @@ function elements(node: ReactNode): Element[] {
 function render(args: Record<string, unknown> = { preview }) { h.cursor = 0; return DisputePreview({ args, itemId: "proposal" }); }
 function consent() { return elements(render()).find(element => element.type === DisputePreviewConsent)!; }
 async function settle() { for (let i = 0; i < 12; i++) await Promise.resolve(); }
-beforeEach(() => { h.cursor = 0; h.states = []; h.refs = []; h.thread = "original"; h.items = []; h.locked = false; h.streaming = false; h.send.mockReset().mockResolvedValue("success"); h.attempt.mockReset(); h.recover.mockReset().mockResolvedValue(true); });
+beforeEach(() => { oauth.value = null; h.cursor = 0; h.states = []; h.refs = []; h.thread = "original"; h.items = []; h.locked = false; h.streaming = false; h.send.mockReset().mockResolvedValue("success"); h.attempt.mockReset(); h.recover.mockReset().mockResolvedValue(true); });
 
 describe("chat dispute preview", () => {
   it.each([true, false])("continues a recorded decision (%s) without exposing the preview token", async declined => {
@@ -98,4 +100,15 @@ describe("chat dispute preview", () => {
     expect(consent().props.conversationHistory).toEqual(Array.from({ length: 100 }, (_, index) => ({ role: "user", text: String(index + 10) })));
   });
   it("disables consent during streaming", () => { h.streaming = true; expect(consent().props.disabled).toBe(true); });
+});
+
+it.each([null, { required: true, ready: false }])("blocks consent without a ready OAuth grant but preserves recovery", status => {
+  oauth.value = { status };
+  expect(consent().props.disabled).toBe(true);
+  expect(consent().props.recoveryDisabled).toBe(false);
+});
+
+it("allows explicit consent with a ready mcp.access grant", () => {
+  oauth.value = { status: { required: true, ready: true } };
+  expect(consent().props.disabled).toBe(false);
 });

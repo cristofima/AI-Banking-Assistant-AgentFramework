@@ -4,6 +4,7 @@ import { HistoryView } from "./HistoryView";
 import { Composer } from "./TextComposer";
 import { useChat } from "./ResponsesChatProvider";
 import { cn } from "@/common/utils";
+import { OAuthChatGate } from "@/components/OAuthChatGate";
 
 interface ChatShellProps {
   headerConfig?: ShellHeaderConfig;
@@ -40,6 +41,7 @@ export function ChatShell({ headerConfig }: ChatShellProps) {
       )}
     >
       <ShellHeader config={headerConfig} />
+      <OAuthChatGate />
       <div className="min-h-0 flex-1">
         {historyOpen ? (
           <HistoryView />

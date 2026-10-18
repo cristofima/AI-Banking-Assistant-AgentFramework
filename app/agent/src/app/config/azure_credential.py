@@ -1,58 +1,48 @@
-import os
 from azure.identity import ManagedIdentityCredential, AzureCliCredential
 from azure.identity.aio import ManagedIdentityCredential as AioManagedIdentityCredential, AzureCliCredential as AioCliCredential
 from app.config.settings import settings
 
-async def get_azure_credential_async():
+async def get_azure_credential_async() -> AioCliCredential | AioManagedIdentityCredential:
     """
     Returns an Azure credential asynchronously based on the application environment.
 
-    If the environment is 'dev', it uses AioDefaultAzureCredential.
+    If the environment is 'local', it uses AioCliCredential.
     Otherwise, it uses AioManagedIdentityCredential.
 
-    Args:
-        client_id (str, optional): The client ID for the Managed Identity Credential.
-
     Returns:
-        Credential object: Either AioDefaultAzureCredential or AioManagedIdentityCredential.
+        Credential object: Either AioCliCredential or AioManagedIdentityCredential.
     """
-    if settings.PROFILE == 'dev':
-        return AioCliCredential()  # CodeQL [SM05139] Okay use of DefaultAzureCredential as it is only used in development
+    if settings.AGENT_RUNTIME == 'local':
+        return AioCliCredential()
     else:
         return AioManagedIdentityCredential(client_id=settings.AZURE_CLIENT_ID)
 
-def get_async_azure_credential():
+def get_async_azure_credential() -> AioCliCredential | AioManagedIdentityCredential:
     """
     Returns an Azure credential asynchronously based on the application environment.
 
-    If the environment is 'dev', it uses AioDefaultAzureCredential.
+    If the environment is 'local', it uses AioCliCredential.
     Otherwise, it uses AioManagedIdentityCredential.
 
-    Args:
-        client_id (str, optional): The client ID for the Managed Identity Credential.
-
     Returns:
-        Credential object: Either AioDefaultAzureCredential or AioManagedIdentityCredential.
+        Credential object: Either AioCliCredential or AioManagedIdentityCredential.
     """
-    if settings.PROFILE == 'dev':
-        return AioCliCredential()  # CodeQL [SM05139] Okay use of DefaultAzureCredential as it is only used in development
+    if settings.AGENT_RUNTIME == 'local':
+        return AioCliCredential()
     else:
         return AioManagedIdentityCredential(client_id=settings.AZURE_CLIENT_ID)
 
-def get_azure_credential():
+def get_azure_credential() -> AzureCliCredential | ManagedIdentityCredential:
     """
     Returns an Azure credential based on the application environment.
 
-    If the environment is 'dev', it uses DefaultAzureCredential.
+    If the environment is 'local', it uses AzureCliCredential.
     Otherwise, it uses ManagedIdentityCredential.
 
-    Args:
-        client_id (str, optional): The client ID for the Managed Identity Credential.
-
     Returns:
-        Credential object: Either DefaultAzureCredential or ManagedIdentityCredential.
+        Credential object: Either AzureCliCredential or ManagedIdentityCredential.
     """
-    if settings.PROFILE == 'dev':
-        return AzureCliCredential()  # CodeQL [SM05139] Okay use of DefaultAzureCredential as it is only used in development
+    if settings.AGENT_RUNTIME == 'local':
+        return AzureCliCredential()
     else:
         return ManagedIdentityCredential(client_id=settings.AZURE_CLIENT_ID)

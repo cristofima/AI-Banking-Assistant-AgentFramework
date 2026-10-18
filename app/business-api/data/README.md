@@ -80,13 +80,19 @@ Alembic owns schema evolution, not ingestion or service startup.
 | Dispute workflow and recorded effects | `support.support_cases`, `support.support_case_events`, `support.runtime_postings`, `support.card_protections`, `support.case_conversations` | Authorized application service operations          |
 
 The [migration chain](alembic/versions) ends at
-[revision 20261005_0012](alembic/versions/20261005_0012_case_conversation_history.py).
+[revision 20261017_0013](alembic/versions/20261017_0013_oauth_authorization_code.py).
+It adds Identity-owned `oauth.clients`, `oauth.authorization_codes` and
+`oauth.access_tokens`, with restrictive foreign keys to `oauth.clients` and
+`public.users`. It creates no clients or grants and does not enable hosted OAuth.
 This is the source head, not proof of the revision applied to any database.
 Revision `20261005_0012` creates `support`, moves the four existing support-domain tables
 without recreating rows, and adds immutable customer-provided conversation snapshots.
 Banking and Identity tables remain in `public`; no global search-path change is needed.
-Alembic reflection includes only managed tables in the default and `support` schemas,
-so unrelated or retained tables are not automatic drop candidates.
+Alembic reflection includes only managed tables in the default, `support` and `oauth`
+schemas, so unrelated or retained tables are not automatic drop candidates.
+Shared ORM references deliberately retain `users.id` because existing User metadata
+uses the default schema; the migration resolves that reference explicitly to
+`public.users.id`, without changing all Identity relationships.
 Downgrade is blocked pending explicit evidence-retention review.
 
 A database still reporting withdrawn revision `20261004_0012` cannot upgrade through
@@ -106,6 +112,14 @@ foreign key. The local backup catalog was validated; restore was not tested.
 This is local migration evidence only, not deployed-schema, browser, authorization,
 contention or financial-effect acceptance. Other environments require independent
 lineage inspection and authorization; do not repeat marker correction by default.
+
+The OAuth upgrade was applied to the verified loopback PostgreSQL database on
+2026-10-17, from `20261005_0012` to `20261017_0013`, without marker correction.
+The first verification confirmed existing managed-table counts before encountering
+SQLAlchemy's default-schema reflection normalization. Follow-up read-only verification
+confirmed the applied marker, three empty OAuth tables and all four restrictive foreign
+keys; no client, token or user was provisioned. This does not establish remote migration,
+OAuth client compatibility, concurrency or Foundry grant isolation.
 
 Revision 0010 archives simulated reviewers and former operator mappings, preserving
 historical case references and audit text without inventing real ownership.
@@ -144,12 +158,21 @@ place passwords in command arguments, reports or source control.
 | Variable                   | Purpose                                                                             |
 | -------------------------- | ----------------------------------------------------------------------------------- |
 | `DATABASE_URL`             | PostgreSQL SQLAlchemy connection URL for database scripts                           |
+| `DATA_PROJECT_DIR`         | Absolute data module path anchoring package resources and default artifacts         |
 | `DATA_SOURCE_DIR`          | Required pipeline root containing dimension CSVs and transaction partitions         |
 | `DATA_ARTIFACTS_DIR`       | EDA and scope output directory; defaults to this module's `artifacts`               |
 | `DATA_MANIFEST_DIR`        | Load-manifest directory, not a JSON filename; also defaults to `artifacts`          |
 | `DEMO_USER_PASSWORD`       | Explicit customer identity seeding only; no default                                 |
 | `ADMIN_BOOTSTRAP_EMAIL`    | First-administrator email for Identity's explicit `--credentials-from-env` mode     |
 | `ADMIN_BOOTSTRAP_PASSWORD` | First-administrator password for that mode; must differ from the demo-user password |
+
+Replace the template's absolute Windows paths with your checkout and dataset paths.
+For the documented repository-root commands, set `DATA_PROJECT_DIR` to this module:
+the installed resource helper otherwise defaults to the process working directory,
+not the module directory. Blank `DATA_ARTIFACTS_DIR` and `DATA_MANIFEST_DIR` use
+`DATA_PROJECT_DIR\artifacts`. Single-quoted dotenv paths preserve backslashes.
+Data ingestion does not consume MCP OAuth grants, signing keys or client secrets;
+OAuth schema migration does not require OAuth runtime credentials.
 
 Neither customer-seeding nor administrator credentials are ingestion prerequisites.
 The pipeline does not run Alembic, provision identities, build snapshots or evaluate

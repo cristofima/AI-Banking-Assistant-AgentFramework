@@ -909,7 +909,9 @@ def test_mcp_sdk_preview_acceptance_and_recovery(
     from fastmcp import Client
     from banking_transaction import mcp_tools
     monkeypatch.setattr(mcp_tools, "dispute_service", preview_service)
-    monkeypatch.setattr(mcp_tools, "get_customer_id", lambda headers: "customer-owned")
+    monkeypatch.setattr(
+        mcp_tools, "get_customer_id", lambda headers, *, mutation=False: "customer-owned",
+    )
 
     async def run_flow() -> None:
         async with Client(mcp_tools.mcp) as client:

@@ -21,7 +21,7 @@ def test_legacy_manifest_verifies_archived_catalog(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, expected_count: int,
 ) -> None:
     engine = create_engine("sqlite://", poolclass=StaticPool)
-    engine = engine.execution_options(schema_translate_map={"support": None})
+    engine = engine.execution_options(schema_translate_map={"support": None, "oauth": None})
     SQLModel.metadata.create_all(engine)
     with Session(engine) as session:
         session.add(LegacyServiceAgent(agent_id="historical"))

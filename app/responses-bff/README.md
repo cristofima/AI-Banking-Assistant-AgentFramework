@@ -28,6 +28,62 @@ continuation control after a clean, completed stream. Effectful sends are never 
 expose controlled 503 errors. Cancellation still propagates after streaming begins,
 while cleanup closes the upstream response.
 
+## Direct MCP OAuth delegation
+
+The default `MCP_IDENTITY_MODE=hmac` retains existing chat behavior. Opt-in `oauth`
+uses the BFF as a confidential authorization-code/S256 client, not as an additional
+login provider. Identity still owns customer authentication, client registration and
+RS256 token issuance. Browser REST authentication remains unchanged.
+
+Customer-only routes in the [OAuth facade](src/bff/routers/oauth.py):
+
+| Method | Route              | Behavior                                                                             |
+| ------ | ------------------ | ------------------------------------------------------------------------------------ |
+| GET    | `/oauth/status`    | Reports whether OAuth is required and a current session-bound grant exists.          |
+| POST   | `/oauth/start`     | Returns a relative consent URL with server-generated state and S256 challenge.       |
+| POST   | `/oauth/authorize` | Forwards explicit customer approval/denial, preserving the exact callback and state. |
+| POST   | `/oauth/callback`  | Exchanges a matching, single-use code/state and returns readiness only.              |
+
+All routes use uncached current-Identity checks and no-store responses. The
+[confidential client](src/bff/identity/oauth_client.py) stores grants only in process
+memory, bound to the browser bearer, customer/profile/version and agent endpoint.
+It validates signature, issuer, audience and exact user/client claims before custody.
+The browser never receives an MCP access token. Neither consent nor code exchange is
+retried after uncertain failure. Pending states, stored grants and in-flight code
+exchanges share a 1000-entry bound;
+restart or another BFF replica loses readiness and requires authorization again.
+There is no refresh or implicit shared grant.
+
+Required externally supplied configuration: `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`,
+`OAUTH_REDIRECT_URI`, `OAUTH_ISSUER`, `OAUTH_AUDIENCE`, `OAUTH_JWKS` (public JSON), plus
+`MCP_IDENTITY_MODE=oauth`. The callback must be an exact registered HTTPS frontend URL,
+including for local development; plain HTTP Vite is not a valid OAuth callback.
+The issuer must be HTTPS. Exchange through `AUTH_USERS_ENDPOINT` requires HTTPS
+except explicit HTTP loopback (`localhost`, `127.0.0.1`, `::1`). Supply these variables
+in the process environment, for example through the documented `uv --env-file`
+launch; the focused OAuth config does not independently read a dotenv file.
+Keep the private signing key at Identity and the client secret at the BFF.
+
+The existing signed BFF-to-agent envelope carries the current server-owned grant;
+Foundry's Authorization header remains reserved for Azure credentials. Agent-to-MCP
+calls use only standard OAuth Authorization, with no custom HMAC identity header.
+Missing/expired grants fail closed; OAuth never falls back to HMAC. RS256 MCP
+validation has a bounded revocation delay up to 3600 seconds (one hour).
+The 1000-entry custody bound includes pending states, stored grants and in-flight
+exchanges. Single-use states remain consumed after exchange failure or cancellation;
+capacity reservations are released when the exchange finishes.
+Authorization state still expires after 300 seconds. The exact `mcp.access`
+scope permits existing customer MCP reads and dispute mutation tools only after
+strict customer JWT verification. Legacy `banking.read` and operator/admin grants
+are rejected. Service ownership, explicit dispute consent and uncertain-mutation
+recovery remain required; OAuth consent never authorizes automatic replay.
+See [ADR 0012](../../docs/adr/0012-local-oauth-jwt-validation-for-mcp.md)
+for the local validation tradeoff and key distribution requirements.
+
+This path uses direct MCP (`AGENT_RUNTIME=local`), even if the agent itself is hosted.
+OAuth Toolbox routing remains blocked until native per-customer grant binding is
+proven. Offline tests are not browser, deployed or real-model acceptance.
+
 ## Request Flow
 
 ```mermaid
@@ -104,14 +160,20 @@ Do not place `DATABASE_URL` or legacy `AUTH_USERS` credentials in the BFF enviro
 
 Set `PROFILE=dev`, `RESPONSES_UPSTREAM_MODE=local`, and
 `RESPONSES_AGENT_ENDPOINT=http://127.0.0.1:8088/responses` in that environment.
-The root `DEV - Full Stack Ordered` launch starts this service with the MCP services,
-agent, and frontend. Restart the BFF after Python edits when running without `--reload`.
+The root F5 `DEV - Full Stack Ordered` launch uses `noDebug: true` and ordered tasks
+to start Identity HTTPS, both MCP services, agent, BFF and frontend without opening a
+browser. Configure `AUTH_USERS_ENDPOINT=https://localhost:8091` for this stack and
+trust the prepared localhost CA. The task output runner adds severity colors and
+appends plain UTF-8 `logs/bff-YYYY-MM-DD.log` files; no automatic retention is configured.
+The manual command above does not use that runner. See the
+[root startup guide](../../README.md#run-locally). Restart the BFF after Python edits
+when running without `--reload`.
 
 ## Configuration
 
 | Variable                                | Purpose / default                                                                                 |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `AUTH_USERS_ENDPOINT`                   | Compatibility name for Identity endpoint; default `http://127.0.0.1:8090`.                        |
+| `AUTH_USERS_ENDPOINT`                   | Compatibility name for Identity endpoint; default `https://localhost:8091`.                       |
 | `AUTH_INTERNAL_SECRET`                  | Protected Identity introspection key; distinct from downstream HMAC secret.                       |
 | `JWT_SECRET_KEY`                        | Application HS256 signing key, at least 32 characters.                                            |
 | `JWT_ISSUER`                            | `home-banking-api`                                                                                |
@@ -122,7 +184,13 @@ agent, and frontend. Restart the BFF after Python edits when running without `--
 | `RESPONSES_TOKEN_SCOPE`                 | `https://ai.azure.com/.default`                                                                   |
 | `AZURE_CLIENT_ID`                       | Optional client ID for server-side Azure credentials.                                             |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | Optional Azure Monitor trace and HTTP metric export; propagation works without it.                |
-| `ALLOWED_ORIGINS`                       | JSON array; defaults to `["http://localhost:5170"]`.                                              |
+| `ALLOWED_ORIGINS`                       | JSON array; defaults to `["https://localhost:5170"]`.                                             |
+
+The credential-free [template](.env.example) selects the local upstream, HTTPS
+frontend CORS origin and direct MCP OAuth mode. Populate the registered OAuth client
+and public JWKS values separately; copying the template does not register a client
+or establish an authorized grant. Use explicit `MCP_IDENTITY_MODE=hmac` only when
+all MCP consumers are intentionally configured for compatibility mode.
 
 Keep secrets in ignored environment files or protected deployment settings. Never log
 passwords, password hashes, JWTs, or Azure credentials. `AUTH_USERS` is not a login

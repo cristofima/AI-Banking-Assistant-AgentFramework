@@ -33,6 +33,8 @@ vi.mock("react-router-dom", () => ({ Link: "a" }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: h.user, sessionKey: h.sessionKey, logout: h.logout }) }));
 vi.mock("@/api/disputeClient", () => ({ getSupportCase: h.get, respondToSupportCaseApproval: h.respond }));
+const oauth = vi.hoisted(() => ({ value: null as null | { status: { required: boolean; ready: boolean } | null; busy: boolean } }));
+vi.mock("@/context/OAuthReadinessContext", () => ({ useOAuthReadiness: () => oauth.value }));
 vi.mock("../../ResponsesChatProvider", () => ({ useChat: () => ({ activeThreadId: "thread-1", isThreadLocked: () => h.locked }) }));
 
 type Element = ReactElement<Record<string, unknown>>;
@@ -65,7 +67,7 @@ function unmount() { h.effects.forEach(effect => effect?.cleanup?.()); }
 
 beforeEach(() => {
   vi.resetAllMocks(); h.states = []; h.refs = []; h.effects = []; h.queued = [];
-  h.locked = false; h.sessionKey = 1; h.user = { id: "customer", identityVersion: 1 };
+  h.locked = false; h.sessionKey = 1; oauth.value = null; h.user = { id: "customer", identityVersion: 1 };
   h.get.mockResolvedValue(waiting()); h.respond.mockResolvedValue(waiting("IN_REVIEW"));
 });
 
@@ -174,5 +176,23 @@ describe("persisted dispute consent", () => {
     h.get.mockResolvedValue({ ...waiting(), caseId: "foreign" }); await mount();
     expect(find("Support case is unavailable").props.role).toBe("alert");
     expect(elements(render()).some(element => element.props.children === "View support case")).toBe(false);
+  });
+});
+
+describe("OAuth legacy case decisions", () => {
+  it("dispatches only an explicit decision with a ready mcp.access grant", async () => {
+    oauth.value = { status: { required: true, ready: true }, busy: false };
+    await mount();
+    expect(h.respond).not.toHaveBeenCalled();
+    expect(find("Approve dispute review").props.disabled).toBe(false);
+    click("Approve dispute review");
+    await settle();
+    expect(h.respond).toHaveBeenCalledOnce();
+  });
+  it.each([null, { required: true, ready: false }])("blocks mutation without a ready grant but preserves owned refresh", async status => {
+    oauth.value={status,busy:false}; await mount();
+    for(const label of ["Approve dispute review","Decline dispute review"]) {expect(find(label).props.disabled).toBe(true);click(label);}
+    await settle(); expect(h.respond).not.toHaveBeenCalled();
+    click("Refresh");await settle();expect(h.get).toHaveBeenCalledTimes(2);
   });
 });

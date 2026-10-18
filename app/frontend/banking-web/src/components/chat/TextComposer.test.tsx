@@ -6,6 +6,8 @@ import { Textarea } from "@/components/ui/textarea";
 const h = vi.hoisted(() => ({ value: "Question", locked: false, help: false, streaming: false, closed: false, send: vi.fn(), close: vi.fn(), continue: vi.fn() }));
 vi.mock("react", async original => ({ ...await original<typeof import("react")>(), useState: () => [h.value, (value: string) => { h.value = value; }], useMemo: (factory: () => unknown) => factory() }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
+const oauth = vi.hoisted(() => ({ value: null as null | { status: { required: boolean; ready: boolean } | null; busy: boolean } }));
+vi.mock("@/context/OAuthReadinessContext", () => ({ useOAuthReadiness: () => oauth.value }));
 vi.mock("./ResponsesChatProvider", () => ({ useChat: () => ({ sendMessage: h.send, cancelStreaming: vi.fn(), isStreaming: h.streaming, activeThreadId: "thread", activeThread: { metadata: { furtherHelp: h.help }, status: { type: h.closed ? "closed" : "locked" } }, isThreadLocked: () => h.locked, closeThread: h.close, setFurtherHelp: h.continue }) }));
 type Element = ReactElement<Record<string, unknown>>;
 function elements(node: ReactNode): Element[] {
@@ -13,7 +15,7 @@ function elements(node: ReactNode): Element[] {
   if (!isValidElement<Record<string, unknown>>(node)) return [];
   return [node, ...elements(node.props.children as ReactNode)];
 }
-beforeEach(() => { vi.clearAllMocks(); h.value = "Question"; h.locked = false; h.help = false; h.streaming = false; h.closed = false; });
+beforeEach(() => { vi.clearAllMocks(); h.value = "Question"; h.locked = false; h.help = false; h.streaming = false; h.closed = false; oauth.value = null; });
 describe("chat composer thread controls", () => {
   it("offers explicit continue and close actions after acceptance", () => {
     h.help = true;
@@ -48,5 +50,26 @@ describe("chat composer thread controls", () => {
     const textarea = elements(Composer({})).find(element => element.type === Textarea)!;
     (textarea.props.onKeyDown as (event: unknown) => void)({ key: "Enter", shiftKey: false, preventDefault: vi.fn() });
     expect(h.send).toHaveBeenCalledWith("no"); expect(h.close).not.toHaveBeenCalled();
+  });
+});
+
+describe("OAuth composer fail-closed UI", () => {
+  it.each([null,{required:true,ready:false}])("disables click and Enter when readiness is unavailable", status => {
+    oauth.value={status,busy:false};
+    const controls=elements(Composer({}));
+    const textarea=controls.find(element=>element.type===Textarea)!;
+    expect(textarea.props.disabled).toBe(true);
+    (textarea.props.onKeyDown as (event:unknown)=>void)({key:"Enter",shiftKey:false,preventDefault:vi.fn()});
+    const send=controls.find(element=>typeof element.props.onClick === "function" && elements(element.props.children as ReactNode).some(child=>child.props.children==="Send message"))!;
+    expect(send.props.disabled).toBe(true);
+    expect(h.send).not.toHaveBeenCalled();
+    expect(controls.some(element=>element.props.children==="Recovered conversation is read-only. Start a new conversation to continue.")).toBe(false);
+  });
+  it.each([false,true])("allows current readiness with required=%s", required => {
+    oauth.value={status:{required,ready:required},busy:false};
+    const textarea=elements(Composer({})).find(element=>element.type===Textarea)!;
+    expect(textarea.props.disabled).toBe(false);
+    (textarea.props.onKeyDown as (event:unknown)=>void)({key:"Enter",shiftKey:false,preventDefault:vi.fn()});
+    expect(h.send).toHaveBeenCalledOnce();
   });
 });

@@ -27,6 +27,7 @@ def create_app() -> FastAPI:
     app.mount("/mcp", mcp_app)
     FastAPIInstrumentor.instrument_app(
         app,
+        exclude_spans=["send", "receive"],
         tracer_provider=create_tracer_provider(
             "banking-assistant-transaction", os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING")
         ),

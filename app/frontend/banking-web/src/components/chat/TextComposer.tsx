@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useChat } from "./ResponsesChatProvider";
 import { useTranslation } from "react-i18next";
+import { useOAuthReadiness } from "@/context/OAuthReadinessContext";
 
 type ButtonSize = "sm" | "md" | "lg";
 
@@ -22,7 +23,9 @@ const BUTTON_DIMENSIONS = {
 export function Composer({ placeholder, buttonSize = "lg" }: ComposerProps) {
   const { t } = useTranslation();
   const { sendMessage, cancelStreaming, isStreaming, activeThreadId, activeThread, isThreadLocked, closeThread, setFurtherHelp, createThread } = useChat();
-  const locked = Boolean(activeThreadId && isThreadLocked(activeThreadId));
+  const readiness = useOAuthReadiness();
+  const authorizationBlocked = Boolean(readiness && (!readiness.status || (readiness.status.required && !readiness.status.ready) || readiness.busy));
+  const locked = authorizationBlocked || Boolean(activeThreadId && isThreadLocked(activeThreadId));
   const furtherHelp = activeThread?.metadata?.furtherHelp === true;
   const [value, setValue] = useState("");
   const dimensions = BUTTON_DIMENSIONS[buttonSize];
@@ -36,7 +39,7 @@ export function Composer({ placeholder, buttonSize = "lg" }: ComposerProps) {
 
   return (
     <div className="px-4 py-3">
-      {locked && <div className="mb-3 space-y-2">
+      {locked && !authorizationBlocked && <div className="mb-3 space-y-2">
         <p role="status">{t(activeThread?.status.type === "closed" ? "Conversation closed" : activeThread?.metadata?.interrupted ? "chat.recovery.interrupted" : "Recovered conversation is read-only. Start a new conversation to continue.")}</p>
         <Button disabled={isStreaming} onClick={() => { setValue(""); createThread(); }}>{t("chat.recovery.new")}</Button>
       </div>}

@@ -8,17 +8,21 @@ import hmac
 import json
 
 from bff.identity.models import AuthenticatedUser
+from bff.identity.oauth_client import OAuthGrant
 
 
-def create_internal_identity(user: AuthenticatedUser, secret: str) -> str:
-    """Create a stable, signed identity without forwarding the browser JWT."""
+def create_internal_identity(
+    user: AuthenticatedUser, secret: str, grant: OAuthGrant | None = None,
+) -> str:
+    """Sign verified banking identity and an optional server-owned OAuth grant."""
+    claims = {
+        "customer_id": user.customer_id, "sub": user.sub,
+        "email": user.email, "locale": user.locale,
+    }
+    if grant is not None:
+        claims.update(oauth_access_token=grant.access_token, oauth_expires_at=grant.expires_at)
     payload = json.dumps(
-        {
-            "customer_id": user.customer_id,
-            "sub": user.sub,
-            "email": user.email,
-            "locale": user.locale,
-        },
+        claims,
         separators=(",", ":"),
         sort_keys=True,
     ).encode()

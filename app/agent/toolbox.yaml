@@ -1,0 +1,32 @@
+# Both project connections must use OAuth2 with scope mcp.access, not auth-type none.
+# Connection references do not configure OAuth credentials or prove per-user grant binding.
+# Keep local execution on direct MCP; remote Toolbox activation requires two-user validation.
+# Never store a static customer bearer or either internal signer in a connection.
+name: banking-tools
+description: Account and Transaction MCP tools for the banking handoff workflow
+tools:
+  - type: mcp
+    server_label: account
+    project_connection_id: account-mcp
+    allowed_tools:
+      - getAccountsByUserName
+      - getAccountDetails
+      - getRegisteredBeneficiary
+      - getCreditCards
+      - discoverCardsBySuffix
+      - getCardDetails
+  - type: mcp
+    server_label: transaction
+    project_connection_id: transaction-mcp
+    allowed_tools:
+      - getTransactionsByRecipientName
+      - getCardTransactions
+      - getLastTransactions
+      - getTransactionRecognitionContext
+      - previewTransactionDispute
+      - reportTransactionDispute
+      - recoverTransactionDispute
+      - respondToDisputeApproval
+      - listSupportCases
+      - getSupportCase
+      - getSupportCaseTimeline

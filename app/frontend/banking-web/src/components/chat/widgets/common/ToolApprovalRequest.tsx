@@ -12,6 +12,7 @@ import {
 } from "../widgetUtils";
 import ReactMarkdown from "react-markdown";
 import { useTranslation } from "react-i18next";
+import { useOAuthReadiness } from "@/context/OAuthReadinessContext";
 
 /**
  * Arguments expected by the ToolApprovalRequest widget
@@ -39,7 +40,8 @@ export function ToolApprovalRequest({ args, itemId }: ClientWidgetProps) {
     "approve" | "reject" | null
   >(null);
   const { activeThreadId, isApprovalCompleted, isStreaming, isThreadLocked } = useChat();
-  const locked = Boolean(activeThreadId && isThreadLocked(activeThreadId));
+  const readiness = useOAuthReadiness();
+  const locked = Boolean(readiness && (!readiness.status || (readiness.status.required && !readiness.status.ready) || readiness.busy)) || Boolean(activeThreadId && isThreadLocked(activeThreadId));
   const [isDisabled, setIsDisabled] = useState(() =>
     Boolean(activeThreadId && isApprovalCompleted(activeThreadId, itemId)),
   );

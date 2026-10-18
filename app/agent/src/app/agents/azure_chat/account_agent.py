@@ -46,11 +46,13 @@ class AccountAgent :
         internal_identity_secret: str,
         *,
         account_mcp_session: ClientSession | None = None,
+        account_tool: MCPStreamableHTTPTool | None = None,
     ) -> None:
         self.azure_chat_client = azure_chat_client
         self.account_mcp_server_url = account_mcp_server_url
         self.internal_identity_secret = internal_identity_secret
         self.account_mcp_session = account_mcp_session
+        self.account_tool = account_tool
 
 
 
@@ -59,7 +61,7 @@ class AccountAgent :
       logger.info("Initializing Account Agent connection for account api ")
 
       logger.info("Initializing Account MCP server tools for AccountAgent ")
-      account_mcp_server = MCPStreamableHTTPTool(
+      account_mcp_server = self.account_tool if self.account_tool is not None else MCPStreamableHTTPTool(
                 name="Account MCP server client",
                 url=self.account_mcp_server_url,
                 session=self.account_mcp_session,

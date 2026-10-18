@@ -1,6 +1,7 @@
 import { isValidElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useSendWidgetAction, type WidgetActionCallbacks } from "./widgetUtils";
+vi.mock("@/context/OAuthReadinessContext", () => ({ useOAuthReadiness: () => null }));
 import { ToolApprovalRequest } from "./common/ToolApprovalRequest";
 
 const h = vi.hoisted(() => ({

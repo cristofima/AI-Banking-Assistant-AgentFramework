@@ -8,12 +8,14 @@ import { useAuth } from "@/context/AuthContext";
 import type { SupportCase } from "@/models/SupportCase";
 import type { ClientWidgetProps } from "../WidgetRegistry";
 import { useChat } from "../../ResponsesChatProvider";
+import { useOAuthReadiness } from "@/context/OAuthReadinessContext";
 
 export function DisputeConsent({ args }: ClientWidgetProps) {
   const { t } = useTranslation();
   const { user, sessionKey, logout } = useAuth();
   const { activeThreadId, isThreadLocked } = useChat();
-  const locked = Boolean(activeThreadId && isThreadLocked(activeThreadId));
+  const readiness = useOAuthReadiness();
+  const locked = Boolean(readiness && (!readiness.status || (readiness.status.required && !readiness.status.ready) || readiness.busy)) || Boolean(activeThreadId && isThreadLocked(activeThreadId));
   const caseId = typeof args.caseId === "string" && args.caseId.trim() ? args.caseId : null;
   const scope = JSON.stringify([caseId, user?.id, user?.identityVersion, sessionKey]);
   const latestScope = useRef(scope);

@@ -78,12 +78,16 @@ flowchart LR
   short-lived HS256 JWTs, lifecycle and identity-version revocation.
 - **BFF:** database-free Identity facade and customer Responses stream proxy.
   Consumers check current identity on each protected request and fail closed on
-  Identity unavailability. Application JWTs and fresh agent-to-MCP bearers are separate.
+  Identity unavailability. Application JWTs and agent-to-MCP bearers are separate.
+  OAuth S256 exchange and session-bound downstream grants remain server-side in memory;
+  browser storage never receives MCP tokens. No automatic refresh is implemented.
 - **Agent:** Microsoft Agent Framework `HandoffBuilder` with triage, Account and
   Transaction specialists. Disputes are a service workflow, not another specialist.
   The [hosted manifest](app/agent/azure.yaml) declares `model-router` and `gpt-5.4`
   deployments. Per-agent deployment settings select models, with a shared fallback;
-  declarations do not establish available cloud capacity.
+  declarations do not establish available cloud capacity. Local MCP can opt into
+  Identity-issued RS256 OAuth with a one-hour lifetime; HMAC remains the default
+  compatibility mode. OAuth Toolbox stays blocked pending native per-user binding.
 - **Persistence/deployment:** shared SQLModel tables and a reproducible CSV pipeline.
   Root Terraform defines five App Services (Identity, Account, Transaction, BFF,
   web), PostgreSQL, Key Vault, Blob storage, monitoring and Foundry resources.
@@ -166,10 +170,21 @@ stack locally does not imply inference is offline or free.
    [Account/Transaction](app/business-api/README.md), [agent](app/agent/README.md#local-setup),
    [BFF](app/responses-bff/README.md) and [web](app/frontend/banking-web/README.md).
    There is no root dotenv file; the BFF must not receive database credentials.
-3. In VS Code, run **F5 → DEV - Full Stack Ordered**. Root
-   [launch configuration](.vscode/launch.json) and [tasks](.vscode/tasks.json) start
-   Identity (8090), Account (8070), Transaction (8071), agent (8088), BFF (8080),
-   and web (5170). Sign in through the frontend; browser chat never bypasses the BFF.
+3. In VS Code, press **F5 → DEV - Full Stack Ordered**. Its `noDebug` launch runs
+   **prepare full stack dev**, then exits a lightweight Node completion command.
+   Ctrl+Shift+B or **Tasks: Run Task → prepare full stack dev** remain alternatives.
+   Root [tasks](.vscode/tasks.json) start Identity HTTPS (8091), Account (8070),
+   Transaction (8071), agent (8088), BFF (8080), and web HTTPS (5170) in order,
+   without a debugger or automatic browser launch. Open `https://localhost:5170/`
+   manually. Sign in through the frontend; browser chat never bypasses the BFF.
+   Each backend project appends local output to `logs/<service>-YYYY-MM-DD.log`.
+   The frontend runs npm directly and does not persist logs. Backend console severity
+   labels are colored; files contain plain UTF-8 text, including Unicode characters.
+   Logs are ignored by Git and have no automatic retention limit. Do not publish them;
+   callback credentials and common bearer/JWT values are redacted, but logs are not
+   a guarantee against arbitrary sensitive application output. The local agent task
+   enables `ENABLE_SENSITIVE_DATA` and GenAI message-content capture for debugging,
+   so backend logs can contain conversation content.
 
 Focused checks are listed in [AGENTS.md](AGENTS.md#focused-checks). Configuration,
 bootstrap and pipeline details belong to the component guides, not this landing page.

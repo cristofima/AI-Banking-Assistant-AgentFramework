@@ -7,13 +7,15 @@ from contextlib import asynccontextmanager
 
 import httpx
 from banking_shared.tracing import create_meter_provider
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 
 from bff.routers.auth import router as auth_router
+from bff.routers.oauth import router as oauth_router
 from bff.clients.credentials import create_azure_credential
 from bff.identity.responses import AsyncCredential
+from bff.identity.oauth_client import OAuthClient, OAuthClientConfig, logger as oauth_logger
 from bff.routers.responses import router as responses_router
 from bff.config.settings import Settings
 from bff.config.tracing import configure_tracing
@@ -28,6 +30,7 @@ def create_app(
     transport: httpx.AsyncBaseTransport | None = None,
     credential_factory: CredentialFactory = create_azure_credential,
     auth_transport: httpx.AsyncBaseTransport | None = None,
+    oauth_config: OAuthClientConfig | None = None,
 ) -> FastAPI:
     """Create the BFF with application-lifetime upstream resources."""
     app_settings = settings or Settings()
@@ -35,6 +38,7 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.settings = app_settings
+        app.state.oauth_client = OAuthClient(oauth_config or OAuthClientConfig())
         app.state.auth_client = httpx.AsyncClient(
             base_url=app_settings.auth_users_endpoint,
             timeout=3.0, transport=auth_transport, follow_redirects=False,
@@ -60,7 +64,20 @@ def create_app(
     meter_provider = create_meter_provider(
         "banking-assistant-responses-bff", app_settings.applicationinsights_connection_string
     )
+    @app.middleware("http")
+    async def consent_no_store(
+        request: Request, call_next: Callable[[Request], object],
+    ) -> Response:
+        response = await call_next(request)
+        if request.url.path.startswith("/oauth/"):
+            if response.status_code >= 400:
+                oauth_logger.error("BFF OAuth request failed: status=%s", response.status_code)
+            response.headers["Cache-Control"] = "no-store"
+            response.headers["Pragma"] = "no-cache"
+        return response
+
     app.include_router(auth_router, tags=["auth"])
+    app.include_router(oauth_router, tags=["oauth"])
     app.include_router(admin_router, tags=["admin"])
     app.include_router(customer_router, tags=["admin"])
     app.include_router(responses_router, tags=["responses"])

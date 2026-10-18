@@ -34,6 +34,11 @@ and [infrastructure guide](../../infra/README.md) for configuration and rollout.
 
 ### Python dependency artifacts
 
+OAuth JWT cryptography uses Shared's `joserfc` dependency; Authlib continues to
+provide Identity/BFF OAuth protocol handling. Declared Authlib dependencies are
+pinned to `1.9.1`, and Identity pins `python-multipart` to `0.0.32` to avoid
+unreviewed resolver upgrades.
+
 Each Python App Service installs runtime dependencies from its own `requirements.txt`.
 Keep the service's `pyproject.toml` and uv lock as the development source of truth;
 regenerate artifacts rather than editing them manually. From repository root:
@@ -107,7 +112,14 @@ Each service exposes two parallel surfaces that never share an auth mechanism:
 
 - **MCP tools** (`mcp_tools.py`), mounted at `/mcp`, called only by the Responses agent.
   They authenticate with `internal_identity.py`'s short-lived HMAC bearer, minted
-  fresh per request from the BFF-verified identity the agent receives.
+  fresh per request from the BFF-verified identity the agent receives in default HMAC
+  mode. Explicit `MCP_IDENTITY_MODE=oauth` instead verifies Identity-issued RS256
+  `mcp.access` access-token JWTs locally using `OAUTH_ISSUER`, `OAUTH_AUDIENCE`
+  and public `OAUTH_JWKS` JSON. This mode never introspects opaque tokens or falls
+  back to HMAC. Customer dispute operations retain ownership and explicit consent;
+  legacy `banking.read` and staff grants are rejected. MCP revocation accepts the
+  remaining 3600-second TTL delay; REST introspection is unchanged. See the
+  [Identity OAuth contract](identity/README.md#optional-oauth-authorization-code-provider).
 - **REST endpoints** in [Account routers](account/src/banking_account/routers/)
   and [Transaction routers](transaction/src/banking_transaction/routers/), mounted
   at `/api`, called directly by the browser. Their `auth` packages authenticate with `jwt_identity.py`'s
@@ -223,8 +235,13 @@ Azure Monitor stores server spans as Requests and uses preaggregated HTTP metric
 for standard request charts. Logs in Traces are a separate signal: their presence
 alone does not prove request ingestion. See the [Azure exporter guidance](https://learn.microsoft.com/en-us/python/api/overview/azure/monitor-opentelemetry-exporter-readme?view=azure-python).
 
-In-memory tests verify MCP context reception and HTTP duration recording. Correlation across the deployed
-Foundry gateway remains unverified. The App Service startup command must also trust
+Account and Transaction exclude only internal ASGI `send`/`receive` event spans,
+retaining server request spans, HTTP status/error visibility and duration metrics.
+In-memory tests verify MCP context reception, HTTP duration recording, and successful
+and failed HTTP responses without ASGI event spans. The tracing tests temporarily
+reenable the SDK for their injected in-memory providers even when the suite disables
+telemetry. No external exporter is used by those tests. Correlation across the deployed
+Foundry gateway and production ingestion-volume changes remain unverified. The App Service startup command must also trust
 the controlled Azure proxy's forwarded scheme so `/mcp` redirects remain HTTPS;
 the Terraform startup-command correction requires provisioning, not just zip deployment.
 
@@ -294,8 +311,13 @@ auth dependencies (customer/operator application-JWT dependencies for REST,
 
 Launch the services individually or press `F5` with `DEV - Full Stack Ordered` to
 start Identity, Account, Transaction, the local Responses agent, the BFF and Vite;
-see the [root local-development guide](../../README.md#run-locally). Set breakpoints
-in any service and the running process will honor them.
+see the [root local-development guide](../../README.md#run-locally). F5 uses
+`noDebug: true`: no debugger attaches and no browser opens automatically. Backend
+output passes through the root local runner for colored severity labels and daily
+UTF-8 files in each project's ignored `logs/<service>-YYYY-MM-DD.log`. Files append
+across restarts and dates roll over while running; no automatic retention is configured.
+The frontend runs npm directly without file logging. Credential-pattern redaction
+does not remove arbitrary sensitive content; local agent message capture is enabled.
 
 ## Local inquiry verification
 

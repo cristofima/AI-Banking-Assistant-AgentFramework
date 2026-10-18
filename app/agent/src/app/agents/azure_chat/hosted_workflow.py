@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 
-from agent_framework import Agent, BaseChatClient, Message, Workflow
+from agent_framework import Agent, BaseChatClient, Message, Workflow, MCPStreamableHTTPTool
 from mcp import ClientSession
 
 from app.agents.azure_chat.account_agent import AccountAgent
@@ -57,6 +57,8 @@ def build_hosted_workflow(
     transaction_chat_client: BaseChatClient | None = None,
     account_mcp_session: ClientSession | None = None,
     transaction_mcp_session: ClientSession | None = None,
+    account_tool: MCPStreamableHTTPTool | None = None,
+    transaction_tool: MCPStreamableHTTPTool | None = None,
 ) -> Workflow:
     """Build the workflow with checkpoints owned by the Responses hosting runtime."""
     triage_agent = Agent(
@@ -76,6 +78,7 @@ def build_hosted_workflow(
         account_mcp_server_url,
         internal_identity_secret,
         account_mcp_session=account_mcp_session,
+        account_tool=account_tool,
     ).build_af_agent()
     transaction_agent = TransactionHistoryAgent(
         transaction_chat_client if transaction_chat_client is not None else chat_client,
@@ -84,6 +87,8 @@ def build_hosted_workflow(
         internal_identity_secret,
         account_mcp_session=account_mcp_session,
         transaction_mcp_session=transaction_mcp_session,
+        account_tool=account_tool,
+        transaction_tool=transaction_tool,
     ).build_af_agent()
 
     return (

@@ -1,4 +1,15 @@
 import type { UserRole } from "./authClient";
+import { parseOAuthQuery } from "./oauthClient";
+
+export function savedLoginDestination(state: unknown): string | undefined {
+  if (!state || typeof state !== "object" || !("from" in state)) return undefined;
+  const from = state.from;
+  if (!from || typeof from !== "object" || !("pathname" in from) || typeof from.pathname !== "string") return undefined;
+  if (from.pathname === "/oauth/callback") return undefined;
+  if (from.pathname !== "/oauth/consent") return from.pathname;
+  if (!("search" in from) || typeof from.search !== "string" || ("hash" in from && from.hash)) return undefined;
+  return parseOAuthQuery(from.search) ? from.pathname + from.search : undefined;
+}
 
 export function roleHome(role: UserRole): string {
   switch (role) {
@@ -10,6 +21,7 @@ export function roleHome(role: UserRole): string {
 
 export function loginDestination(role: UserRole, requested?: string): string {
   if (role !== "customer") return roleHome(role);
+  if (requested?.startsWith("/oauth/consent?") && parseOAuthQuery(requested.slice("/oauth/consent".length))) return requested;
   if (requested && /^(\/(credit-cards|portfolio|analytics|account|support)\/?|\/support-cases(?:\/[A-Za-z0-9_-]+)?\/?|\/)$/.test(requested)) {
     return requested;
   }

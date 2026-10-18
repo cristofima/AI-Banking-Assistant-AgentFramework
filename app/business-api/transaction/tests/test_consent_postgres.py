@@ -157,7 +157,7 @@ def test_concurrent_acceptance(
     monkeypatch.setattr(disputes, "_eligible_intake", synchronized_intake)
     monkeypatch.setattr(routes, "service", service)
     monkeypatch.setattr(mcp_tools, "dispute_service", service)
-    monkeypatch.setattr(mcp_tools, "get_customer_id", lambda headers: OWNER)
+    monkeypatch.setattr(mcp_tools, "get_customer_id", lambda headers, *, mutation=False: OWNER)
     app = FastAPI()
     app.include_router(routes.router, prefix="/api/support-cases")
     app.dependency_overrides[get_jwt_customer_id] = lambda: OWNER

@@ -5,14 +5,17 @@ React and Vite frontend for the Banking Assistant prototype. The assistant uses 
 ## Local Development
 
 ```powershell
-cd app/frontend/banking-web
+Set-Location app\frontend\banking-web
 npm install
-npm run dev
+npm run dev -- --mode oauth-local
 ```
+
+These commands start only the frontend and require the localhost TLS files described
+below and running backend services. Use the root task for full-stack preparation.
 
 Node runtime baseline is `>=22` (aligned with `package.json` engines and frontend CI defaults).
 
-Vite normally listens at `http://localhost:5170`. The root `DEV - Full Stack Ordered` VS Code launch starts Identity (`8090`), Account MCP (`8070`), Transaction MCP (`8071`), the local Responses agent (`8088`), the BFF (`8080`), and this frontend in separate terminals.
+The root `prepare full stack dev` VS Code task (F5 through `DEV - Full Stack Ordered`, or Ctrl+Shift+B) starts Identity HTTPS (`8091`), Account MCP (`8070`), Transaction MCP (`8071`), the local Responses agent (`8088`), the BFF (`8080`), and Vite HTTPS (`5170`) in separate terminals.
 
 Account, Transaction, and the BFF are separate origins in every environment, local
 and deployed, so the frontend calls each one by its absolute URL instead of relying
@@ -24,6 +27,63 @@ on a dev-server proxy. Locally those absolute URLs just happen to share the
 | Account       | `http://localhost:8070` |
 | Transaction   | `http://localhost:8071` |
 | Responses BFF | `http://localhost:8080` |
+
+### Local OAuth HTTPS
+
+Press F5 with `DEV - Full Stack Ordered` (`noDebug: true`). Its prelaunch task
+starts the stack, then a lightweight Node completion command exits. Ctrl+Shift+B
+or `Tasks: Run Task → prepare full stack dev` remain alternatives.
+No debugger or browser is launched; open `https://localhost:5170/` manually.
+Only backend projects store daily output in their ignored `logs/` directories.
+The frontend runs npm directly without file logging or the Python output adapter.
+Stop the previous stack first to release its ports.
+This task starts
+all services in order, with HTTPS for the frontend and the OAuth Identity listener;
+internal BFF, agent and MCP endpoints retain loopback HTTP. Background task matchers
+advance the sequence only after each server reports readiness, including the
+Responses host's Hypercorn `Running on` message. If startup stops, inspect the last
+service terminal; later services have not yet been launched.
+
+The OAuth launch generates a six-month localhost TLS certificate in
+`%USERPROFILE%\.banking-oauth-local` and trusts it in the current user's Windows
+certificate store. It requires PowerShell 7 (`pwsh`), preserves an existing PEM
+pair, and keeps private material outside the checkout with user-only directory
+permissions. This TLS certificate is separate from the Identity OAuth signing key.
+Preparation also rebuilds `localhost-ca-bundle.pem` from certifi's public roots plus
+that localhost certificate. The development tasks pass it through `SSL_CERT_FILE` to BFF,
+Agent, Account and Transaction, preserving Python HTTPX certificate verification
+for both Identity and public HTTPS services. Windows browser trust alone does not
+configure HTTPX trust. Restart the service tasks after this configuration changes.
+
+Backend tasks load credentials and service configuration from their own `.env` through
+`uv --env-file .env`. Tasks pin the local topology: `PROFILE=dev` for Account,
+Transaction and BFF, `AGENT_RUNTIME=local` for Agent, and BFF
+`RESPONSES_UPSTREAM_MODE=local` with
+`RESPONSES_AGENT_ENDPOINT=http://127.0.0.1:8088/responses`. These overrides keep service
+ports aligned with readiness matchers even when dotenv files omit a profile or
+configure a hosted runtime. Without `PROFILE=dev`, Account and Transaction default
+to port 8080, so the sequence cannot reach their expected readiness on 8070/8071.
+Agent does not use `PROFILE`. Tasks also provide the generated CA bundle and local
+diagnostic message capture; credentials and MCP identity mode remain project configuration.
+
+Vite runs in `oauth-local` mode at `https://localhost:5170`, with exact-port binding.
+Identity runs once at `https://localhost:8091` for both banking authentication and
+OAuth. No Identity HTTP listener is started. Configure each consumer's Identity
+URLs in its own dotenv file to use that HTTPS endpoint, with trusted localhost TLS;
+do not disable certificate verification.
+
+Use issuer `https://localhost:8091`, consent URL
+`https://localhost:5170/oauth/consent`, and the exact registered callback
+`https://localhost:5170/oauth/callback`. Each service still loads its own existing
+configuration; this launch does not rewrite dotenv files or provision OAuth clients.
+Enable OAuth explicitly in BFF, Agent, Account and Transaction configuration.
+Keep the Agent runtime local and its MCP endpoints pointed to the local services.
+
+Browser APIs still use their absolute loopback HTTP URLs above, preserving the BFF
+chat boundary and direct Account/Transaction REST boundary. Include
+`https://localhost:5170` in each consumer's allowed CORS origins. Browser policy,
+login, consent, token expiry and customer isolation require manual validation;
+HTTPS frontend readiness alone does not establish those results.
 
 ## CI coverage and SonarQube
 
@@ -59,6 +119,67 @@ same application JWT Identity issues through the BFF at login. Legacy REST clien
 the source tree, but are not used by the in-scope financial screens.
 
 The frontend signs in through the [Responses BFF](../../responses-bff/README.md) at `/auth/login`, keeps only the short-lived application JWT in browser storage, and restores verified identity through `/auth/me`. Profiles require a supported role and positive `identity_version`; only customers carry `customer_id`. Navigation uses the persisted name, with an email fallback. The frontend does not create fixed bearer tokens or synthetic profiles.
+
+## OAuth consent prototype
+
+The customer-only `/oauth/consent` route accepts exactly one each of `client_id`,
+`redirect_uri`, `response_type=code`, `scope=mcp.access`, `state`,
+`code_challenge` (43 base64url characters), and `code_challenge_method=S256`.
+Queries are bounded to 4096 characters; callbacks must be unambiguous HTTPS URLs
+without credentials, fragments, duplicate query fields or reserved OAuth fields.
+Identity remains responsible for registered-client and exact callback allowlisting.
+Only this validated route preserves its OAuth query through the existing English
+login. Consent uses the authenticated profile's English, Spanish or Portuguese UI.
+
+Approval and denial require explicit clicks and POST to the existing BFF
+`/oauth/authorize` using the application JWT in an Authorization header, never
+Identity directly. The UI checks the returned callback target, original query prefix,
+state, unique protocol fields and the expected code or `access_denied` outcome
+before navigation. JWTs never enter callback URLs; only the server-issued
+OAuth authorization code is redirected. `mcp.access` permits existing customer MCP
+account/transaction reads and customer dispute-case operations, not payments or
+operator/admin tools. Grant consent never automatically approves dispute creation,
+case decisions or tool actions; their separate explicit consent/approval gates remain.
+Submissions are single-flight, aborted on unmount/session changes and ignored if
+identity or token changes. Failed or uncertain submissions lock both decisions,
+with no automatic submission or retry. Return to the requesting client to reconcile
+an uncertain outcome rather than resending it.
+
+The BFF-owned lifecycle below supplies opt-in direct OAuth JWT chat integration,
+not native Foundry challenge handling. Per-customer grant isolation still requires
+runtime acceptance. No browser, live provider, stack or cloud acceptance is implied
+by unit tests.
+
+## BFF-owned OAuth chat lifecycle
+
+Customer chat shares a session-scoped readiness provider across Support and the
+floating assistant. `GET /oauth/status` must return `{required, ready}`. HMAC mode
+(`required: false`) retains chat functionality. Missing or failed status blocks
+chat; status is rechecked on focus, every 30 seconds and before Responses dispatch.
+An explicit authorize action calls `POST /oauth/start` and accepts only a relative,
+same-origin `/oauth/consent` URL passing the existing strict query parser.
+All lifecycle calls use the existing application JWT, no-store and no redirects.
+
+The standalone `/oauth/callback` page scrubs the URL before login redirects and
+never preserves protocol material in login state or browser storage. Only the
+current customer session can explicitly finish the exchange via
+`POST /oauth/callback` with `{state, code}`. Each mounted callback attempts once;
+failures, cancellation and uncertain responses are never automatically replayed.
+Reloading loses the code. Denial and invalid input perform no exchange. Return to
+chat and check status before starting a fresh authorization.
+
+OAuth access grants last 3600 seconds, with no refresh; authorization codes and
+BFF state retain their 300-second expiry. Consent/readiness text does not expose token
+duration. Callback return-to-chat controls use buttons and localized spacing/styles.
+The BFF remains the fail-closed
+authority at dispatch; polling does not prove remaining lifetime. `mcp.access`
+enables existing customer dispute-intake, legacy case-consent and tool approval
+controls only when authorization is ready and not busy. Missing/not-ready status
+still blocks dispatch; closed, stale and uncertain threads retain their existing
+locks. Customer ownership, explicit consent and read-only recovery remain unchanged.
+Direct customer REST case workflows keep their independent application-JWT boundary.
+No OAuth token, verifier or authorization code is stored by this lifecycle.
+Offline tests do not establish browser, BFF end-to-end or hosted grant isolation.
 
 ## Session lifetime
 
