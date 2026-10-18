@@ -90,11 +90,11 @@ Terraform provisions a shared RBAC-authorized, purge-protected Key Vault and use
 versionless `@Microsoft.KeyVault(SecretUri=...)` app settings. System-assigned
 identities receive `Key Vault Secrets User` at individual secret scopes:
 
-| Service               | Permitted secrets                                                                    |
-| --------------------- | ------------------------------------------------------------------------------------ |
-| Identity              | `database-url`, `jwt-secret-key`, `auth-internal-secret`                             |
-| Account / Transaction | `database-url`, `jwt-secret-key`, `auth-internal-secret`, `internal-identity-secret` |
-| Responses BFF         | `jwt-secret-key`, `auth-internal-secret`, `internal-identity-secret`                 |
+| Service               | Permitted secrets                                                                                         |
+| --------------------- | --------------------------------------------------------------------------------------------------------- |
+| Identity              | `database-url`, `jwt-secret-key`, `auth-internal-secret`; separate key-scoped native signing grant        |
+| Account / Transaction | `database-url`, `jwt-secret-key`, `auth-internal-secret`, `internal-identity-secret`, `oauth-jwks`        |
+| Responses BFF         | `jwt-secret-key`, `auth-internal-secret`, `internal-identity-secret`, `oauth-client-secret`, `oauth-jwks` |
 
 Supply the three authentication secrets through approved private secret-entry
 operations, never command arguments, source, logs or Terraform secret-value data sources.
@@ -115,7 +115,11 @@ These declarations alone do not prove deployed isolation or least-privilege DB a
 All three consumers receive HTTPS `AUTH_USERS_ENDPOINT` from Identity's actual hostname
 and the same explicit `JWT_ISSUER`/`JWT_AUDIENCE` (defaults `home-banking-api` and
 `home-banking-web`), JWT key and introspection secret. Identity's
-`ACCESS_TOKEN_MINUTES` defaults to 15 and must be an integer from 1–60. JWT and
+`ACCESS_TOKEN_MINUTES` is explicitly set from Terraform's `access_token_minutes`
+(default 60, matching Identity's application default) and must be an integer from
+1–60. Expiry is absolute from issuance, not an inactivity timeout. This application
+JWT lifetime is independent from MCP OAuth lifetimes; OAuth access tokens use a
+3600-second bound independently. JWT and
 introspection secrets must each satisfy the runtime's 32-character minimum. Account
 and Transaction continue verifying browser JWTs independently of agent-only transport. Terraform sets
 `CORS_ALLOWED_ORIGINS` for Account and Transaction to the deployed web app's origin
@@ -130,11 +134,86 @@ receives `Foundry Agent Consumer` and a custom project-scoped role containing
 `Microsoft.CognitiveServices/accounts/agents/UserIdentityImpersonation/action`. Do not send
 Azure credentials or the delegated identity header from the browser.
 
-Terraform owns the complete app settings arrays through `azapi_resource.app`,
-`azapi_resource.identity`, and `azapi_resource.responses_bff`. There is no separate `api_cors` patch resource or
-`ignore_changes` rule for these arrays. Provisioning applies settings to both new and
-existing sites; declare persistent changes in Terraform rather than patching settings
-manually, because a later provision can overwrite those manual changes.
+Terraform owns the complete Account/Transaction and BFF app settings arrays through
+`azapi_resource.app` and `azapi_resource.responses_bff`. Identity's full settings map
+is owned exclusively by `azapi_resource.identity_app_settings`, a child `appsettings`
+resource: the site must exist before its actual public hostname can become its OAuth
+issuer without a self-reference cycle. The Identity site resource does not also write
+an app settings array. There is no separate `api_cors` patch or `ignore_changes` rule.
+Provisioning applies settings to both new and existing sites; declare persistent
+changes in Terraform rather than patching settings manually, because a later
+provision can overwrite those manual changes.
+
+### MCP OAuth deployment configuration
+
+Set the new nonsecret inputs in the selected **root** azd environment before an
+explicitly authorized provision. `main.tfvars.json` maps all three values explicitly;
+direct Terraform defaults `oauth_audience` to `banking-mcp` but requires
+`oauth_client_id` and `oauth_signing_key_id`. The signing key ID is public metadata,
+passed directly to Identity's `OAUTH_SIGNING_KEY_ID`, not a Key Vault secret. It must
+be nonblank, at most 128 characters, and match the native key's published JWKS key ID:
+
+```powershell
+rtk proxy azd env set OAUTH_AUDIENCE banking-mcp
+rtk proxy azd env set OAUTH_CLIENT_ID <registered-confidential-bff-client-id>
+rtk proxy azd env set OAUTH_SIGNING_KEY_ID <public-signing-key-id>
+```
+
+Terraform derives `OAUTH_ISSUER` from Identity's actual public HTTPS hostname,
+`OAUTH_FRONTEND_AUTHORIZE_URL` from the web hostname plus `/oauth/consent`, and
+`OAUTH_REDIRECT_URI` from the web hostname plus `/oauth/callback`. These names and
+`OAUTH_AUDIENCE`/`OAUTH_CLIENT_ID` are nonsecret outputs for subsequent configuration;
+Terraform does not register an OAuth client or copy outputs into GitHub Variables.
+The owner must register that exact HTTPS callback and the exact `mcp.access` scope
+with Identity through separately authorized provisioning, not this Terraform stack.
+
+Remote Identity now uses native Key Vault signing. Terraform creates the nonexportable
+RSA-2048 `oauth-signing` key with `sign`/`verify` operations, pins its version in
+`OAUTH_SIGNING_KEY_URI`, selects `OAUTH_SIGNING_BACKEND=key_vault`, and grants Identity
+key-scoped Crypto User access. The private key never reaches Terraform state or Identity.
+The provisioning principal needs Crypto Officer access (in addition to the existing
+Secrets Officer grant); `deployer_principal_id` optionally creates both assignments.
+No automatic key rotation is configured; changing the key requires coordinated public
+JWKS publication and redeployment/restart, not an implicit rollover.
+
+Manual operations use a separate federated principal, not the regular CD principal.
+Set root azd `AZURE_OPERATIONS_PRINCIPAL_ID` to its object ID for Terraform grants;
+set protected GitHub Development `AZURE_OPERATIONS_CLIENT_ID` to its application ID
+for OIDC login. Terraform grants resource-group Reader, key-scoped Key Vault Reader
+(public key only, no signing), database-url Secrets User, and Secrets Officer only
+on `oauth-jwks` and `oauth-client-secret`. Existing/inherited permissions must be
+audited separately. Configure environment approval and federated credentials outside
+this stack; runner connectivity to the verified PostgreSQL target is a prerequisite.
+
+Local Identity retains default `OAUTH_SIGNING_BACKEND=pem` and its existing private PEM;
+no local configuration or database restore is required. Initialize the remaining entries
+with the explicit manual OAuth database operation before consumer deployment. Terraform
+creates versionless references and secret-scoped grants, never reads or stores these
+OAuth secret values, and exposes no secret outputs:
+
+| Key Vault entry       | App setting           | Consumers                 | Required value                                                                             |
+| --------------------- | --------------------- | ------------------------- | ------------------------------------------------------------------------------------------ |
+| `oauth-client-secret` | `OAUTH_CLIENT_SECRET` | BFF only                  | Secret matching the registered confidential client                                         |
+| `oauth-jwks`          | `OAUTH_JWKS`          | BFF, Account, Transaction | Public-only JWKS JSON matching Identity's signing key and key ID, not a URL or private key |
+
+Identity consumes no `MCP_IDENTITY_MODE` setting. BFF, Account and Transaction are
+explicitly configured with `MCP_IDENTITY_MODE=oauth`; BFF retains
+`RESPONSES_UPSTREAM_MODE=foundry`. Existing HMAC references and application JWT and
+introspection settings remain independent. Invalid OAuth never falls back to HMAC.
+No private signing key or confidential client secret is sent to MCP services or the
+agent, and no agent configuration is managed here. Keep public JWKS synchronized
+with signing-key changes; versionless references do not prove immediate runtime
+refresh or rotation readiness.
+
+The hosted/native Toolbox OAuth path remains intentionally fail-closed until
+banking-user/native-caller/grant binding, callback/S256 compatibility and two-user
+isolation are proven. These deployment declarations do not enable that path or
+establish hosted readiness; do not bypass the gate or route it through a shared
+grant. Development azd configuration and root provisioning completed on 2026-10-18;
+its final preview reported no changes. The operations identity currently reuses the
+existing GitHub CD principal, including scoped OAuth-secret write access. GitHub
+variables, OAuth initialization/client registration, authorized migrations, code rollout
+and runtime verification remain separate pending steps.
 
 Account starts with `python -m uvicorn banking_account.main:app --host 0.0.0.0 --port 8080 --proxy-headers`;
 Transaction uses `banking_transaction.main:app` with the same options.

@@ -9,6 +9,14 @@ output "AZURE_RESPONSES_BFF_APP_NAME" { value = azapi_resource.responses_bff.nam
 output "AZURE_IDENTITY_APP_NAME" { value = azapi_resource.identity.name }
 output "IDENTITY_URI" { value = "https://${azapi_resource.identity.output.properties.defaultHostName}" }
 
+output "OAUTH_ISSUER" { value = local.oauth_issuer }
+output "OAUTH_AUDIENCE" { value = var.oauth_audience }
+output "OAUTH_CLIENT_ID" { value = var.oauth_client_id }
+output "OAUTH_SIGNING_KEY_ID" { value = var.oauth_signing_key_id }
+output "OAUTH_SIGNING_KEY_URI" { value = azurerm_key_vault_key.oauth.id }
+output "OAUTH_FRONTEND_AUTHORIZE_URL" { value = local.oauth_frontend_authorize_url }
+output "OAUTH_REDIRECT_URI" { value = local.oauth_redirect_uri }
+
 output "ACCOUNT_URI" { value = "https://${azapi_resource.app["account"].output.properties.defaultHostName}" }
 output "TRANSACTION_URI" { value = "https://${azapi_resource.app["transaction"].output.properties.defaultHostName}" }
 output "WEB_URI" { value = "https://${azapi_resource.web.output.properties.defaultHostName}" }

@@ -61,10 +61,38 @@ variable "jwt_audience" {
 variable "access_token_minutes" {
   description = "Identity-issued application JWT lifetime in minutes."
   type        = number
-  default     = 15
+  default     = 60
   validation {
     condition     = var.access_token_minutes >= 1 && var.access_token_minutes <= 60 && floor(var.access_token_minutes) == var.access_token_minutes
     error_message = "Token lifetime must be an integer between 1 and 60 minutes."
+  }
+}
+
+variable "oauth_audience" {
+  description = "MCP OAuth audience shared by Identity, BFF and both MCP services, independent from application JWTs."
+  type        = string
+  default     = "banking-mcp"
+  validation {
+    condition     = length(trimspace(var.oauth_audience)) > 0
+    error_message = "OAuth audience must be nonempty."
+  }
+}
+
+variable "oauth_client_id" {
+  description = "Owner-registered confidential BFF OAuth client ID; its secret is uploaded separately to Key Vault."
+  type        = string
+  validation {
+    condition     = length(trimspace(var.oauth_client_id)) > 0
+    error_message = "OAuth client ID must be nonempty."
+  }
+}
+
+variable "oauth_signing_key_id" {
+  description = "Public Identity OAuth signing key ID matching the owner-supplied private key and public JWKS."
+  type        = string
+  validation {
+    condition     = length(trimspace(var.oauth_signing_key_id)) > 0 && length(var.oauth_signing_key_id) <= 128
+    error_message = "OAuth signing key ID must be nonblank and at most 128 characters."
   }
 }
 
@@ -183,8 +211,14 @@ variable "github_actions_principal_id" {
   default     = null
 }
 
+variable "azure_operations_principal_id" {
+  description = "Optional object ID of the separate protected manual database-operations principal. Grants resource lookup, public OAuth key read, database-url read and scoped OAuth secret initialization; never grants key signing or ordinary CD write access."
+  type        = string
+  default     = null
+}
+
 variable "deployer_principal_id" {
-  description = "Optional object ID (not the client/app ID) of whoever runs terraform apply/azd provision, granted Key Vault Secrets Officer so Terraform can write the database-url secret. Key Vault RBAC does not inherit from subscription Owner/Contributor. Leave unset to skip this role assignment."
+  description = "Optional object ID (not the client/app ID) of whoever runs terraform apply/azd provision, granted Key Vault Secrets Officer and Crypto Officer so Terraform can write the database-url secret and generate the native OAuth signing key. Key Vault RBAC does not inherit from subscription Owner/Contributor. Leave unset to skip this role assignment."
   type        = string
   default     = null
 }
