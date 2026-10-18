@@ -30,6 +30,31 @@ Local development uses port 8070. The ASGI target is `banking_account.main:app`;
 production uses port 8080. Use installed, package-qualified namespaces, not flat
 `main`/`services` imports or path injection. See the
 [shared setup and packaging guide](../README.md#python-dependency-artifacts).
+F5 runs the root ordered stack without a debugger or automatic browser launch.
+Its local runner adds console severity colors and daily UTF-8
+`logs/account-YYYY-MM-DD.log` files; the manual command above does not capture files.
+Configure `AUTH_USERS_ENDPOINT=https://localhost:8091` and trust the prepared CA for
+that HTTPS Identity stack. Logs are ignored and have no automatic retention cleanup;
+see the [root startup guide](../../../README.md#run-locally).
+
+## MCP OAuth access tokens
+
+Set `MCP_IDENTITY_MODE=oauth`, `OAUTH_ISSUER`, `OAUTH_AUDIENCE` and `OAUTH_JWKS`
+(public JWKS JSON obtained from Identity's advertised `/oauth/jwks` endpoint).
+The issuer must exactly match the HTTPS issuer in the token, without a trailing slash;
+use an audience distinct from the browser login audience. Never configure a private
+key on Account. Reads verify RS256 signatures, `typ=at+jwt`, known `kid`, strict
+customer claims, exact `mcp.access` scope and a maximum 3600-second lifetime locally.
+Legacy `banking.read` and operator/admin grants are rejected; service-layer ownership
+checks remain required.
+No network, opaque-token introspection or HMAC fallback occurs in OAuth mode.
+Rotate public JWKS explicitly with the issuer; provision new public keys before
+switching signing keys, retaining old public keys for outstanding tokens to expire.
+
+Identity/client revocation and profile changes take effect at token expiry, up to
+3600 seconds (one hour) later. Service-layer customer ownership and REST login-JWT introspection
+remain unchanged. Default `hmac` mode retains the separate internal bearer contract.
+See [Identity OAuth configuration](../identity/README.md#optional-oauth-authorization-code-provider).
 
 ## Masked-suffix card discovery
 
