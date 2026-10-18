@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import logging
+import ssl
 from typing import Any
 
 import httpx
 from fastapi import HTTPException, Response
 from fastapi.responses import JSONResponse
+
+logger = logging.getLogger("uvicorn.error.bff.identity")
 
 
 def unavailable() -> HTTPException:
@@ -33,8 +37,21 @@ async def auth_request(
         headers["Authorization"] = f"Bearer {token}"
     try:
         response = await client.request(method, path, json=payload, headers=headers)
-    except httpx.RequestError:
+    except httpx.RequestError as exc:
+        failure = "timeout" if isinstance(exc, httpx.TimeoutException) else "transport"
+        cause: BaseException | None = exc
+        for _ in range(8):
+            if cause is None:
+                break
+            if isinstance(cause, ssl.SSLCertVerificationError):
+                failure = "tls_certificate_verification"
+                break
+            cause = cause.__cause__ or cause.__context__
+        logger.error("Identity connection failed: category=%s", failure)
         raise unavailable() from None
+    if path in {"/oauth/authorize", "/oauth/token", "/internal/oauth/introspect"}:
+        if not 200 <= response.status_code < 300:
+            logger.error("BFF OAuth upstream rejected: status=%s", response.status_code)
     if response.status_code >= 500:
         raise unavailable()
     if path == "/internal/introspect" and response.status_code not in (200, 401):
