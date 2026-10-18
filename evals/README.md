@@ -201,6 +201,15 @@ suites are not additive coverage. All three wheels built successfully. Baseline 
 saved-evidence rescoring completed without model execution. This does not establish
 semantic quality, locale correctness, service authorization or live acceptance.
 
+## Reviewed freeze alignment
+
+Freeze revision 19 updates only five reviewed dependency hashes: Account MCP card
+identity lookup, the Agent entrypoint, and Agent credential, logging and settings
+configuration. It resolves the remaining mismatches recorded by revision 18 while
+preserving exact dataset bytes, consent expansions and dependency coverage. The
+review is recorded in `dispute_freeze.json`; offline validation does not establish
+native Toolbox grant binding, hosted readiness, model quality or live-data parity.
+
 ## Historical offline regression evidence
 
 With freeze revision 3, the requested combined offline suites passed **77 tests**
