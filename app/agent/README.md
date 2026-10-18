@@ -25,6 +25,163 @@ reported within that limited searched scope, not as proof of exhaustive history.
 Incorrect-amount complaints preserve the expected amount in the reason under the
 existing full-original-amount policy, never a promised partial refund.
 
+## Direct MCP OAuth delegation
+
+The optional `MCP_IDENTITY_MODE=oauth` path delegates the customer's OAuth access
+token to direct Account and Transaction MCP connections using only the
+`Authorization` bearer header. It does not send a custom banking identity header
+to either MCP. The services validate the Identity-issued RS256 JWT against trusted
+public keys, issuer, audience, expiry and `mcp.access`; existing service-level
+customer ownership checks remain mandatory. This is not an Entra login migration.
+
+Configure `MCP_IDENTITY_MODE=oauth` consistently in the BFF, agent and MCP services.
+For the agent, select `AGENT_RUNTIME=local` and configure `ACCOUNT_MCP_URL` and
+`TRANSACTION_MCP_URL`: `local` selects direct HTTP transport, even for a hosted
+agent, and does not mean offline model execution. OAuth mode rejects the experimental
+Toolbox route because per-user bearer passthrough has not been demonstrated.
+Missing, expired or malformed delegated grants fail closed without HMAC fallback.
+Default `MCP_IDENTITY_MODE=hmac` preserves existing behavior.
+
+The hosted manifest fixes `AGENT_RUNTIME=foundry` and `MCP_IDENTITY_MODE=oauth`
+for the approved remote Toolbox target; neither requires an azd environment variable.
+Local execution remains `local`/`oauth`, connecting directly to the two MCP services.
+The current adapter still rejects OAuth Toolbox consumption until supported per-user
+caller/grant binding is implemented and verified. The hosted target is not runtime
+readiness. Keep the BFF and both MCP services in the same identity mode.
+No OAuth client secret, signing private key or JWKS is passed to the agent; those
+belong to Identity, confidential clients or MCP validators.
+
+The BFF keeps OAuth tokens server-side and includes the current grant in its signed
+per-request identity envelope. That BFF-to-agent envelope remains necessary because
+Foundry authentication occupies the upstream Authorization header. Tokens must not
+enter model instructions, browser storage, responses or logs. Browser login and
+direct financial REST authentication retain current Identity checks.
+
+Access tokens last 3600 seconds (one hour). Authorization codes and BFF state
+retain their 300-second expiry. MCP JWT validation does not perform per-call Identity
+introspection, so revocation and profile changes can take up to that lifetime to
+invalidate a token. `mcp.access` permits existing customer MCP reads and dispute
+operations. It does not elevate roles, bypass resource ownership or replace explicit
+case-creation consent. Old `banking.read` grants are rejected and require fresh consent.
+See the [BFF guide](../responses-bff/README.md) for authorization-code consent and
+grant custody, the [Identity guide](../business-api/identity/README.md) for signing
+configuration, and [ADR 0012](../../docs/adr/0012-local-oauth-jwt-validation-for-mcp.md)
+for the proposed revocation tradeoff. Offline tests verify protocol behavior, not
+configured grants, hosted identity transport or end-to-end runtime acceptance.
+
+## Remote OAuth Toolbox target and historical HMAC evidence
+
+[azure.yaml](azure.yaml) and [toolbox.yaml](toolbox.yaml) reference `account-mcp`
+and `transaction-mcp` project connections with the existing customer-tool allowlists.
+Both connections must be configured as OAuth2 with `mcp.access`; references alone do
+not change previously deployed no-auth connections. Verify exact callbacks, PKCE
+compatibility and separate banking-user grants before activation. Azure authentication
+on the agent-to-Toolbox hop is separate from downstream customer OAuth.
+
+The following observations describe the earlier no-auth/HMAC experiment, not the
+approved OAuth configuration or proof of OAuth acceptance.
+`AGENT_RUNTIME=foundry` uses the project's experimental `banking-tools` Toolbox
+endpoint, with separate Account and Transaction allowlists and no direct-MCP
+fallback. The temporary local diagnostic route has been reverted:
+`AGENT_RUNTIME=local` requires `ACCOUNT_MCP_URL` and `TRANSACTION_MCP_URL` and connects
+directly to those MCP services using the existing fresh customer-scoped HMAC bearer.
+Local execution still uses Foundry models and its local Azure credential selection;
+it is not an offline mode. Restart the local agent to pick up the restored routing.
+This change does not prove runtime readiness or authorize automatic model calls.
+The hosted manifest explicitly selects `foundry` and depends on `banking-tools`.
+No additional Settings field is required. Direct synthetic MCP session injection
+in isolated tests remains unchanged.
+OAuth2 was excluded from that historical experiment, not from the current remote
+target. Static customer tokens and signer secrets in connections remain prohibited.
+
+This routing is experimental, not a working authenticated Toolbox integration.
+Azure authentication owns `Authorization` on the Toolbox hop. The adapter supplies
+the banking HMAC separately as `x-banking-mcp-authorization`, but forwarding is not
+verified and the existing banking MCP services accept it only in `Authorization`.
+Consequently authenticated calls fail closed. Do not deploy this routing as a
+functional replacement until downstream identity delivery is proven.
+
+On 2026-10-16, live discovery against both existing MCP services failed with
+`HTTP_307`: the configured `/mcp` URLs redirect to `/mcp/`, and Toolbox does not
+follow that redirect. The agent azd `development` environment now uses the canonical
+trailing-slash URLs. Toolbox version 2 was deployed and explicitly published as the
+default after its discovery returned all 17 allowlisted tools. Read-only Account
+calls through version 2, both without banking identity and with a synthetic invalid
+`x-banking-mcp-authorization`, returned the missing-identity rejection. This proves
+discovery and fail-closed behavior, not arbitrary-header forwarding or valid HMAC
+acceptance. The published default endpoint was independently checked and also
+returned 17 tools. Transaction calls returned tool errors, without establishing
+their authentication cause. No model was invoked during these probes.
+
+Later on 2026-10-16, the explicitly authorized agent-only redeployment succeeded:
+`azd deploy home-banking-agent --cwd app\agent --environment development --no-prompt`
+created version 28, and an independent `azd ai agent show` confirmed status `active`.
+No additional MCP service was provisioned. This confirms deployment of the
+experimental route, not successful authenticated tool calls or end-to-end readiness.
+
+The subsequent local diagnostic patch was checked with 131 focused agent tests.
+Account and Transaction were redeployed to their existing App Services through
+`azd deploy account --environment development --no-prompt` and
+`azd deploy transaction --environment development --no-prompt` from the root project.
+Both deployments succeeded and both canonical `/mcp/` endpoints returned HTTP 200
+for MCP initialization. Each service's three tracing tests passed. Initialization
+is not a protected tool call and does not prove HMAC propagation or financial access.
+No provisioning, database migration or hosted-agent redeployment was performed for
+this diagnostic patch.
+
+Microsoft's [hosted Toolbox guide](https://learn.microsoft.com/azure/foundry/agents/how-to/tools/use-toolbox-hosted-agent)
+separates Azure authentication to Toolbox from the downstream credential selected
+by each tool's connection. `FoundryToolbox` forwards the hosted per-request call ID;
+the guide does not promise forwarding arbitrary customer HMAC headers. With
+connection authentication set to `none`, the current configuration therefore has
+no documented authenticated path to the banking MCP services. Fixing discovery
+alone does not remove that incompatibility. Do not replace the fresh customer HMAC
+with a static connection token, expose the signer, or weaken MCP authorization.
+A diagnostic resource or an alternative authentication/transport strategy requires
+explicit authorization before further deployment.
+
+Run the following from the repository root only after authorizing cloud operations.
+Use the existing agent azd environment, with `FOUNDRY_PROJECT_ENDPOINT`,
+`AZURE_SUBSCRIPTION_ID`, `ACCOUNT_MCP_URL` and `TRANSACTION_MCP_URL` already configured.
+The MCP URLs must be cloud-reachable HTTPS endpoints, not localhost. Use their
+canonical `/mcp/` paths to avoid redirects. Do not dump the azd environment or place
+credentials in command arguments.
+
+```powershell
+$env:AZURE_DEV_USER_AGENT = "microsoft_foundry_skill"
+rtk proxy azd deploy banking-tools --cwd app\agent
+rtk proxy azd ai toolbox show banking-tools --cwd app\agent
+rtk proxy azd ai toolbox versions list banking-tools --cwd app\agent
+```
+
+Deployment creates an immutable version but does not automatically promote it.
+Test the new version's MCP endpoint, then select it with
+`azd ai toolbox publish banking-tools <version> --cwd app\agent` before testing
+the unversioned consumer endpoint.
+
+Before agent integration, test a separate diagnostic MCP with non-secret changing
+headers through Toolbox. Verify delivery, cross-request isolation, session reuse
+and header collisions; do not expose an echo endpoint on the banking services.
+Discovery without the required identity may fail: that is not permission to disable
+MCP authentication. Configuration and deployment do not prove header forwarding.
+
+After forwarding and agent consumption are implemented and validated, provision
+only if required, then deploy the agent separately:
+
+```powershell
+$env:AZURE_DEV_USER_AGENT = "microsoft_foundry_skill"
+rtk proxy azd provision --cwd app\agent
+rtk proxy azd deploy home-banking-agent --cwd app\agent
+```
+
+Provisioning can create or update model deployments declared in the manifest; it is
+not needed merely to redeploy an already provisioned agent. Deploying the current
+source activates the experimental Toolbox route. Version 28 is active with that
+route; version 27 predates the routing change. The alternative
+[toolbox.yaml](toolbox.yaml) requires named `account-mcp` and `transaction-mcp`
+project connections created with `--auth-type none`; use either that imperative
+path or the declarative service, not both for the same Toolbox.
+
 ## Grounding and confidentiality
 
 Triage, Account and Transaction prepend the same English [guardrail policy](src/app/agents/azure_chat/guardrails.py).
@@ -157,7 +314,16 @@ $env:PROFILE="dev"
 uv run python main.py
 ```
 
-The agent listens on port `8088`. Browser traffic should go through the BFF on port `8080`, not directly to this process. The root `DEV - Full Stack Ordered` VS Code launch starts the supported local topology.
+The agent listens on port `8088`. Browser traffic should go through the BFF on port
+`8080`, not directly to this process. F5 runs the root `DEV - Full Stack Ordered`
+launch with `noDebug: true`, ordered service tasks and no automatic browser launch.
+That task loads the agent's `.env`, sets `AGENT_RUNTIME=local` and uses the root
+output runner for colored severity labels and daily `logs/agent-YYYY-MM-DD.log` files.
+Both `ENABLE_SENSITIVE_DATA` and `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT`
+are explicitly `true` in the local task. Keep logs private: common credential redaction
+does not remove conversation content, and no automatic retention cleanup is configured.
+The manual command above does not apply those task overrides or daily output capture.
+See the [root startup guide](../../README.md#run-locally).
 
 The hosted code package contains only this project. Its manifest and lockfile must
 not depend on repository-root evaluation packages or other external local paths.

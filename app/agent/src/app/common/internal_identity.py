@@ -6,8 +6,9 @@ import base64
 import hashlib
 import hmac
 import json
+import os
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from azure.ai.agentserver.core import get_request_context
@@ -21,6 +22,8 @@ class InternalPrincipal:
     customer_id: str
     email: str | None = None
     locale: str = "en"
+    oauth_access_token: str | None = field(default=None, repr=False)
+    oauth_expires_at: int | None = None
 
 
 def resolve_response_locale(value: object) -> str:
@@ -39,6 +42,19 @@ def get_internal_principal(secret: str) -> InternalPrincipal:
 def create_mcp_authorization(secret: str, lifetime_seconds: int = 60) -> str:
     """Create a short-lived MCP bearer token for the current request identity."""
     principal = get_internal_principal(secret)
+    mode = os.environ.get("MCP_IDENTITY_MODE", "hmac")
+    if mode == "oauth":
+        token = principal.oauth_access_token
+        expires_at = principal.oauth_expires_at
+        if (
+            not isinstance(token, str) or not token or len(token) > 16384
+            or any(character.isspace() or ord(character) < 32 for character in token)
+            or type(expires_at) is not int or expires_at <= int(time.time())
+        ):
+            raise ValueError("A current customer OAuth grant is required")
+        return f"Bearer {token}"
+    if mode != "hmac":
+        raise RuntimeError("Unsupported MCP identity mode")
     payload = {
         "customer_id": principal.customer_id,
         "exp": int(time.time()) + lifetime_seconds,
@@ -76,6 +92,8 @@ def _verify_envelope(token: str, secret: str) -> InternalPrincipal:
             customer_id=payload["customer_id"],
             email=payload.get("email"),
             locale=resolve_response_locale(payload.get("locale")),
+            oauth_access_token=payload.get("oauth_access_token"),
+            oauth_expires_at=payload.get("oauth_expires_at"),
         )
     except (KeyError, TypeError, ValueError) as error:
         raise ValueError("Invalid internal identity payload") from error

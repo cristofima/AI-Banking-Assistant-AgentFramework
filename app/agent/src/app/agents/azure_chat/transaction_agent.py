@@ -173,6 +173,8 @@ class TransactionHistoryAgent :
                  *,
                  account_mcp_session: ClientSession | None = None,
                  transaction_mcp_session: ClientSession | None = None,
+                 account_tool: MCPStreamableHTTPTool | None = None,
+                 transaction_tool: MCPStreamableHTTPTool | None = None,
                   ) -> None:
         self.azure_chat_client = azure_chat_client
         self.account_mcp_server_url = account_mcp_server_url
@@ -180,6 +182,8 @@ class TransactionHistoryAgent :
         self.internal_identity_secret = internal_identity_secret
         self.account_mcp_session = account_mcp_session
         self.transaction_mcp_session = transaction_mcp_session
+        self.account_tool = account_tool
+        self.transaction_tool = transaction_tool
 
 
 
@@ -189,7 +193,7 @@ class TransactionHistoryAgent :
 
       logger.info("Initializing Account MCP, Transaction MCP server tools for TransactionHistoryAgent ")
 
-      account_mcp_server = MCPStreamableHTTPTool(
+      account_mcp_server = self.account_tool if self.account_tool is not None else MCPStreamableHTTPTool(
           name="Account MCP server client",
           url=self.account_mcp_server_url,
           session=self.account_mcp_session,
@@ -197,7 +201,7 @@ class TransactionHistoryAgent :
                            if self.account_mcp_session is None else None),
        )
 
-      transaction_mcp_server = MCPStreamableHTTPTool(
+      transaction_mcp_server = self.transaction_tool if self.transaction_tool is not None else MCPStreamableHTTPTool(
           name="Transaction MCP server client",
           url=self.transaction_mcp_server_url,
           session=self.transaction_mcp_session,
