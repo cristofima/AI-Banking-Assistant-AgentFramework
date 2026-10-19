@@ -6,6 +6,7 @@ import os
 import re
 from urllib.parse import urlsplit
 
+from pwdlib import PasswordHash
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session, create_engine
@@ -17,8 +18,14 @@ from identity.settings import Settings
 
 def provision_client(session: Session, identity: IdentityService, client_id: str,
                      secret: str, redirects: list[str], *, allow_loopback: bool = False) -> None:
-    if (not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", client_id) or len(secret) < 32
-            or len(secret) > 512 or not secret.strip() or not redirects or len(redirects) > 8
+    ensure_client(session, identity.passwords, client_id, secret, redirects,
+                  allow_loopback=allow_loopback)
+
+
+def validate_client_metadata(client_id: str, redirects: list[str], *,
+                             allow_loopback: bool = False) -> None:
+    if (not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", client_id)
+            or not redirects or len(redirects) > 8
             or len(set(redirects)) != len(redirects)):
         raise ValueError("Invalid explicit OAuth client configuration")
     for uri in redirects:
@@ -28,9 +35,20 @@ def provision_client(session: Session, identity: IdentityService, client_id: str
         if (len(uri) > 2048 or not parsed.hostname or parsed.fragment
                 or parsed.username or parsed.password or (parsed.scheme != "https" and not loopback)):
             raise ValueError("Only exact HTTPS redirects or explicit offline loopback are allowed")
-    if session.get(OAuthClient, client_id) is not None:
-        raise ValueError("Client already exists; rotation requires separate authorization")
-    session.add(OAuthClient(client_id=client_id, secret_hash=identity.passwords.hash(secret),
+
+
+def ensure_client(session: Session, passwords: PasswordHash, client_id: str,
+                  secret: str, redirects: list[str], *, allow_loopback: bool = False) -> None:
+    validate_client_metadata(client_id, redirects, allow_loopback=allow_loopback)
+    if not 32 <= len(secret) <= 512 or not secret.strip():
+        raise ValueError("Invalid explicit OAuth client secret")
+    existing = session.get(OAuthClient, client_id)
+    if existing is not None:
+        if (not existing.active or set(existing.redirect_uris) != set(redirects)
+                or not passwords.verify(secret, existing.secret_hash)):
+            raise ValueError("Client already exists with different credentials/metadata or is inactive")
+        return
+    session.add(OAuthClient(client_id=client_id, secret_hash=passwords.hash(secret),
                             redirect_uris=redirects))
     session.commit()
 

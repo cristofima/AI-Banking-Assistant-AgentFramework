@@ -21,7 +21,7 @@ from sqlmodel import Session, select, update
 from banking_shared.identity_models import User, utc_now
 from banking_shared.oauth_models import OAuthAccessToken, OAuthAuthorizationCode, OAuthClient
 from banking_shared.oauth_jwt import (
-    OAUTH_CODE_TTL_SECONDS, OAUTH_SCOPE, OAUTH_TTL_SECONDS, public_jwks,
+    OAUTH_CODE_TTL_SECONDS, OAUTH_SCOPE, OAUTH_TTL_SECONDS,
 )
 from identity.models.schemas import CustomerProfile
 from identity.services.service import IdentityService, unauthorized
@@ -209,17 +209,13 @@ class OAuthServer(AuthorizationServer):
 
     def generate_token(self, **kwargs: Any) -> dict[str, object]:
         settings = self.identity.settings
-        material = settings.oauth_signing_private_key.get_secret_value()
-        public_jwks(material, settings.oauth_signing_key_id)
         profile = self.identity.customer_profile(self.session, kwargs["user"])
         issued = int(utc_now().timestamp())
         claims = {**self.snapshot(profile), "iss": settings.oauth_issuer.rstrip("/"),
                   "aud": settings.oauth_audience, "iat": issued,
                   "exp": issued + OAUTH_TTL_SECONDS, "jti": token_urlsafe(24),
                   "client_id": kwargs["client"].client_id, "scope": OAUTH_SCOPE}
-        token = jwt.encode({"alg": "RS256", "typ": "at+jwt",
-                            "kid": settings.oauth_signing_key_id}, claims,
-                           RSAKey.import_key(material), algorithms=["RS256"])
+        token = self.identity.oauth_signer.encode(claims)
         return {"access_token": token, "token_type": "Bearer",
                 "expires_in": OAUTH_TTL_SECONDS, "scope": OAUTH_SCOPE}
 
@@ -231,7 +227,7 @@ class OAuthServer(AuthorizationServer):
             profile_snapshot=self.snapshot(profile), scope=OAUTH_SCOPE,
             expires_at=datetime.fromtimestamp(
                 jwt.decode(str(token["access_token"]), RSAKey.import_key(
-                    self.identity.settings.oauth_signing_private_key.get_secret_value(),
+                    self.identity.oauth_signer.jwks["keys"][0],
                 ), algorithms=["RS256"]).claims["exp"],
                 tz=timezone.utc,
             ),

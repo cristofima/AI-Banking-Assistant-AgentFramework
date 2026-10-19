@@ -187,7 +187,7 @@ App Service configuration:
   `AUTH_INTERNAL_SECRET`; database/JWT/introspection settings must be versionless
   Key Vault references with `Resolved` metadata, and issuer/audience explicit values.
 - `SCM_DO_BUILD_DURING_DEPLOYMENT=true` for Oryx dependency installation.
-- Optional `ACCESS_TOKEN_MINUTES` (default 15, valid range 1–60).
+- Optional `ACCESS_TOKEN_MINUTES` (default 60, valid range 1–60; absolute expiry from issuance).
 
 Use approved secret storage/Key Vault references and database network/grant configuration.
 `AUTH_INTERNAL_SECRET` is the shared introspection secret, not the agent transport
@@ -200,8 +200,122 @@ workflows do not enforce cross-workflow ordering or prove acceptance.
 CD does not probe `/openapi.json`; endpoint exposure and a safe readiness contract
 are deferred. Configuration preflight checks reference metadata before deployment,
 not secret contents, startup, PostgreSQL connectivity, login or end-to-end authorization.
-CI/CD never applies migrations, seeds users, bootstraps administrators or provisions
-infrastructure. See the [Identity guide](../../app/business-api/identity/README.md#cicd).
+Automatic CI/CD never applies migrations, seeds users, bootstraps administrators or
+provisions infrastructure. The separate manually confirmed database operations workflow
+can upgrade reviewed migrations or initialize OAuth; it is not part of deployment. See the [Identity guide](../../app/business-api/identity/README.md#cicd).
+
+### OAuth App Service configuration
+
+Root Terraform owns OAuth app settings; CD checks the existing settings before deploying
+Identity, Account, Transaction or BFF. The runner does not copy a local azd environment
+or apply Terraform. Configure root azd `OAUTH_AUDIENCE`, `OAUTH_CLIENT_ID` and
+`OAUTH_SIGNING_KEY_ID` before the separately authorized infrastructure update.
+See [infrastructure configuration](../../infra/README.md) for exact inputs and outputs.
+
+| Service | Required OAuth app settings |
+| --- | --- |
+| Identity | `OAUTH_ISSUER`, `OAUTH_AUDIENCE`, `OAUTH_FRONTEND_AUTHORIZE_URL`, `OAUTH_SIGNING_KEY_ID`, `OAUTH_SIGNING_BACKEND=key_vault`, version-pinned `OAUTH_SIGNING_KEY_URI` |
+| Account / Transaction | `MCP_IDENTITY_MODE=oauth`, `OAUTH_ISSUER`, `OAUTH_AUDIENCE`, `OAUTH_JWKS` |
+| Responses BFF | MCP consumer settings above plus `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`, `OAUTH_REDIRECT_URI` |
+
+The issuer is the public Identity HTTPS origin, without a trailing slash, matching
+consumers' `AUTH_USERS_ENDPOINT`. Identity consent targets the public frontend
+`/oauth/consent`; BFF's exact registered redirect targets frontend `/oauth/callback`,
+with that origin in `ALLOWED_ORIGINS`. Callback routes do not bypass the BFF.
+
+Terraform creates the native RSA key; Identity signs remotely using its managed
+identity and never receives `OAUTH_SIGNING_PRIVATE_KEY`. Local PEM signing remains
+unchanged. Explicit OAuth initialization generates the BFF client secret only when
+missing, publishes matching public `oauth-jwks`, and registers/verifies the client in
+the target database; reruns never silently rotate existing secrets or client metadata.
+Only BFF receives its confidential client secret. Trusted public JWKS reaches BFF and
+both MCP services. Manual initialization needs narrowly scoped Key Vault public-key
+read and write access to the two OAuth entries. Development currently shares the
+operations and CD principal; those write permissions therefore also belong to CD.
+Preflight requires versionless `Resolved` references, but cannot establish key-pair
+alignment, client registration, scope, signature validity or runtime acceptance.
+Missing OAuth settings block CD; HMAC is not an automatic deployment fallback.
+Application JWTs and `INTERNAL_IDENTITY_SECRET` remain independent.
+
+### Manual database and OAuth operations
+
+[manual-database-operations.yaml](manual-database-operations.yaml) is dispatch-only and
+can run from any selected branch in the protected `Development` environment. The
+workflow must first exist on the default branch for GitHub to expose manual dispatch.
+Configure required reviewers, environment branch policies permitting approved source
+branches, and Azure OIDC federation for that environment before use.
+It is independent from CD and shares `database-operations-development` concurrency
+without canceling an in-progress writer. Any other manual workflow writing this database
+must use the same group; direct external writers are not locked by GitHub concurrency.
+
+Configure these **Development environment variables**, separately from local azd:
+
+| Variable | Purpose |
+| --- | --- |
+| `AZURE_OPERATIONS_CLIENT_ID` | Operations principal's application/client ID for OIDC login; Development currently reuses the existing CD principal |
+| `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` | Explicit Azure login target |
+| `AZURE_RESOURCE_GROUP` | Resource group for ARM target verification |
+| `AZURE_KEY_VAULT_NAME` | Existing Terraform vault holding `database-url` and OAuth entries |
+| `AZURE_POSTGRES_SERVER_NAME`, `AZURE_POSTGRES_DATABASE_NAME` | Existing server/database, checked through ARM |
+| `OAUTH_SIGNING_KEY_URI`, `OAUTH_SIGNING_KEY_ID` | Terraform public outputs; required for `init-oauth` |
+| `OAUTH_CLIENT_ID`, `OAUTH_REDIRECT_URI` | BFF confidential client and exact frontend HTTPS callback; required for client operations |
+| `AZURE_DB_OPERATIONS_RUNNER` | Optional JSON runner label/list; defaults to `"ubuntu-latest"`; select an approved network-connected runner if necessary |
+
+Root azd `AZURE_OPERATIONS_PRINCIPAL_ID` is the principal's **object ID**, not the
+workflow application's client ID. Terraform grants resource-group Reader, key-scoped
+public read, `database-url` read and Secrets Officer only on `oauth-jwks` and
+`oauth-client-secret`. Development provisioning on 2026-10-18 reused the existing CD
+principal, so that identity now also has these scoped write permissions. A distinct
+operations principal is an optional future isolation change, not the current setup.
+azd provisioning does not populate GitHub environment variables. Wait for RBAC
+propagation and ensure runner network/database access; this workflow grants no firewall,
+role-assignment or infrastructure-provisioning permission.
+
+Dispatch one operation at a time:
+
+- `migrate`: confirmation `migrate:Development`. Automatically resolve the single latest
+  Alembic head in the selected branch checkout, upgrade to it and verify the applied
+  revision. There is no target-revision input; missing/multiple heads fail before upgrade.
+  Select an approved legacy-user policy only if required by migration preflight; leaving
+  it `unspecified` does not activate users. Review lineage and backup/restore readiness first.
+- `init-oauth`: confirmation `init-oauth:Development`, after migrations. Publish the native
+  public JWKS, generate a random BFF client secret only if missing and register/verify its
+  Argon2 hash and callback. Existing mismatches fail instead of rotating credentials.
+- `register-client`: confirmation `register-client:Development`. Register/verify the
+  configured BFF client using an already present secret, without key/secret creation.
+
+Credentials stay in memory and masked runner channels, never workflow inputs, command
+arguments, artifact files or local database backups. Migration subprocess output is
+captured; failures expose only a controlled rejection. A partial initialization is not
+transactional across Key Vault/PostgreSQL: identical reruns reconcile unchanged state,
+while mismatches require investigation rather than forced replacement. Restart/refresh
+App Service secret references through a separately authorized rollout when necessary.
+No workflow run, migration or runtime OAuth acceptance is implied by this configuration.
+
+#### Federation is not network authorization
+
+The operations workflow already uses GitHub OIDC for Azure login and reads secrets
+through Key Vault SDK clients with that credential. No OAuth secret is copied into
+GitHub, and the native signing private key is never exported. PostgreSQL currently uses
+password authentication from `database-url`; Azure RBAC does not grant database DDL.
+
+[PostgreSQL Entra authentication](https://learn.microsoft.com/azure/postgresql/security/security-entra-configure)
+can also use the federated principal, but requires enabling server Entra authentication,
+a separately authorized Entra administrator, a mapped PostgreSQL principal, and reviewed
+schema/object ownership and migration privileges. None is provisioned by this workflow.
+The banking email/password login and local PEM signing are independent and unchanged.
+
+OIDC does not bypass TCP/DNS/firewall restrictions. The current Terraform server has
+public networking, Entra disabled, and an existing broad `0.0.0.0` Azure-services rule;
+that rule is not repository-scoped authorization or verified GitHub-runner access.
+No dynamic GitHub IP rule is added. For a no-GitHub-IP route, select an approved runner
+with actual network access: a self-hosted Azure runner or
+[GitHub-hosted Azure VNet runner](https://docs.github.com/en/organizations/managing-organization-settings/configuring-private-networking-for-github-hosted-runners-in-your-organization)
+with the applicable organization/plan, plus PostgreSQL private endpoint/DNS connectivity.
+Runner hosting, private networking, Entra database grants and replacement of the existing
+Azure-services rule require a separate approved infrastructure change; default
+`ubuntu-latest` is not evidence of connectivity. Key Vault access also needs a reachable
+endpoint. Do not dispatch remote operations until those prerequisites are verified.
 
 ### Hosted-agent variables (`cd-hosted-agent.yaml`)
 
@@ -219,6 +333,20 @@ Required:
 - `MODEL_DEPLOYMENT_NAME`
 - `ACCOUNT_MCP_URL`
 - `TRANSACTION_MCP_URL`
+
+The agent manifest fixes `AGENT_RUNTIME=foundry` and `MCP_IDENTITY_MODE=oauth`;
+no OAuth private key, browser-client secret or public JWKS is consumed by the hosted
+adapter. Do not copy these App Service settings into the agent or browser.
+`account-mcp` and `transaction-mcp` must already be owner-managed OAuth2 project
+connections in the selected Foundry project, using exactly `mcp.access` and separately
+registered native confidential clients/platform callbacks. Local azd values alone do
+not configure these connections, and CD does not register clients or replace connections.
+
+The workflow validates public HTTPS project/MCP URLs (MCP path `/mcp`) and records
+the deployment boundary in its summary. The runtime adapter still **fails closed** for
+OAuth Toolbox passthrough pending native banking-user/caller/grant binding and two-user
+isolation proof. Artifact deployment or `agent show` is not hosted OAuth readiness.
+Do not replace this gate with HMAC fallback, a shared grant or a fabricated call ID.
 
 Optional (per-agent model deployments):
 
@@ -252,6 +380,11 @@ Service hostnames:
 - `VITE_TRANSACTION_API_URL` (`https://<transaction-app-hostname>/api`)
 - `VITE_RESPONSES_BFF_URL` (`https://<responses-bff-app-hostname>`)
 - `VITE_RESPONSES_API_URL` (`https://<responses-bff-app-hostname>/responses`)
+
+OAuth uses the existing `VITE_RESPONSES_BFF_URL`; no new `VITE_OAUTH_*` variable,
+Identity URL, client secret or direct agent endpoint belongs in the bundle. Build
+preflight requires HTTPS URLs with the paths above, no trailing slash on the BFF
+base, and the same BFF origin for OAuth/auth and `/responses` chat.
 
 The workflow validates and injects them with `azd env set` before `azd deploy web --no-prompt`,
 the same pattern `cd-hosted-agent.yaml` uses for `ACCOUNT_MCP_URL`/`TRANSACTION_MCP_URL`. Update

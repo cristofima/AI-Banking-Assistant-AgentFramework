@@ -33,6 +33,11 @@ locals {
   internal_identity_secret_reference = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault.secrets.vault_uri}secrets/internal-identity-secret/)"
   database_url_reference             = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault.secrets.vault_uri}secrets/database-url/)"
   auth_internal_secret_reference     = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault.secrets.vault_uri}secrets/auth-internal-secret/)"
+  oauth_client_secret_reference      = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault.secrets.vault_uri}secrets/oauth-client-secret/)"
+  oauth_jwks_reference               = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault.secrets.vault_uri}secrets/oauth-jwks/)"
+  oauth_issuer                       = "https://${azapi_resource.identity.output.properties.defaultHostName}"
+  oauth_frontend_authorize_url       = "https://${azapi_resource.web.output.properties.defaultHostName}/oauth/consent"
+  oauth_redirect_uri                 = "https://${azapi_resource.web.output.properties.defaultHostName}/oauth/callback"
 }
 
 resource "azurerm_key_vault" "secrets" {
@@ -46,15 +51,41 @@ resource "azurerm_key_vault" "secrets" {
   tags                       = local.tags
 }
 
+resource "azurerm_role_assignment" "deployer_key_vault_crypto_officer" {
+  count                = var.deployer_principal_id == null ? 0 : 1
+  scope                = azurerm_key_vault.secrets.id
+  role_definition_name = "Key Vault Crypto Officer"
+  principal_id         = var.deployer_principal_id
+}
+
+resource "azurerm_key_vault_key" "oauth" {
+  name         = "oauth-signing"
+  key_vault_id = azurerm_key_vault.secrets.id
+  key_type     = "RSA"
+  key_size     = 2048
+  key_opts     = ["sign", "verify"]
+  depends_on   = [azurerm_role_assignment.deployer_key_vault_crypto_officer]
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "azurerm_role_assignment" "identity_key_vault_crypto_user" {
+  scope                = azurerm_key_vault_key.oauth.resource_id
+  role_definition_name = "Key Vault Crypto User"
+  principal_id         = azapi_resource.identity.output.identity.principalId
+}
+
 resource "azurerm_role_assignment" "account_key_vault_secrets_user" {
-  for_each             = toset(["database-url", "jwt-secret-key", "auth-internal-secret", "internal-identity-secret"])
+  for_each             = toset(["database-url", "jwt-secret-key", "auth-internal-secret", "internal-identity-secret", "oauth-jwks"])
   scope                = "${azurerm_key_vault.secrets.id}/secrets/${each.key}"
   role_definition_name = "Key Vault Secrets User"
   principal_id         = azapi_resource.app["account"].output.identity.principalId
 }
 
 resource "azurerm_role_assignment" "transaction_key_vault_secrets_user" {
-  for_each             = toset(["database-url", "jwt-secret-key", "auth-internal-secret", "internal-identity-secret"])
+  for_each             = toset(["database-url", "jwt-secret-key", "auth-internal-secret", "internal-identity-secret", "oauth-jwks"])
   scope                = "${azurerm_key_vault.secrets.id}/secrets/${each.key}"
   role_definition_name = "Key Vault Secrets User"
   principal_id         = azapi_resource.app["transaction"].output.identity.principalId
@@ -63,7 +94,7 @@ resource "azurerm_role_assignment" "transaction_key_vault_secrets_user" {
 # Secret-level scopes keep the DB-free BFF from resolving the shared database credential.
 # Applying this replaces the previous vault-wide BFF assignment; audit inherited grants separately.
 resource "azurerm_role_assignment" "responses_bff_key_vault_secrets_user" {
-  for_each             = toset(["jwt-secret-key", "auth-internal-secret", "internal-identity-secret"])
+  for_each             = toset(["jwt-secret-key", "auth-internal-secret", "internal-identity-secret", "oauth-client-secret", "oauth-jwks"])
   scope                = "${azurerm_key_vault.secrets.id}/secrets/${each.key}"
   role_definition_name = "Key Vault Secrets User"
   principal_id         = azapi_resource.responses_bff.output.identity.principalId
@@ -83,6 +114,34 @@ resource "azurerm_role_assignment" "github_actions_key_vault_secrets_user" {
   scope                = azurerm_key_vault.secrets.id
   role_definition_name = "Key Vault Secrets User"
   principal_id         = var.github_actions_principal_id
+}
+
+resource "azurerm_role_assignment" "operations_resource_reader" {
+  count                = var.azure_operations_principal_id == null ? 0 : 1
+  scope                = data.azurerm_resource_group.main.id
+  role_definition_name = "Reader"
+  principal_id         = var.azure_operations_principal_id
+}
+
+resource "azurerm_role_assignment" "operations_oauth_key_reader" {
+  count                = var.azure_operations_principal_id == null ? 0 : 1
+  scope                = azurerm_key_vault_key.oauth.resource_id
+  role_definition_name = "Key Vault Reader"
+  principal_id         = var.azure_operations_principal_id
+}
+
+resource "azurerm_role_assignment" "operations_database_secret_reader" {
+  count                = var.azure_operations_principal_id == null ? 0 : 1
+  scope                = "${azurerm_key_vault.secrets.id}/secrets/database-url"
+  role_definition_name = "Key Vault Secrets User"
+  principal_id         = var.azure_operations_principal_id
+}
+
+resource "azurerm_role_assignment" "operations_oauth_secret_officer" {
+  for_each             = var.azure_operations_principal_id == null ? toset([]) : toset(["oauth-jwks", "oauth-client-secret"])
+  scope                = "${azurerm_key_vault.secrets.id}/secrets/${each.key}"
+  role_definition_name = "Key Vault Secrets Officer"
+  principal_id         = var.azure_operations_principal_id
 }
 
 # Grants whoever runs `terraform apply`/`azd provision` write access so Terraform can create the
@@ -214,7 +273,11 @@ resource "azapi_resource" "app" {
           { name = "JWT_ISSUER", value = var.jwt_issuer },
           { name = "JWT_AUDIENCE", value = var.jwt_audience },
           { name = "JWT_SECRET_KEY", value = local.jwt_secret_key_reference },
-          { name = "INTERNAL_IDENTITY_SECRET", value = local.internal_identity_secret_reference }
+          { name = "INTERNAL_IDENTITY_SECRET", value = local.internal_identity_secret_reference },
+          { name = "MCP_IDENTITY_MODE", value = "oauth" },
+          { name = "OAUTH_ISSUER", value = local.oauth_issuer },
+          { name = "OAUTH_AUDIENCE", value = var.oauth_audience },
+          { name = "OAUTH_JWKS", value = local.oauth_jwks_reference }
         ] : [])
         # Native App Service CORS is intentionally cleared (not merely omitted) here: Microsoft's own
         # docs state it takes precedence over and disables the app's own CORS code entirely when both
@@ -269,18 +332,7 @@ resource "azapi_resource" "identity" {
           allowedOrigins     = []
           supportCredentials = false
         }
-        appSettings = [
-          { name = "WEBSITES_PORT", value = "8000" },
-          { name = "PORT", value = "8000" },
-          { name = "APPLICATIONINSIGHTS_CONNECTION_STRING", value = azurerm_application_insights.main.connection_string },
-          { name = "SCM_DO_BUILD_DURING_DEPLOYMENT", value = "true" },
-          { name = "DATABASE_URL", value = local.database_url_reference },
-          { name = "JWT_SECRET_KEY", value = local.jwt_secret_key_reference },
-          { name = "JWT_ISSUER", value = var.jwt_issuer },
-          { name = "JWT_AUDIENCE", value = var.jwt_audience },
-          { name = "AUTH_INTERNAL_SECRET", value = local.auth_internal_secret_reference },
-          { name = "ACCESS_TOKEN_MINUTES", value = tostring(var.access_token_minutes) }
-        ]
+        # Settings have a separate owner so the OAuth issuer can use this site's actual hostname.
       }
       }, var.hostname_scope == null ? {} : {
       autoGeneratedDomainNameLabelScope = var.hostname_scope
@@ -291,6 +343,36 @@ resource "azapi_resource" "identity" {
 
   lifecycle {
     replace_triggered_by = [azurerm_service_plan.main.location]
+  }
+}
+
+resource "azapi_resource" "identity_app_settings" {
+  type      = "Microsoft.Web/sites/config@2024-11-01"
+  name      = "appsettings"
+  parent_id = azapi_resource.identity.id
+  body = {
+    properties = {
+      WEBSITES_PORT                         = "8000"
+      PORT                                  = "8000"
+      APPLICATIONINSIGHTS_CONNECTION_STRING = azurerm_application_insights.main.connection_string
+      SCM_DO_BUILD_DURING_DEPLOYMENT        = "true"
+      DATABASE_URL                          = local.database_url_reference
+      JWT_SECRET_KEY                        = local.jwt_secret_key_reference
+      JWT_ISSUER                            = var.jwt_issuer
+      JWT_AUDIENCE                          = var.jwt_audience
+      AUTH_INTERNAL_SECRET                  = local.auth_internal_secret_reference
+      ACCESS_TOKEN_MINUTES                  = tostring(var.access_token_minutes)
+      OAUTH_ISSUER                          = local.oauth_issuer
+      OAUTH_AUDIENCE                        = var.oauth_audience
+      OAUTH_FRONTEND_AUTHORIZE_URL          = local.oauth_frontend_authorize_url
+      OAUTH_SIGNING_BACKEND                 = "key_vault"
+      OAUTH_SIGNING_KEY_URI                 = azurerm_key_vault_key.oauth.id
+      OAUTH_SIGNING_KEY_ID                  = var.oauth_signing_key_id
+    }
+  }
+
+  lifecycle {
+    ignore_changes = [tags]
   }
 }
 
@@ -343,7 +425,14 @@ resource "azapi_resource" "responses_bff" {
           { name = "JWT_AUDIENCE", value = var.jwt_audience },
           { name = "ALLOWED_ORIGINS", value = jsonencode(["https://${azapi_resource.web.output.properties.defaultHostName}"]) },
           { name = "JWT_SECRET_KEY", value = local.jwt_secret_key_reference },
-          { name = "INTERNAL_IDENTITY_SECRET", value = local.internal_identity_secret_reference }
+          { name = "INTERNAL_IDENTITY_SECRET", value = local.internal_identity_secret_reference },
+          { name = "MCP_IDENTITY_MODE", value = "oauth" },
+          { name = "OAUTH_ISSUER", value = local.oauth_issuer },
+          { name = "OAUTH_AUDIENCE", value = var.oauth_audience },
+          { name = "OAUTH_CLIENT_ID", value = var.oauth_client_id },
+          { name = "OAUTH_CLIENT_SECRET", value = local.oauth_client_secret_reference },
+          { name = "OAUTH_REDIRECT_URI", value = local.oauth_redirect_uri },
+          { name = "OAUTH_JWKS", value = local.oauth_jwks_reference }
         ]
       }
       }, var.hostname_scope == null ? {} : {

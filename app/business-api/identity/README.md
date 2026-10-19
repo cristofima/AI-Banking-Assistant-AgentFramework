@@ -9,7 +9,7 @@ It does not own financial data, dispute verdicts, or a real reviewer queue.
 
 OAuth is disabled until `OAUTH_ISSUER` (the public HTTPS Identity origin) and
 `OAUTH_FRONTEND_AUTHORIZE_URL` (the HTTPS frontend consent page) are configured.
-Enabled OAuth also requires `OAUTH_AUDIENCE`, `OAUTH_SIGNING_KEY_ID` and externally
+Local PEM OAuth also requires `OAUTH_AUDIENCE`, `OAUTH_SIGNING_KEY_ID` and externally
 supplied `OAUTH_SIGNING_PRIVATE_KEY` (an unencrypted RSA PEM, at least 2048 bits).
 Missing or invalid signing configuration fails closed with controlled HTTP 503.
 No signing material is generated, read from a credential file, or persisted by Identity.
@@ -83,10 +83,57 @@ Supply `OAUTH_CLIENT_SECRET` externally (32–512 characters), then explicitly p
 rtk proxy uv run --directory app\business-api\identity banking-provision-oauth-client --client-id foundry-banking --redirect-uri https://approved-client.example/callback --confirm-provision
 ```
 
-The CLI never prints the secret, automatically seeds clients or replaces existing
-clients. HTTPS exact redirects are mandatory; `--allow-loopback-http` permits only
+The CLI never prints the secret or implicitly seeds clients. Explicit identical reruns
+verify the active client's secret and redirects without replacing it; mismatches fail.
+HTTPS exact redirects are mandatory; `--allow-loopback-http` permits only
 explicit offline localhost/127.0.0.1/::1 HTTP callbacks. Rotation requires separate
 approval. Token responses are no-store and omit raw protocol exception descriptions.
+
+### Native Azure signing and remote client registration
+
+Remote Terraform selects `OAUTH_SIGNING_BACKEND=key_vault` and supplies a version-pinned
+`OAUTH_SIGNING_KEY_URI`. Identity's managed identity reads the public RSA key and signs
+RS256 digests in Key Vault; the private key is never exported. Local
+`OAUTH_SIGNING_BACKEND=pem` remains the default and uses the existing externally supplied
+PEM. Do not configure both native and PEM signing. Native/public-JWKS rotation requires
+coordinated approval, not an automatic key-version change.
+
+Use the [manual database operations workflow](../../../.github/workflows/manual-database-operations.yaml)
+and its [configuration guide](../../../.github/workflows/README.md#manual-database-and-oauth-operations)
+instead of restoring a local database remotely:
+
+1. Apply the separately authorized Terraform configuration and operations-principal grants.
+   Development provisioning completed on 2026-10-18 using the existing GitHub CD OIDC
+   principal for operations as well. GitHub environment variables still require separate
+   configuration; successful provisioning does not verify runner connectivity or SQL grants.
+2. Review migration lineage, backup/restore readiness and the selected branch checkout; dispatch
+   `migrate` with `migrate:Development`. The CLI resolves the latest single checkout head
+   automatically, without a target-revision input. Manual dispatch permits any branch
+   allowed by the Development environment policy once the workflow exists on the default
+   branch. OAuth initialization never applies migrations.
+3. Dispatch `init-oauth` with `init-oauth:Development`. It reads the public native key,
+   publishes matching `oauth-jwks`, generates a random 32-byte BFF secret only if absent,
+   and stores only its Argon2 hash with the exact client ID and HTTPS callback in PostgreSQL.
+4. Deploy Identity and consumers after resolved Key Vault references and separately
+   authorized runtime checks. No secret is copied into GitHub variables or browser storage.
+
+Identical reruns verify existing secrets/client metadata without replacing them. A
+mismatch or inactive client fails; rotation and reactivation require separate approval.
+`register-client` registers/verifies a client against an existing Key Vault secret and
+creates no key or secret. Native Foundry clients must use their own approved IDs, callbacks
+and separate secrets, not the BFF secret or a shared customer grant. The CLI supports
+`--client-secret-name` for explicitly authorized additional clients; the workflow targets
+only the configured BFF client. This is administrative provisioning, not a public dynamic
+client-registration endpoint, and does not remove the Toolbox fail-closed gate.
+
+The installed module `identity.services.oauth_remote` exposes `init-oauth`,
+`register-client` and `migrate`, all requiring `--confirm`, `--vault-url`,
+`--expected-host` and `--expected-database`. Standalone execution defaults to managed
+identity; the OIDC workflow uses `--credential azure-cli`. Database credentials are
+retrieved in memory, never passed as CLI arguments or read from dotenv. The workflow
+first verifies the vault/server/database through Azure ARM in its selected subscription;
+the CLI requires the exact PostgreSQL hostname/database and TLS. Explicit operations
+must be serialized; the workflow provides shared concurrency, not cross-system locking.
 
 Client registration is not automatic at startup, login or consent. An empty `oauth`
 schema is consistent with `invalid_client`: authorization cannot create a code without

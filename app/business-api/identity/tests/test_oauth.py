@@ -1,7 +1,13 @@
 """Offline OAuth grant, boundary and lifecycle regressions."""
 from __future__ import annotations
 
+from base64 import urlsafe_b64decode
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
+
+from azure.core.exceptions import ServiceRequestError
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import padding, utils
 from unittest.mock import Mock
 from urllib.parse import parse_qs, urlsplit
 
@@ -140,6 +146,60 @@ def test_code_exchange_hashing_single_use_and_profile(configured: None, client: 
     # MCP accepts the signed snapshot until expiry, even after live identity revocation.
     assert validate_access_token(token, keys, settings.oauth_issuer,
                                  settings.oauth_audience)["identity_version"] == 1
+
+
+@pytest.mark.parametrize("failure", [False, True])
+def test_native_exchange_preserves_token_contract_and_rolls_back_signing_failure(
+    configured: None, client: TestClient, tokens: dict[str, str],
+    authorization: dict[str, object], engine: Engine, settings: Settings,
+    monkeypatch: pytest.MonkeyPatch, failure: bool,
+) -> None:
+    key = RSAKey.import_key(settings.oauth_signing_private_key.get_secret_value())
+    public = key.as_dict(private=False)
+
+    def raw(value: str) -> bytes:
+        return urlsafe_b64decode(value + "=" * (-len(value) % 4))
+
+    uri = "https://synthetic.vault.azure.net/keys/oauth-signing/synthetic-version"
+    settings.oauth_signing_backend = "key_vault"
+    settings.oauth_signing_key_uri = uri
+    settings.oauth_signing_private_key = SecretStr("")
+    remote = SimpleNamespace(
+        id=uri, properties=SimpleNamespace(enabled=True),
+        key=SimpleNamespace(kty="RSA", key_ops=["sign", "verify"],
+                            n=raw(public["n"]), e=raw(public["e"])),
+    )
+    crypto = Mock()
+
+    def sign(algorithm: object, digest: bytes) -> SimpleNamespace:
+        return SimpleNamespace(key_id=uri, signature=key.private_key.sign(
+            digest, padding.PKCS1v15(), utils.Prehashed(hashes.SHA256())))
+
+    crypto.sign.side_effect = sign
+    monkeypatch.setattr("identity.services.oauth_signing.ManagedIdentityCredential", Mock())
+    monkeypatch.setattr("identity.services.oauth_signing.KeyClient", Mock(
+        return_value=Mock(get_key=Mock(return_value=remote))))
+    monkeypatch.setattr("identity.services.oauth_signing.CryptographyClient", Mock(return_value=crypto))
+    value = code(client, tokens, authorization)
+    if failure:
+        crypto.sign.side_effect = ServiceRequestError("sensitive upstream detail")
+        response = exchange(client, value)
+        assert response.status_code == 503
+        assert response.json() == {"detail": {"code": "OAUTH_UNAVAILABLE"}}
+        with Session(engine) as session:
+            assert not session.exec(select(OAuthAuthorizationCode)).one().consumed
+            assert not session.exec(select(OAuthAccessToken)).all()
+        crypto.sign.side_effect = sign
+    response = exchange(client, value)
+    assert response.status_code == 200
+    claims = validate_access_token(response.json()["access_token"],
+        client.get("/oauth/jwks").json(), settings.oauth_issuer, settings.oauth_audience)
+    with Session(engine) as session:
+        stored = session.exec(select(OAuthAccessToken)).one()
+        assert stored.expires_at.replace(tzinfo=timezone.utc).timestamp() == claims["exp"]
+    assert claims["customer_id"] == "synthetic-customer"
+    assert claims["exp"] - claims["iat"] == 3600
+    assert exchange(client, value).status_code == 400
 
 
 @pytest.mark.parametrize("changes", [{"redirect_uri": REDIRECT + "/foreign"},
@@ -444,8 +504,12 @@ def test_provisioning_is_explicit_and_refuses_overwrite(
         with pytest.raises(ValueError):
             provision_client(session, service, "offline", SECRET, [callback])
         provision_client(session, service, "offline", SECRET, [callback], allow_loopback=True)
+        existing_hash = session.get(OAuthClient, "offline").secret_hash
+        provision_client(session, service, "offline", SECRET, [callback], allow_loopback=True)
+        assert session.get(OAuthClient, "offline").secret_hash == existing_hash
         with pytest.raises(ValueError, match="already exists"):
-            provision_client(session, service, "offline", SECRET, [callback], allow_loopback=True)
+            provision_client(session, service, "offline", "different" * 8, [callback],
+                             allow_loopback=True)
 
 
 def test_token_issuance_does_not_log_access_token(

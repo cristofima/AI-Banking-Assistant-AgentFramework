@@ -65,8 +65,8 @@ flowchart LR
     Browser[React banking web] -->|login, profile, admin, customer chat| BFF[Responses BFF]
     BFF -->|identity and introspection| Identity[Identity]
     BFF -->|verified identity and Responses| Agent[Account/Transaction handoff workflow]
-    Agent -->|agent-only MCP bearer| Account[Account REST/MCP]
-    Agent -->|agent-only MCP bearer| Transaction[Transaction REST/MCP]
+    Agent -->|delegated OAuth or compatibility HMAC| Account[Account REST/MCP]
+    Agent -->|delegated OAuth or compatibility HMAC| Transaction[Transaction REST/MCP]
     Browser -->|customer JWT: accounts and cards| Account
     Browser -->|customer/operator JWT: history and cases| Transaction
     Identity --> DB[(PostgreSQL)]
@@ -75,7 +75,9 @@ flowchart LR
 ```
 
 - **Identity:** persisted Argon2 credentials, fixed customer/operator/admin roles,
-  short-lived HS256 JWTs, lifecycle and identity-version revocation.
+  short-lived HS256 JWTs, lifecycle and identity-version revocation. Separate RS256
+  MCP OAuth issuance uses externally supplied PEM locally or a version-pinned,
+  non-exported RSA key in Azure Key Vault remotely.
 - **BFF:** database-free Identity facade and customer Responses stream proxy.
   Consumers check current identity on each protected request and fail closed on
   Identity unavailability. Application JWTs and agent-to-MCP bearers are separate.
@@ -197,6 +199,16 @@ hosted-agent azd projects, existing-resource ownership and rollout gates. The
 [workflow guide](.github/workflows/README.md) owns CI/CD configuration; the
 [dependency-artifact guide](app/business-api/README.md#python-dependency-artifacts)
 owns requirements regeneration and zip packaging.
+
+The [manual database operations workflow](.github/workflows/manual-database-operations.yaml)
+separates migrations from OAuth initialization/client registration; automatic CD does
+neither. Once published on the default branch, manual dispatch can select any branch
+permitted by the Development environment. Migration resolves that checkout's single
+latest head. Operations use OIDC and Key Vault credentials in memory, not a local
+PostgreSQL backup/restore or secrets copied into GitHub. Runner connectivity, SQL
+privileges, backup/restore readiness and hosted OAuth acceptance remain separate gates.
+See the [Data migration guide](app/business-api/data/README.md#explicit-remote-migrations)
+and [Identity provisioning guide](app/business-api/identity/README.md#native-azure-signing-and-remote-client-registration).
 
 - **Prototype, not regulated production:** network restrictions, MFA, refresh sessions,
   retention/deletion policy, fairness and complete operational acceptance are not

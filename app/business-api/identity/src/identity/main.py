@@ -49,6 +49,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         yield
+        await run_in_threadpool(service.oauth_signer.close)
         if owned_engine:
             await run_in_threadpool(database.dispose)
 

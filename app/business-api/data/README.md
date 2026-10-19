@@ -149,6 +149,33 @@ Replace the policy value with exactly `active` or `inactive` when migrating lega
 users. Never silently activate them. Backups require independent restore validation;
 offline migration tests do not establish live rollback or PostgreSQL concurrency.
 
+### Explicit remote migrations
+
+The [manual database operations workflow](../../../.github/workflows/manual-database-operations.yaml)
+provides an independently approved `migrate` operation from any selected branch,
+protected by the `Development` environment and shared database-writer concurrency.
+GitHub must first have the workflow on its default branch; environment branch policies
+must permit the selected branch. Configure its
+[operations identity and runner](../../../.github/workflows/README.md#manual-database-and-oauth-operations)
+first. The runner must already reach PostgreSQL; the workflow never opens firewall
+rules or provisions networking.
+
+Dispatch with confirmation `migrate:Development`. The CLI automatically resolves the
+single latest Alembic head from the selected branch checkout, upgrades to that revision
+using this module's explicit Alembic configuration, and verifies the applied revision.
+No revision input is required; missing, malformed or multiple checkout heads fail before
+upgrade. It never stamps, downgrades, resets, copies a local database, seeds users or
+registers OAuth clients. The database URL is retrieved from Key Vault in memory only,
+checked against the Azure ARM-resolved hostname/database and passed to Alembic through
+its subprocess environment without printing captured database error details.
+
+For a populated legacy identity migration, select an explicitly approved
+`legacy_user_status=active` or `inactive`. The default `unspecified` adds no policy:
+existing migration preflights still fail rather than silently activating users.
+Review existing lineage, backup/restore readiness and data policies before dispatch;
+source/offline tests are not proof that a remote migration succeeded. Run `init-oauth`
+separately after the schema is ready; automatic CD remains migration-free.
+
 ## Environment
 
 Copy [.env.example](.env.example) to the ignored local `.env`, configure the approved

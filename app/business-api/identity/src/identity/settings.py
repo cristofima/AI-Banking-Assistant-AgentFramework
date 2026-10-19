@@ -1,6 +1,8 @@
 """Explicit service configuration; no credential-file loading."""
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -16,6 +18,8 @@ class Settings(BaseSettings):
     oauth_issuer: str = ""
     oauth_frontend_authorize_url: str = ""
     oauth_audience: str = ""
+    oauth_signing_backend: Literal["pem", "key_vault"] = "pem"
+    oauth_signing_key_uri: str = ""
     oauth_signing_private_key: SecretStr = SecretStr("")
     oauth_signing_key_id: str = ""
     applicationinsights_connection_string: str | None = None

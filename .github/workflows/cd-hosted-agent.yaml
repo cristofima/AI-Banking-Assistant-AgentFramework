@@ -9,6 +9,7 @@ on:
       - "!app/agent/**/*.md"
       - ".github/workflows/cd-hosted-agent.yaml"
       - ".github/actions/cd-azure/**"
+      - ".github/actions/appservice-preflight/**"
   workflow_dispatch:
 
 permissions:
@@ -54,9 +55,8 @@ jobs:
             echo "::error::Missing required GitHub environment variable: AZURE_KEY_VAULT_NAME"
             exit 1
           fi
-          # Foundry hosted agents have no native Key Vault app-setting reference (see
-          # plan/tmp/KEY_VAULT_SECRETS_MIGRATION_PLAN.md), so this workflow resolves the secret
-          # itself and masks it before exporting it to later steps.
+          # Hosted environment substitution requires the existing transport signer.
+          # OAuth private keys/client secrets remain in Identity/BFF or owner-managed connections.
           INTERNAL_IDENTITY_SECRET="$(az keyvault secret show \
             --vault-name "$AZURE_KEY_VAULT_NAME" \
             --name internal-identity-secret \
@@ -86,6 +86,16 @@ jobs:
               exit 1
             fi
           done
+          node <<'NODE'
+          const { remoteHttps } = require('./.github/actions/appservice-preflight/preflight.cjs');
+          for (const name of ['FOUNDRY_PROJECT_ENDPOINT', 'ACCOUNT_MCP_URL', 'TRANSACTION_MCP_URL']) {
+            const value = process.env[name];
+            if (!remoteHttps(value) || (name.endsWith('_MCP_URL') && new URL(value).pathname !== '/mcp')) {
+              console.error(`::error::${name} must use its public HTTPS endpoint and documented path.`);
+              process.exit(1);
+            }
+          }
+          NODE
           if [ ${#INTERNAL_IDENTITY_SECRET} -lt 32 ]; then
             echo "::error::INTERNAL_IDENTITY_SECRET must contain at least 32 characters"
             exit 1
@@ -99,7 +109,11 @@ jobs:
                      INTERNAL_IDENTITY_SECRET; do
             azd -C app/agent env set "$var" "${!var}"
           done
-      - name: Deploy hosted agent
+      - name: Record OAuth deployment boundary
+        run: |
+          echo "::warning::Hosted foundry/oauth remains fail-closed in the runtime adapter until native banking-user/grant binding is verified. Deployment does not enable OAuth Toolbox calls."
+          echo "OAuth connections account-mcp and transaction-mcp must already be owner-configured in the selected project with exact platform callbacks and mcp.access. This workflow does not register clients or configure connections." >> "$GITHUB_STEP_SUMMARY"
+      - name: Deploy hosted agent artifact
         run: azd -C app/agent deploy home-banking-agent --no-prompt
       - name: Show agent status
         run: azd -C app/agent ai agent show --no-prompt

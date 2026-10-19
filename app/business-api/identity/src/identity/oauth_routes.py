@@ -5,7 +5,7 @@ from typing import Annotated
 from urllib.parse import parse_qsl, urlencode, urlsplit
 
 from authlib.oauth2.rfc6749.errors import OAuth2Error
-from banking_shared.oauth_jwt import public_jwks
+from azure.core.exceptions import AzureError
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from joserfc.errors import JoseError
@@ -74,21 +74,24 @@ def oauth_router(config: Settings, identity: IdentityService,
             if not config.oauth_audience.strip():
                 raise ValueError("OAuth audience is required")
             category = "signing_configuration"
-            if (not config.oauth_signing_private_key.get_secret_value().strip()
-                    or not config.oauth_signing_key_id.strip()
-                    or len(config.oauth_signing_key_id) > 128):
+            if (not config.oauth_signing_key_id.strip()
+                    or len(config.oauth_signing_key_id) > 128
+                    or (config.oauth_signing_backend == "pem"
+                        and not config.oauth_signing_private_key.get_secret_value().strip())):
                 raise ValueError("OAuth signing configuration is required")
-            category = "signing_key"
-            public_jwks(config.oauth_signing_private_key.get_secret_value(),
-                        config.oauth_signing_key_id)
+            if config.oauth_signing_backend == "pem":
+                category = "signing_key"
+            identity.oauth_signer.validate()
         except (JoseError, ValueError, TypeError, KeyError):
             logger.error("Identity OAuth configuration invalid: category=%s", category)
             raise HTTPException(503, detail={"code": "OAUTH_UNAVAILABLE"}) from None
 
     @router.get("/oauth/jwks", dependencies=[Depends(enabled)])
     def jwks() -> JSONResponse:
-        return JSONResponse(public_jwks(config.oauth_signing_private_key.get_secret_value(),
-                                        config.oauth_signing_key_id), headers=NO_STORE)
+        try:
+            return JSONResponse(identity.oauth_signer.jwks, headers=NO_STORE)
+        except (AzureError, JoseError, ValueError, TypeError, KeyError):
+            raise HTTPException(503, detail={"code": "OAUTH_UNAVAILABLE"}, headers=NO_STORE) from None
 
     def protocol(data: dict[str, str], method: str = "GET",
                  headers: dict[str, str] | None = None) -> ProtocolRequest:
@@ -164,7 +167,12 @@ def oauth_router(config: Settings, identity: IdentityService,
     def exchange(data: dict[str, str], headers: dict[str, str], db: Session) -> JSONResponse:
         server = OAuthServer(db, identity)
         request = protocol(data, "POST", headers)
-        status, body, response_headers = server.create_token_response(request)
+        try:
+            status, body, response_headers = server.create_token_response(request)
+        except (AzureError, JoseError, ValueError, TypeError, KeyError):
+            db.rollback()
+            logger.error("Identity OAuth token rejected: category=signing_unavailable")
+            raise HTTPException(503, detail={"code": "OAUTH_UNAVAILABLE"}, headers=NO_STORE) from None
         if status == 200:
             db.commit()
         else:

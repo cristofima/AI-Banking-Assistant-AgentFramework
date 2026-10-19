@@ -1,5 +1,5 @@
 name: App Service deployment preflight
-description: Validate explicitly named App Service configuration and Key Vault reference status without exposing values.
+description: Validate explicitly named App Service JWT/OAuth configuration and Key Vault reference status without exposing values.
 inputs:
   service:
     description: Root azd service name.
