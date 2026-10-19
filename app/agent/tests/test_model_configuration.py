@@ -84,8 +84,12 @@ def test_host_selects_and_reuses_clients(
             return MagicMock()
 
         server.side_effect = construct_host
-        main_responses_host.create_server()
+        host = main_responses_host.create_server()
         assert server.call_args.kwargs["options"].default_fetch_history_count == 100
+        if runtime == "foundry":
+            host.add_middleware.assert_called_once_with(main_responses_host.BankingIdentityMiddleware)
+        else:
+            host.add_middleware.assert_not_called()
         create_agent = server.call_args.args[0]
         create_agent()
         create_agent()

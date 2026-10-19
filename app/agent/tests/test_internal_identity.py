@@ -14,7 +14,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.common.internal_identity import create_mcp_authorization
+from app.common.internal_identity import (
+    BankingIdentityMiddleware, create_mcp_authorization, get_internal_principal,
+)
+from starlette.types import Receive, Scope, Send
 from app.context.user_profile_helper import UserProfileHelper
 from app.context.user_profile_provider import UserProfileProvider
 
@@ -199,6 +202,89 @@ async def test_profile_locale_uses_signed_allowlist_and_keeps_mcp_claims(
     assert "or 'reclamos', never 'disputa' or 'reclamación'" in directives[0]
     assert "quoted customer-entered reasons, or original audit text" in directives[0]
     assert set(claims) == {"sub", "customer_id", "exp"}
+
+
+@pytest.mark.parametrize("headers", [[], [(b"x-client-banking-identity", b"invalid")],
+    [(b"x-client-banking-identity", _identity().encode())] * 2])
+async def test_hosted_identity_rejects_missing_tampered_or_duplicate_headers(
+    headers: list[tuple[bytes, bytes]],
+) -> None:
+    async def endpoint(scope: Scope, receive: Receive, send: Send) -> None:
+        with pytest.raises((RuntimeError, ValueError)):
+            get_internal_principal(SECRET)
+
+    with patch("app.common.internal_identity.get_request_context") as context:
+        context.return_value.user_id = _identity()
+        await BankingIdentityMiddleware(endpoint)(
+            {"type": "http", "headers": headers}, MagicMock(), MagicMock(),
+        )
+        assert get_internal_principal(SECRET).sub == "user-a"
+
+
+async def test_hosted_stream_tasks_preserve_private_identity_and_platform_context() -> None:
+    from azure.ai.agentserver.core import (
+        FoundryAgentRequestContext, reset_request_context, set_request_context,
+        get_request_context,
+    )
+
+    started = 0
+    ready = asyncio.Event()
+
+    async def run_for(subject: str) -> list[str]:
+        platform = FoundryAgentRequestContext(user_id=f"opaque-{subject}", call_id=subject)
+        context_token = set_request_context(platform)
+        observed: list[str] = []
+
+        async def endpoint(scope: Scope, receive: Receive, send: Send) -> None:
+            nonlocal started
+            started += 1
+            if started == 2:
+                ready.set()
+
+            async def stream() -> None:
+                await ready.wait()
+                for _ in range(2):
+                    await asyncio.sleep(0)
+                    principal = get_internal_principal(SECRET)
+                    observed.append(principal.sub)
+                    assert principal.locale == "es"
+                    assert get_request_context() is platform
+                    await send({"type": "http.response.body", "body": b"chunk"})
+
+            await asyncio.create_task(stream())
+
+        async def send(message: dict[str, object]) -> None:
+            assert get_internal_principal(SECRET).sub == subject
+
+        try:
+            await BankingIdentityMiddleware(endpoint)(
+                {"type": "http", "headers": [(b"x-client-banking-identity",
+                    _identity(subject, subject, locale="es").encode())]},
+                MagicMock(), send,
+            )
+            with pytest.raises(ValueError):
+                get_internal_principal(SECRET)
+        finally:
+            reset_request_context(context_token)
+        return observed
+
+    assert await asyncio.gather(run_for("a"), run_for("b")) == [["a", "a"], ["b", "b"]]
+
+
+async def test_hosted_identity_context_resets_after_cancellation() -> None:
+    async def endpoint(scope: Scope, receive: Receive, send: Send) -> None:
+        assert get_internal_principal(SECRET).sub == "hosted-user"
+        raise asyncio.CancelledError
+
+    with patch("app.common.internal_identity.get_request_context") as context:
+        context.return_value.user_id = _identity()
+        with pytest.raises(asyncio.CancelledError):
+            await BankingIdentityMiddleware(endpoint)(
+                {"type": "http", "headers": [(b"x-client-banking-identity",
+                    _identity(sub="hosted-user").encode())]},
+                MagicMock(), MagicMock(),
+            )
+        assert get_internal_principal(SECRET).sub == "user-a"
 
 
 async def test_concurrent_locale_contexts_and_continuations_are_isolated() -> None:

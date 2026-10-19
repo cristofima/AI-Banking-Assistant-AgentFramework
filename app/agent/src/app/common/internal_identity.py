@@ -8,10 +8,39 @@ import hmac
 import json
 import os
 import time
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any
 
 from azure.ai.agentserver.core import get_request_context
+from starlette.types import ASGIApp, Receive, Scope, Send
+
+
+_hosted_identity: ContextVar[tuple[str | None] | None] = ContextVar(
+    "banking_hosted_identity", default=None,
+)
+
+
+class BankingIdentityMiddleware:
+    """Keep forwarded banking claims separate from Foundry's partition context."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        values = [
+            value.decode("latin-1") for name, value in scope.get("headers", [])
+            if name.lower() == b"x-client-banking-identity"
+        ]
+        # A missing or duplicated hosted header must never fall back to platform identity.
+        token = _hosted_identity.set((values[0] if len(values) == 1 else None,))
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            _hosted_identity.reset(token)
 
 
 @dataclass(frozen=True)
@@ -33,7 +62,8 @@ def resolve_response_locale(value: object) -> str:
 
 def get_internal_principal(secret: str) -> InternalPrincipal:
     """Resolve the signed principal from the current request."""
-    identity = get_request_context().user_id
+    hosted = _hosted_identity.get()
+    identity = hosted[0] if hosted is not None else get_request_context().user_id
     if not identity:
         raise RuntimeError("Authenticated request identity is required")
     return _verify_envelope(identity, secret)

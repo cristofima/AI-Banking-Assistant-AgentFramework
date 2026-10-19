@@ -9,6 +9,7 @@ from azure.ai.agentserver.responses import ResponsesServerOptions
 
 from app.agents.azure_chat.hosted_workflow import build_hosted_workflow
 from app.adapters.runtime_tools import build_toolbox_tools
+from app.common.internal_identity import BankingIdentityMiddleware
 from app.config.azure_credential import get_azure_credential
 from app.config.settings import settings
 from app.telemetry import configure_telemetry_flush
@@ -80,9 +81,12 @@ def create_server() -> ResponsesHostServer:
         )
 
     configure_telemetry_flush()
-    return ResponsesHostServer(
+    server = ResponsesHostServer(
         create_agent, options=ResponsesServerOptions(default_fetch_history_count=100),
     )
+    if runtime == "foundry":
+        server.add_middleware(BankingIdentityMiddleware)
+    return server
 
 
 async def main() -> None:

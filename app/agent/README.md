@@ -514,8 +514,31 @@ service/integration checks. Generic MCP consent is not the business approval gat
 Replay reports use `home-banking-agent-mcp-replay-eval` and
 `home-banking-agent-mcp-replay-eval run` as display names. Reports are currently
 local/CI artifacts and `foundry_submission: not_submitted`; they do not create remote runs.
-Native hosted evaluation is blocked by the required signed request identity, even
-for prompts that need no tools. Hosted deployment success does not close that gate.
+The azd-native hosted evaluation path cannot supply the required signed banking
+identity header, even for prompts that need no tools. The separately authorized
+historical hosted diagnostic can send that header; this is not native evaluation
+or evidence of a successful hosted run. Hosted deployment success does not close
+that gate.
+
+## Hosted banking identity transport
+
+The BFF sends a stable non-PII identifier in Foundry's reserved
+`x-ms-user-identity` header and the signed banking envelope separately in
+`x-client-banking-identity`. Foundry forwards `x-client-*` headers to the container
+([contract](https://learn.microsoft.com/azure/foundry/agents/concepts/hosted-agent-contract#forward-custom-request-headers-to-your-container)).
+The hosted entrypoint installs pure-ASGI request middleware so signature validation,
+locale and grant lookup use that envelope throughout streaming and concurrent
+requests, without overwriting platform user IDs, call IDs or history partitions.
+Missing, duplicate or invalid envelopes fail closed. Local transport still reads
+the signed `x-agent-user-id` through the SDK's request context.
+
+Deploy the BFF and agent changes together. Delegated opaque identity additionally
+requires the caller to hold Foundry's
+[`UserIdentityImpersonation` data action](https://learn.microsoft.com/azure/foundry/agents/how-to/isolate-sessions-per-user#isolate-sessions-for-your-own-users)
+through an explicitly assigned custom role; built-in roles do not grant it.
+Format compatibility does not establish that permission. The native OAuth Toolbox adapter remains gated:
+header forwarding alone is not proof of customer/native-caller/grant binding or
+two-user isolation. Do not capture these headers in logs or telemetry.
 
 ## Conversation State
 
