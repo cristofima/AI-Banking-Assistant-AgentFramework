@@ -111,9 +111,13 @@ instead of restoring a local database remotely:
    automatically, without a target-revision input. Manual dispatch permits any branch
    allowed by the Development environment policy once the workflow exists on the default
    branch. OAuth initialization never applies migrations.
-3. Dispatch `init-oauth` with `init-oauth:Development`. It reads the public native key,
-   publishes matching `oauth-jwks`, generates a random 32-byte BFF secret only if absent,
-   and stores only its Argon2 hash with the exact client ID and HTTPS callback in PostgreSQL.
+3. After migration succeeds, dispatch `init-oauth` with `init-oauth:Development`.
+   It reads and validates `database-url` against the verified PostgreSQL target, reads
+   and validates the existing version-pinned RSA key, publishes matching `oauth-jwks`
+   only if absent, then generates and saves a random 32-byte BFF secret only if absent.
+   Finally, it registers/verifies the active client in `oauth.clients`, storing only
+   its Argon2 secret hash with the exact client ID and HTTPS callback. It does not
+   create a signing key or certificates.
 4. Deploy Identity and consumers after resolved Key Vault references and separately
    authorized runtime checks. No secret is copied into GitHub variables or browser storage.
 
@@ -122,9 +126,28 @@ mismatch or inactive client fails; rotation and reactivation require separate ap
 `register-client` registers/verifies a client against an existing Key Vault secret and
 creates no key or secret. Native Foundry clients must use their own approved IDs, callbacks
 and separate secrets, not the BFF secret or a shared customer grant. The CLI supports
-`--client-secret-name` for explicitly authorized additional clients; the workflow targets
-only the configured BFF client. This is administrative provisioning, not a public dynamic
-client-registration endpoint, and does not remove the Toolbox fail-closed gate.
+`--client-secret-name` for explicitly authorized additional clients. The workflow exposes
+`client_id`, `redirect_uri` and `client_secret_name` as an all-or-none override; leaving them
+blank preserves the configured BFF client. Additional secret names must be lowercase and
+begin `oauth-client-`, must not be `oauth-client-secret`, and require approved effective
+Key Vault read access. Check the runner's actual principal and inherited permissions
+before requesting any new secret-scoped grant. Use actual connection callbacks, never placeholders. See the
+[workflow input and permission contract](../../../.github/workflows/README.md#manual-database-and-oauth-operations).
+This is administrative provisioning, not a public dynamic client-registration endpoint,
+and does not remove the Toolbox fail-closed gate.
+
+The authorized Development configuration on 2026-10-19 created `account-mcp` and
+`transaction-mcp` OAuth2 connections with independent existing secrets, and obtained
+their actual platform callbacks. The pending registrations are `foundry-account-mcp`
+with secret name `oauth-client-foundry-account-mcp`, and `foundry-transaction-mcp` with
+`oauth-client-foundry-transaction-mcp`. Use each connection's exact callback from the
+[infrastructure configuration record](../../../infra/README.md#native-oauth-compatibility-gate)
+and dispatch `register-client` separately for each after the workflow overrides are
+published. No new signing key or `init-oauth` run is needed just to register these
+existing credentials. Connection creation and Toolbox version `3` publication did not
+register either client in Identity. Callback availability is verified; functional
+callback/S256/client-auth compatibility, per-user grant binding and two-user hosted
+isolation are not. Refresh tokens remain unsupported.
 
 The installed module `identity.services.oauth_remote` exposes `init-oauth`,
 `register-client` and `migrate`, all requiring `--confirm`, `--vault-url`,
@@ -134,6 +157,12 @@ retrieved in memory, never passed as CLI arguments or read from dotenv. The work
 first verifies the vault/server/database through Azure ARM in its selected subscription;
 the CLI requires the exact PostgreSQL hostname/database and TLS. Explicit operations
 must be serialized; the workflow provides shared concurrency, not cross-system locking.
+Failures expose controlled `stage=<stage>; code=<code>` diagnostics, not raw exceptions.
+See [manual database and OAuth troubleshooting](../../../docs/troubleshooting.md#manual-database-and-oauth-workflow-errors)
+for diagnostic interpretation and corrected CLI errors. Key Vault publication and
+PostgreSQL registration are not one transaction; a later failure can leave secrets
+published without a client row. Missing OAuth secrets and an empty `oauth.clients`
+table are valid before first initialization, not a reason to insert clients manually.
 
 Client registration is not automatic at startup, login or consent. An empty `oauth`
 schema is consistent with `invalid_client`: authorization cannot create a code without

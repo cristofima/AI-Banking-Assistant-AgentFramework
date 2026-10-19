@@ -5,12 +5,99 @@ delay deployment. This lists the ones relevant to this repository's actual stack
 (Terraform, Azure App Service, Azure Database for PostgreSQL Flexible Server, Azure
 Monitor, and a Foundry account/project) — not generic Azure error documentation for
 services this repository does not provision (no Container Apps, Azure Container
-Registry, Cosmos DB, Key Vault, or Azure Search).
+Registry, Cosmos DB, or Azure Search). Key Vault holds application secrets and the
+native OAuth signing key; workflow diagnostics for those resources are included below.
 
 > [!NOTE]
 > This repository has two azd project roots. In the command examples below, run `azd`
 > from the repository root for the App Service stack (`./azure.yaml`), and use
 > `--cwd app/agent` for hosted-agent operations (`./app/agent/azure.yaml`).
+
+## Manual database and OAuth workflow errors
+
+Use the [manual workflow](../.github/workflows/manual-database-operations.yaml) and its
+[operation guide](../.github/workflows/README.md#manual-database-and-oauth-operations) for dispatch
+configuration. The following CLI defects were corrected in that workflow:
+
+| Error                                                 | Cause                                                                 | Applied correction                                                                                                        |
+| ----------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `uv sync` rejects `--no-env-file`                     | The flag belongs to `uv run`, not `uv sync`.                          | Removed it from both dependency sync commands; preserved `--frozen` and `uv run --no-env-file`.                           |
+| `unrecognized arguments: --database-name banking_dev` | The runner's Azure CLI database lookup no longer accepts that option. | Changed `az postgres flexible-server db show` to use `--name` for the database, retaining `--server-name` for the server. |
+
+Offline command checks cover syntax and operation dispatch, not Azure access. A successful
+migration does not verify signing-key permissions, OAuth secret publication or client registration.
+
+### Controlled remote-operation rejection
+
+`Remote operation rejected; check authorized configuration, access and schema.` was the
+original generic Python error. If ARM lookups completed before this message, the failure
+was inside the Python operation, even though the workflow step is named Verify Azure Target.
+The original message alone cannot identify the cause.
+
+The updated [remote operation](../app/business-api/identity/src/identity/services/oauth_remote.py)
+reports `stage=<stage>; code=<code>` without upstream messages, database credentials or
+tracebacks. Publish/select that revision before re-running the authorized operation.
+
+| Diagnostic                                                  | What to check                                                                                                                                                     |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AZURE_AUTHENTICATION_FAILED`                               | The workflow credential's authentication at the named stage.                                                                                                      |
+| `AZURE_ACCESS_DENIED`                                       | Existing scoped Key Vault permissions and network policy for the operations principal; do not grant broad access as a workaround.                                 |
+| `AZURE_RESOURCE_NOT_FOUND`                                  | The named stage's expected resource, including the pinned signing-key version. Missing optional OAuth secrets are handled normally, not reported as this failure. |
+| `AZURE_CONFLICT`, `AZURE_THROTTLED`, `AZURE_REQUEST_FAILED` | Azure resource/request state at the named stage; the code does not identify the exact service-side cause.                                                         |
+| `VALIDATION_FAILED`                                         | Configuration or existing state at the named stage, including exact vault/key metadata, database target, JWKS or client-secret compatibility.                     |
+| `DATABASE_OPERATION_FAILED`                                 | PostgreSQL connectivity, schema and permissions at database-client registration or migration. Azure RBAC does not establish database privileges.                  |
+| `MIGRATION_PROCESS_FAILED`, `IO_FAILED`                     | Migration subprocess prerequisites or local runner I/O at the named stage; raw subprocess output remains hidden.                                                  |
+
+Initialization separates signing-key configuration/read/validation, JWKS
+read/validation/publication, client-secret read/validation/publication and
+`database-client-registration`. Nested diagnostics retain the innermost failing stage.
+These codes do not authorize credential rotation, schema repair or permission expansion.
+
+### Signing-key read denied despite an existing role assignment
+
+The Development failure `stage=signing-key-read; code=AZURE_ACCESS_DENIED` was traced
+to version-scoped signing-key role assignments. Terraform used the key's versioned
+`resource_id` instead of its versionless key scope. The correction uses
+`resource_versionless_id` (`/keys/oauth-signing`) for operations Key Vault Reader and
+Identity Key Vault Crypto User; `OAUTH_SIGNING_KEY_URI` remains pinned to the exact
+key version. Do not broaden access to the whole vault or rotate the key to bypass this.
+
+The bounded Terraform repair was applied and both replacement assignments were
+verified in Azure. The owner subsequently confirmed successful Development migration
+and `init-oauth`. This does not verify consumer Key Vault reference resolution,
+Foundry connection setup or hosted/two-user OAuth acceptance. See the
+[infrastructure OAuth guide](../infra/README.md) for permission ownership.
+
+### Missing OAuth secrets and an empty client table
+
+This is valid before first initialization. `init-oauth` reads and validates `database-url`,
+reads the existing version-pinned RSA signing key, publishes its public `oauth-jwks`,
+creates `oauth-client-secret` only if absent, then registers/verifies the client's Argon2
+secret hash and exact HTTPS callback in `oauth.clients`. It does not apply migrations,
+create certificates or export the private signing key.
+
+Missing both OAuth secrets and the client suggests a failure before publication, but
+resource inventory alone is not an exact diagnosis. Initialization is not transactional
+across Key Vault and PostgreSQL: a later failure can leave secrets published without a
+client row. Identical reruns reconcile unchanged state; existing mismatches fail rather
+than rotate secrets or reactivate clients. Do not insert a client manually or repeat
+migrations to bypass an undiagnosed initialization failure.
+
+## Deployment OAuth and federation blockers
+
+The following deployment failures were investigated separately; their resolution is not
+established by the manual workflow CLI fixes or offline diagnostic tests.
+
+| Error                                                                                     | Diagnosis and next check                                                                                                                                                                                                                                        |
+| ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Key Vault reference OAUTH_JWKS must be Resolved before deployment` with `SecretNotFound` | The referenced `oauth-jwks` is missing. Complete authorized OAuth initialization, then verify the App Service reference resolves under its own managed identity. Keep the preflight fail-closed; refreshing references requires an authorized rollout.          |
+| `AADSTS700213: No matching federated identity record`                                     | Compare the actual GitHub assertion's subject, issuer and audience with the configured Azure federation, including repository/environment identity changes. A later run passed login, but that does not prove every workflow principal is configured correctly. |
+| `TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT is not set`                                           | Hosted-agent deployment lacks resolved Toolbox dependency metadata. Check the selected agent azd environment and dependency deployment before deploying the agent; do not substitute a guessed MCP endpoint.                                                    |
+
+Toolbox provisioning is separate from banking-user OAuth binding. The runtime rejects
+unverified Toolbox OAuth passthrough; deploying a Toolbox does not establish supported
+callbacks, per-user grant isolation or hosted OAuth acceptance. Preserve the direct-MCP
+OAuth boundary and do not fall back to HMAC on an OAuth failure.
 
 ## Python installed-package import errors
 
@@ -56,6 +143,9 @@ and local endpoint checks do not establish chatbot or hosted acceptance.
 
 ## 📖 Table of Contents
 
+- [Manual database and OAuth workflow errors](#manual-database-and-oauth-workflow-errors)
+- [Deployment OAuth and federation blockers](#deployment-oauth-and-federation-blockers)
+- [Python installed-package import errors](#python-installed-package-import-errors)
 - [Subscription & Access Issues](#subscription--access-issues)
 - [Quota & Capacity Limitations](#quota--capacity-limitations)
 - [Regional & Location Issues](#regional--location-issues)

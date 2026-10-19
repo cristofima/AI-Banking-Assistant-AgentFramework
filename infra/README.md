@@ -170,13 +170,18 @@ with Identity through separately authorized provisioning, not this Terraform sta
 Remote Identity now uses native Key Vault signing. Terraform creates the nonexportable
 RSA-2048 `oauth-signing` key with `sign`/`verify` operations, pins its version in
 `OAUTH_SIGNING_KEY_URI`, selects `OAUTH_SIGNING_BACKEND=key_vault`, and grants Identity
-key-scoped Crypto User access. The private key never reaches Terraform state or Identity.
+key-scoped Crypto User access. Both Identity Crypto User and operations Key Vault Reader
+assignments use `resource_versionless_id` (`/keys/oauth-signing`), not the versioned
+`resource_id` (`/keys/oauth-signing/versions/...`). The signing URI remains pinned to
+its exact version independently of the RBAC scope. The private key never reaches Terraform state or Identity.
 The provisioning principal needs Crypto Officer access (in addition to the existing
 Secrets Officer grant); `deployer_principal_id` optionally creates both assignments.
 No automatic key rotation is configured; changing the key requires coordinated public
 JWKS publication and redeployment/restart, not an implicit rollover.
 
-Manual operations use a separate federated principal, not the regular CD principal.
+Manual operations select a federated principal through dedicated configuration;
+Development currently reuses the regular CD principal. A separate operations principal
+requires an explicitly approved isolation change.
 Set root azd `AZURE_OPERATIONS_PRINCIPAL_ID` to its object ID for Terraform grants;
 set protected GitHub Development `AZURE_OPERATIONS_CLIENT_ID` to its application ID
 for OIDC login. Terraform grants resource-group Reader, key-scoped Key Vault Reader
@@ -212,8 +217,119 @@ establish hosted readiness; do not bypass the gate or route it through a shared
 grant. Development azd configuration and root provisioning completed on 2026-10-18;
 its final preview reported no changes. The operations identity currently reuses the
 existing GitHub CD principal, including scoped OAuth-secret write access. GitHub
-variables, OAuth initialization/client registration, authorized migrations, code rollout
-and runtime verification remain separate pending steps.
+variables, code rollout and runtime verification remain separate gates. The owner
+confirmed successful Development migration and `init-oauth` after the key-scoped RBAC
+repair. This is owner-observed workflow evidence, not hosted OAuth acceptance.
+On 2026-10-19, a separately authorized ARM Key Vault-reference refresh followed by
+status reads confirmed the OAuth references on Account, Transaction and BFF as
+`Resolved`, after cached `SecretNotFound` statuses despite existing secrets. This
+verifies reference resolution at that time, not token exchange or hosted OAuth readiness.
+Terraform's scoped operations grants are not the complete effective permission inventory:
+the Azure inspection also found inherited vault-wide Secrets User access on the inspected
+CD principal. Confirm the actual runner identity and inherited access before adding roles;
+protected GitHub variable reads were unavailable with HTTP 403.
+
+### Foundry MCP connections and Toolbox
+
+Root Terraform provisions the Foundry account/project, not the OAuth project connections
+or Toolbox. The separate [agent manifest](../app/agent/azure.yaml) declares Account and
+Transaction MCP tools in `banking-tools`, referencing `account-mcp` and `transaction-mcp`.
+For a separately authorized configuration/deployment:
+
+1. Create those OAuth2 connections in the selected Foundry project using the public
+   Account/Transaction HTTPS `/mcp` endpoints and exact `mcp.access` scope.
+2. Obtain each connection's actual platform callback and register compatible native
+   confidential clients in Identity. Do not guess callbacks or automatically reuse the
+   BFF client/secret, whose callback belongs to the frontend.
+3. Deploy and explicitly publish `banking-tools`, then verify its resolved dependency
+   metadata in the selected agent azd environment. Configuration-only Toolbox deployment
+   can precede client registration, but does not make OAuth usable. Before a separately
+   authorized `home-banking-agent` rollout, the deployment-only GitHub runner must also
+   receive that metadata; local azd configuration is not copied into CI.
+4. Verify native callback/S256 compatibility, banking-user/caller/grant binding and
+   two-user isolation before enabling the currently rejected Toolbox OAuth runtime path.
+
+The [hosted-agent workflow guide](../.github/workflows/README.md#hosted-agent-variables-cd-hosted-agentyaml)
+describes the current CD gap. Creating connections or deploying the Toolbox does not
+remove the runtime gate or authorize shared grants, fabricated call IDs or HMAC fallback.
+
+#### Native OAuth compatibility gate
+
+The initial read-only Development inspection on 2026-10-19 found the following
+historical state, superseded by the authorized configuration recorded below:
+
+- The BFF system-assigned identity has project-scoped `Foundry Agent Consumer` and
+  the explicit `UserIdentityImpersonation/action` permission. This verifies the
+  service's assignments, not individual customer/native OAuth grant binding.
+- The project's connection inventory contained only its Application Insights
+  connection. Neither `account-mcp` nor `transaction-mcp` existed at that point.
+- `banking-tools` had default version `2`, a no-auth experiment with inline MCP URLs,
+  no `project_connection_id`, and trailing `/mcp/` paths. That version is not the OAuth
+  Toolbox declared by the current agent manifest.
+
+The subsequent GitHub Development variable read returned HTTP 403, so current
+presence of `TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT` could not be independently verified.
+The checked-in hosted CD workflow does not inject it. Do not supply version `2`'s
+experimental endpoint as verified OAuth dependency metadata.
+
+The subsequent authorized Development configuration on 2026-10-19 created and
+verified both `RemoteTool`/`OAuth2` connections with exact `mcp.access` scope and
+independent credentials held in Key Vault and Foundry, without exposing their values:
+
+| Connection        | Identity client ID        | Key Vault secret                       | Actual platform callback                                                          |
+| ----------------- | ------------------------- | -------------------------------------- | --------------------------------------------------------------------------------- |
+| `account-mcp`     | `foundry-account-mcp`     | `oauth-client-foundry-account-mcp`     | `https://global.consent.azure-apim.net/redirect/ae31090f0320449ebac04370824883b7` |
+| `transaction-mcp` | `foundry-transaction-mcp` | `oauth-client-foundry-transaction-mcp` | `https://global.consent.azure-apim.net/redirect/af3efbb2af8444ee90ad67cfabb0c889` |
+
+These callbacks were read from the actual connections, not inferred. Both clients
+still require protected `register-client` execution in Identity; connection creation
+and enabled secrets do not prove registration or callback/S256 interoperability.
+
+Using the existing agent manifest, the local command
+`azd deploy banking-tools --no-prompt --cwd app/agent` created version `3` with both
+`project_connection_id` references and the existing tool allowlists unchanged.
+Deployment did not promote it automatically: a separate
+`azd ai toolbox publish banking-tools 3 --cwd app/agent` made version `3` the default.
+Version `2` remains available for rollback with
+`azd ai toolbox publish banking-tools 2 --cwd app/agent`. These commands affect only
+the Toolbox, not the hosted agent or model deployments. Deployment preview was
+attempted but is unsupported for the `azure.ai.toolbox` host.
+
+The selected local agent azd environment now stores
+`TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT` as:
+
+```text
+https://aifdevelopment58b174.services.ai.azure.com/api/projects/foundry-development/toolboxes/banking-tools/versions/3/mcp?api-version=v1
+```
+
+The version, default selection, connection references and endpoint readback were
+verified after publication. No changes to the agent YAML files were needed. This is
+configuration evidence only: GitHub CD still needs an explicit metadata handoff,
+and neither native runtime identity support nor per-user OAuth compatibility is proven.
+Rollback of a version-pinned consumer also requires updating its endpoint; changing
+the Toolbox default alone does not retarget consumers pinned to version `3`.
+Do not rotate or replace the native credentials on retry. Rotation, revocation,
+connection replacement and Identity client changes require separately approved,
+coordinated operations; no automatic rollback across these systems is implemented.
+
+[Foundry session delegation](https://learn.microsoft.com/azure/foundry/agents/how-to/isolate-sessions-per-user#isolate-sessions-for-your-own-users)
+accepts an opaque stable end-user identifier of 1–256 characters with a restricted
+character set in `x-ms-user-identity`. The current BFF instead sends its signed
+banking envelope, including the local OAuth grant in OAuth mode. That envelope is
+not a proven native delegation identifier. Changing it alone would also remove the
+agent's existing authenticated banking context; do not replace it without a reviewed
+separate transport and banking-user/native-caller/grant binding contract.
+
+[Toolbox authentication](https://learn.microsoft.com/azure/foundry/agents/how-to/tools/tool-authentication#walkthrough-oauth-identity-passthrough)
+requires the real hosted `x-agent-foundry-call-id` and documents same-tenant Entra
+consumer requirements for per-user OAuth. Custom-user session delegation alone does
+not establish compatibility with that OAuth grant resolution. Keep foundry/oauth
+rejected until this distinction and actual callback/S256/client authentication are
+proven. The initial inspection was read-only; the subsequent authorized work created
+connections and deployed/published only the Toolbox. No Identity client registration,
+hosted-agent deployment, consent flow, MCP call or model invocation was performed;
+two-user hosted isolation remains open
+in [#81](https://github.com/cristofima/AI-Banking-Assistant-AgentFramework/issues/81).
 
 Account starts with `python -m uvicorn banking_account.main:app --host 0.0.0.0 --port 8080 --proxy-headers`;
 Transaction uses `banking_transaction.main:app` with the same options.

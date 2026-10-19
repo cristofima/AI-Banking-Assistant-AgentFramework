@@ -6,7 +6,10 @@ Hackathon 2026**, extending Microsoft's public
 It focuses on one workflow: explain owned accounts and transactions, obtain explicit
 consent for a card-transaction dispute, and hand the case to an accountable human
 operator. Banking inputs are synthetic dataset records persisted in PostgreSQL,
-not live bank or payment-processor data.
+not live bank or payment-processor data. The hackathon has concluded; ongoing
+engineering follows the [development roadmap (#24)](https://github.com/cristofima/AI-Banking-Assistant-AgentFramework/issues/24)
+and its linked issues. Challenge alignment below is historical context, not the
+current implementation or acceptance queue.
 
 [Workflow](#customer-and-operator-workflow) · [Architecture](#architecture) ·
 [Challenge alignment](#factored-challenge-alignment) · [Run locally](#run-locally) ·
@@ -209,6 +212,46 @@ PostgreSQL backup/restore or secrets copied into GitHub. Runner connectivity, SQ
 privileges, backup/restore readiness and hosted OAuth acceptance remain separate gates.
 See the [Data migration guide](app/business-api/data/README.md#explicit-remote-migrations)
 and [Identity provisioning guide](app/business-api/identity/README.md#native-azure-signing-and-remote-client-registration).
+Additional confidential clients use all three workflow overrides (`client_id`,
+`redirect_uri`, `client_secret_name`); blank overrides preserve BFF defaults.
+`register-client` consumes an existing secret, without creating or rotating credentials.
+Approved effective Key Vault access must be checked for the actual runner identity;
+Terraform's scoped declarations do not account for every inherited assignment.
+
+### Native Foundry OAuth configuration and remaining gates
+
+Development configuration on 2026-10-19 created the independent `account-mcp` and
+`transaction-mcp` OAuth2 connections with `mcp.access` and obtained their actual
+platform callbacks. `banking-tools` version `3` was deployed and explicitly published
+as default; version `2` remains available for rollback. No agent YAML changes or
+hosted-agent deployment were needed for that configuration step. The verified
+version-pinned Toolbox endpoint is persisted in local agent azd only.
+
+This is configuration evidence, not usable native OAuth or hosted acceptance:
+
+- Publish the prepared manual-workflow overrides and register both native clients
+  through the protected workflow using their existing independent secrets and exact
+  callbacks. Creating connections did not register clients in Identity.
+- Supply verified Toolbox dependency metadata to hosted CD; its current agent-only
+  workflow does not inject `TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT`. Local azd values do
+  not configure GitHub runners.
+- Prove callback/S256/client-auth compatibility, Consumer prerequisites, actual
+  platform call IDs and banking-user/native-caller/individual-grant binding before
+  implementing the currently rejected `foundry/oauth` adapter. Two-user consent,
+  expiry/logout/recovery and hosted isolation remain separate authorized checks.
+
+See the [infrastructure configuration record](infra/README.md#native-oauth-compatibility-gate)
+for callbacks, secret names, the endpoint and version-pinned rollback limits;
+[hosted CD configuration](.github/workflows/README.md#hosted-agent-variables-cd-hosted-agentyaml)
+for the metadata gap; and [#81](https://github.com/cristofima/AI-Banking-Assistant-AgentFramework/issues/81)
+for native acceptance. [#78](https://github.com/cristofima/AI-Banking-Assistant-AgentFramework/issues/78)
+owns local OAuth UX/operations and renewal policy. Supported local direct-MCP OAuth
+and default HMAC compatibility remain unchanged; invalid OAuth never falls back to
+HMAC. No native consent, MCP call or model invocation was performed by this
+configuration step. Provisioning, registration, rollout and billable tests require
+applicable explicit authorization.
+
+### Operational limits
 
 - **Prototype, not regulated production:** network restrictions, MFA, refresh sessions,
   retention/deletion policy, fairness and complete operational acceptance are not

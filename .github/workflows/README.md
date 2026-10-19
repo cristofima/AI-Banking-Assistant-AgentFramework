@@ -212,11 +212,11 @@ or apply Terraform. Configure root azd `OAUTH_AUDIENCE`, `OAUTH_CLIENT_ID` and
 `OAUTH_SIGNING_KEY_ID` before the separately authorized infrastructure update.
 See [infrastructure configuration](../../infra/README.md) for exact inputs and outputs.
 
-| Service | Required OAuth app settings |
-| --- | --- |
-| Identity | `OAUTH_ISSUER`, `OAUTH_AUDIENCE`, `OAUTH_FRONTEND_AUTHORIZE_URL`, `OAUTH_SIGNING_KEY_ID`, `OAUTH_SIGNING_BACKEND=key_vault`, version-pinned `OAUTH_SIGNING_KEY_URI` |
-| Account / Transaction | `MCP_IDENTITY_MODE=oauth`, `OAUTH_ISSUER`, `OAUTH_AUDIENCE`, `OAUTH_JWKS` |
-| Responses BFF | MCP consumer settings above plus `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`, `OAUTH_REDIRECT_URI` |
+| Service               | Required OAuth app settings                                                                                                                                         |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Identity              | `OAUTH_ISSUER`, `OAUTH_AUDIENCE`, `OAUTH_FRONTEND_AUTHORIZE_URL`, `OAUTH_SIGNING_KEY_ID`, `OAUTH_SIGNING_BACKEND=key_vault`, version-pinned `OAUTH_SIGNING_KEY_URI` |
+| Account / Transaction | `MCP_IDENTITY_MODE=oauth`, `OAUTH_ISSUER`, `OAUTH_AUDIENCE`, `OAUTH_JWKS`                                                                                           |
+| Responses BFF         | MCP consumer settings above plus `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`, `OAUTH_REDIRECT_URI`                                                                     |
 
 The issuer is the public Identity HTTPS origin, without a trailing slash, matching
 consumers' `AUTH_USERS_ENDPOINT`. Identity consent targets the public frontend
@@ -250,16 +250,16 @@ must use the same group; direct external writers are not locked by GitHub concur
 
 Configure these **Development environment variables**, separately from local azd:
 
-| Variable | Purpose |
-| --- | --- |
-| `AZURE_OPERATIONS_CLIENT_ID` | Operations principal's application/client ID for OIDC login; Development currently reuses the existing CD principal |
-| `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` | Explicit Azure login target |
-| `AZURE_RESOURCE_GROUP` | Resource group for ARM target verification |
-| `AZURE_KEY_VAULT_NAME` | Existing Terraform vault holding `database-url` and OAuth entries |
-| `AZURE_POSTGRES_SERVER_NAME`, `AZURE_POSTGRES_DATABASE_NAME` | Existing server/database, checked through ARM |
-| `OAUTH_SIGNING_KEY_URI`, `OAUTH_SIGNING_KEY_ID` | Terraform public outputs; required for `init-oauth` |
-| `OAUTH_CLIENT_ID`, `OAUTH_REDIRECT_URI` | BFF confidential client and exact frontend HTTPS callback; required for client operations |
-| `AZURE_DB_OPERATIONS_RUNNER` | Optional JSON runner label/list; defaults to `"ubuntu-latest"`; select an approved network-connected runner if necessary |
+| Variable                                                     | Purpose                                                                                                                           |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `AZURE_OPERATIONS_CLIENT_ID`                                 | Operations principal's application/client ID for OIDC login; Development currently reuses the existing CD principal               |
+| `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`                   | Explicit Azure login target                                                                                                       |
+| `AZURE_RESOURCE_GROUP`                                       | Resource group for ARM target verification                                                                                        |
+| `AZURE_KEY_VAULT_NAME`                                       | Existing Terraform vault holding `database-url` and OAuth entries                                                                 |
+| `AZURE_POSTGRES_SERVER_NAME`, `AZURE_POSTGRES_DATABASE_NAME` | Existing server/database, checked through ARM                                                                                     |
+| `OAUTH_SIGNING_KEY_URI`, `OAUTH_SIGNING_KEY_ID`              | Terraform public outputs; required for `init-oauth`                                                                               |
+| `OAUTH_CLIENT_ID`, `OAUTH_REDIRECT_URI`                      | Default BFF client and exact frontend HTTPS callback; required for client operations without complete additional-client overrides |
+| `AZURE_DB_OPERATIONS_RUNNER`                                 | Optional JSON runner label/list; defaults to `"ubuntu-latest"`; select an approved network-connected runner if necessary          |
 
 Root azd `AZURE_OPERATIONS_PRINCIPAL_ID` is the principal's **object ID**, not the
 workflow application's client ID. Terraform grants resource-group Reader, key-scoped
@@ -282,13 +282,43 @@ Dispatch one operation at a time:
   public JWKS, generate a random BFF client secret only if missing and register/verify its
   Argon2 hash and callback. Existing mismatches fail instead of rotating credentials.
 - `register-client`: confirmation `register-client:Development`. Register/verify the
-  configured BFF client using an already present secret, without key/secret creation.
+  selected client using an already present secret, without key/secret creation.
+
+Leave `client_id`, `redirect_uri` and `client_secret_name` blank to preserve the configured
+BFF behavior. For an approved additional client, supply all three together. Use a distinct
+client ID, the exact HTTPS callback returned by the actual Foundry connection, and a
+separate lowercase Key Vault name beginning `oauth-client-` (for example
+`oauth-client-foundry-account-mcp` or `oauth-client-foundry-transaction-mcp`). The input is a secret
+**name**, never its value. Partial overrides, BFF ID/secret reuse, unrelated secret names
+and client inputs on migrations fail before Azure login. The Identity CLI additionally
+validates callback metadata before reading credentials or writing records.
+
+`register-client` requires that separate secret to exist already. `init-oauth` can initialize
+it only with an approved real callback and the existing pinned signing key; it is not a
+secret-only preparation command. Never register a placeholder callback to work around
+Foundry's credential-before-callback creation order. Connection creation remains a separate
+Foundry CLI/API operation, not an operation of this database workflow. When a CLI requires
+secrets in command arguments, use an approved API request with credentials held only in
+memory instead; never put a client secret in shell history or process arguments.
+
+Terraform declares OAuth-secret writes only for `oauth-jwks` and `oauth-client-secret`.
+Additional operations require approved effective Key Vault access; these inputs do not
+grant access or provision connections. The Development Azure inspection also found an
+inherited vault-wide Secrets User assignment on the inspected CD principal. Declared
+secret-scoped grants alone therefore do not prove an effective access denial. Confirm
+the actual workflow principal and inherited assignments before diagnosing or requesting
+permissions; protected GitHub variable reads returned HTTP 403 during this session.
+Any new grant requires separate authorization and should be secret-scoped. Keep Account
+and Transaction client IDs and secrets distinct and preserve the BFF environment variables.
+Publishing this workflow and dispatching it are separate owner actions. Registration does
+not remove the native adapter gate or prove individual-grant binding.
 
 Credentials stay in memory and masked runner channels, never workflow inputs, command
 arguments, artifact files or local database backups. Migration subprocess output is
-captured; failures expose only a controlled rejection. A partial initialization is not
-transactional across Key Vault/PostgreSQL: identical reruns reconcile unchanged state,
-while mismatches require investigation rather than forced replacement. Restart/refresh
+captured; failures expose only controlled stage/code diagnostics, never upstream
+exception messages or tracebacks. See [workflow troubleshooting](../../docs/troubleshooting.md#manual-database-and-oauth-workflow-errors)
+for corrected CLI errors and diagnostic interpretation. Initialization is not transactional
+across Key Vault/PostgreSQL; mismatches require investigation rather than replacement. Restart/refresh
 App Service secret references through a separately authorized rollout when necessary.
 No workflow run, migration or runtime OAuth acceptance is implied by this configuration.
 
@@ -341,6 +371,27 @@ adapter. Do not copy these App Service settings into the agent or browser.
 connections in the selected Foundry project, using exactly `mcp.access` and separately
 registered native confidential clients/platform callbacks. Local azd values alone do
 not configure these connections, and CD does not register clients or replace connections.
+
+The manifest also declares `banking-tools` as an agent dependency. Before agent-only
+CD, a separately authorized setup must deploy that Toolbox and resolve its dependency
+metadata. The current workflow neither deploys `banking-tools` nor injects
+`TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT` into its runner's agent azd environment. The five
+required variables above therefore do not complete Toolbox dependency setup. Supply
+verified resolved metadata through an explicit workflow change; do not invent an
+endpoint or treat a local azd environment as CI configuration. This deployment metadata
+is distinct from runtime OAuth support: setting it does not remove the adapter's gate.
+See [deployment troubleshooting](../../docs/troubleshooting.md#deployment-oauth-and-federation-blockers)
+for the missing-endpoint failure.
+
+Development configuration on 2026-10-19 created both OAuth2 connections and published
+`banking-tools` version `3` as default, retaining version `2` for rollback. Its verified
+version-pinned endpoint is stored in the selected local agent azd environment only.
+See the [infrastructure configuration record](../../infra/README.md#native-oauth-compatibility-gate)
+for the exact callbacks, client IDs, secret names and endpoint. The native clients
+remain unregistered in Identity, and the workflow's additional-client inputs must be
+published before dispatching their protected registrations. This record does not prove
+GitHub environment variable presence, CD metadata injection or hosted OAuth acceptance.
+No hosted-agent deployment or model invocation occurred in that configuration step.
 
 The workflow validates public HTTPS project/MCP URLs (MCP path `/mcp`) and records
 the deployment boundary in its summary. The runtime adapter still **fails closed** for
@@ -439,8 +490,10 @@ Terraform configures the shared agent-transport secret, and consumer deployment 
 check its Key Vault reference metadata; successful local signed identity propagation does
 not prove that hosted delegated-user headers reach the agent.
 Treat hosted identity transport as unverified until an end-to-end deployment test passes.
-Toolbox and business-specific HITL policy also remain pending decisions; their settings
-must not be read as evidence that either feature is active.
+Hosted Toolbox OAuth compatibility remains unverified. Business-specific HITL is
+implemented through the persisted dispute/customer-consent/assigned-operator workflow;
+it is not a pending policy decision or generic Toolbox approval. Neither source
+implementation nor deployment settings prove hosted or end-to-end acceptance.
 
 ## Operational notes
 
@@ -467,5 +520,5 @@ must not be read as evidence that either feature is active.
 ## Troubleshooting
 
 - If deployment fails with auth/authorization errors, verify OIDC federation and role assignments for the `Development` environment identity.
-- If hosted-agent deployment fails early, verify the four required Foundry variables are set exactly as environment variables.
+- If hosted-agent deployment fails early, verify the five required Foundry variables and the separately resolved Toolbox dependency metadata described above.
 - If `azd` cannot resolve a service name, check that the command is using the correct `azure.yaml` root (`-C app/agent` for hosted agent).
