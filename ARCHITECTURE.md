@@ -76,9 +76,13 @@ boundary. ADR 0006 documents dedicated staff/customer identities.
 fixed confidential clients, exact HTTPS callbacks, mandatory S256, explicit Allow/Deny
 and RS256 MCP access tokens signed with `joserfc`. Authorization codes and BFF state
 expire after 300 seconds; MCP access tokens last 3600 seconds. No refresh tokens
-are implemented. `services/oauth_provisioning.py` explicitly registers clients,
-never at startup. OAuth issuance checks current customer profile/version; it does not
-replace banking login or authorize dispute creation.
+are implemented. `services/oauth_signing.py` preserves local PEM signing and provides
+remote signing through a version-pinned, non-exported RSA key in Azure Key Vault.
+`services/oauth_provisioning.py` explicitly registers or verifies identical active
+clients, never at startup. `services/oauth_remote.py` owns approved migration,
+OAuth initialization and client-registration commands using Key Vault credentials
+in memory; initialization never applies migrations. OAuth issuance checks current
+customer profile/version; it does not replace banking login or authorize dispute creation.
 
 ### `app/agent/src/app/`
 
@@ -149,7 +153,11 @@ normal entry point (EDA, scope approval, loading, verification, in that order).
 `scripts/evaluate_fraud_threshold.py` is the offline baseline evaluation for the
 dispute triage threshold. This module owns Alembic migrations and historical
 assignment archives; canonical tables live in `shared/src/banking_shared`. Source-data
-refresh must preserve runtime financial effects.
+refresh must preserve runtime financial effects. The
+[manual database operations workflow](.github/workflows/manual-database-operations.yaml)
+invokes Identity's remote CLI to upgrade the selected branch checkout's single latest
+Alembic head with this module's configuration. Development environment policy controls
+allowed branches; automatic CD never migrates, seeds or registers clients.
 
 ### `infra/`
 
@@ -160,7 +168,11 @@ Foundry account/project. Identity has a dedicated resource
 and database-secret reference; consumers use its computed HTTPS hostname. Managed
 identities receive secret-scoped access; BFF has no database setting/grant. Root azd
 uses explicit service `resourceName` bindings, while standalone Identity CD uses
-its name output.
+its name output. Terraform also owns the native OAuth RSA key, version-pinned Identity
+signing settings and scoped operations-principal grants. The manual workflow authenticates
+through Azure OIDC; Development currently shares its CD and operations principal, so
+those grants do not establish a separate administrative identity. Key Vault access does
+not establish PostgreSQL network reachability or SQL migration privileges.
 Provisioning, remote DB grants, migrations and coordinated rollout remain separate
 acceptance gates; Terraform declarations are not deployed-isolation evidence.
 

@@ -136,9 +136,8 @@ CI-specific commands and prerequisites live in:
 
 This file is the single source of repository-wide engineering rules: architecture,
 security, service boundaries, coding/localization contracts, validation commands and
-execution authorization. [Copilot instructions](.github/copilot-instructions.md) add
-only Copilot response tone, language and presentation preferences; they must not
-repeat or override those engineering rules.
+execution authorization. Local Copilot preferences may add response tone, language
+and presentation guidance; they must not repeat or override those engineering rules.
 
 Task procedures belong in skills and component guides. GitHub owns backlog and
 acceptance; dated local handoffs hold recorded checks, environment observations and
@@ -256,8 +255,18 @@ map and accepted ADRs for current decisions.
   ownership, explicit dispute consent and assigned-operator authority remain separate.
 - Identity owns confidential clients, grants and schema `oauth`. Preserve exact HTTPS
   callbacks, S256 PKCE, explicit Allow/Deny, active/current customer checks at issuance,
-  hashed credentials and single-use codes. Keep private signing keys at Identity and
-  client secrets server-side. Internal introspection uses `AUTH_INTERNAL_SECRET`.
+  hashed credentials and single-use codes. Local PEM signing material stays at Identity;
+  remote RSA private keys stay non-exported in Key Vault, with Identity using a
+  version-pinned key URI and managed identity for signing. Keep client secrets server-side.
+  Internal introspection uses `AUTH_INTERNAL_SECRET`.
+- Remote migration and OAuth client operations use the explicit manual workflow,
+  Development environment protection, OIDC and in-memory Key Vault credentials.
+  Allow any selected branch permitted by the environment policy after default-branch
+  workflow publication; migration resolves that checkout's single latest Alembic head.
+  Never migrate, seed or register clients implicitly during CD or startup, restore a local
+  database remotely, or treat Key Vault grants as SQL privileges/network acceptance.
+  Identical active-client reruns verify metadata/secrets; mismatches or inactive clients
+  fail without automatic rotation or reactivation.
 - MCP verifies RS256 with trusted public JWKS, issuer/audience, customer claims and
   at most 3600-second access-token TTL; authorization codes/state retain 300 seconds.
   Revocation/profile changes can lag until access-token expiry; ADR 0012 remains Proposed. BFF and protected REST current-Identity checks remain uncached.
