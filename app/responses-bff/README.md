@@ -63,6 +63,10 @@ except explicit HTTP loopback (`localhost`, `127.0.0.1`, `::1`). Supply these va
 in the process environment, for example through the documented `uv --env-file`
 launch; the focused OAuth config does not independently read a dotenv file.
 Keep the private signing key at Identity and the client secret at the BFF.
+`OAUTH_TOKEN_TIMEOUT_SECONDS` optionally configures the token exchange's HTTP
+connect/read/write/pool timeout (default: 15 seconds; must be positive and finite).
+It overrides only `/oauth/token`; current-Identity checks retain their 3-second
+timeout. A timed-out exchange is still uncertain and is never automatically retried.
 
 The existing signed BFF-to-agent envelope carries the current server-owned grant;
 Foundry's Authorization header remains reserved for Azure credentials. Agent-to-MCP
