@@ -13,7 +13,22 @@ Zip deploy on App Service removes the Azure Container Registry dependency for th
 
 ## Hosted agent placement
 
-The Account/Transaction orchestrator runs through a Foundry Responses host. Its azd manifest lives at [app/agent/azure.yaml](../app/agent/azure.yaml), and commands should be run with `--cwd app/agent` from repository root. Local browser validation uses the local agent on port `8088` through the Responses BFF; hosted deployment is a separate operation.
+The Account/Transaction orchestrator runs through a Foundry Responses host. Its azd manifest lives at [app/agent/azure.yaml](../app/agent/azure.yaml). For an agent-only rollout from repository root, use `rtk proxy azd deploy home-banking-agent --cwd app\agent`; full `azd up` also handles dependencies and requires separate provisioning authorization. Local browser validation uses the local agent on port `8088` through the Responses BFF.
+
+Hosted source packaging is not App Service ZIP deployment. The manifest uses Python
+3.13 and `dependencyResolution: remote_build`; the frozen requirements export retains
+`.` to install `src/app` noneditably. Keep `main.py`, `src/`, `pyproject.toml` and the
+required package resources in the source ZIP. Follow the
+[agent packaging contract](../app/agent/README.md#hosted-source-dependency-installation),
+not the App Service staging procedure below.
+
+Hosted CD exports a nonblank `TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT` from the Development
+GitHub Environment without format or availability checks. The consumer endpoint
+follows the published default; a version-specific endpoint pins experiments. CD
+neither publishes the Toolbox nor registers clients. The manifest's `foundry/oauth`
+runtime remains fail-closed pending native identity/grant binding proof; packaging
+and metadata do not establish hosted OAuth support. See the
+[deployment gate](deployment-guide.md#hosted-oauth-prerequisites-and-deployment-gate).
 
 ## MCP API deployment
 
@@ -23,10 +38,15 @@ For zip deploy, each Python API directory must include a `requirements.txt` file
 
 Generate or refresh the deployment artifact from the repository root:
 
-```bash
-uv pip compile app/business-api/account/pyproject.toml --no-emit-package banking-shared -o app/business-api/account/requirements.txt
-uv pip compile app/business-api/transaction/pyproject.toml --no-emit-package banking-shared -o app/business-api/transaction/requirements.txt
+```powershell
+uv pip compile app\business-api\account\pyproject.toml --no-emit-package banking-shared --python-version 3.11 --python-platform x86_64-unknown-linux-gnu -o app\business-api\account\requirements.txt
+uv pip compile app\business-api\transaction\pyproject.toml --no-emit-package banking-shared --python-version 3.11 --python-platform x86_64-unknown-linux-gnu -o app\business-api\transaction\requirements.txt
 ```
+
+These artifacts target the deployed Linux/Python version rather than the developer's
+Windows interpreter. Identity and BFF also require deployment artifacts; use their
+commands in the [dependency-artifact guide](../app/business-api/README.md#python-dependency-artifacts).
+Do not apply the agent's `.` installation rule to these staged App Service packages.
 
 ### Importable source packages
 
@@ -48,7 +68,9 @@ The banking web deployment workflow builds the Vite production assets, packages 
 
 ## When to revisit containers
 
-Stay with zip deploy while workloads remain single instance, use pure Python wheels, and avoid OS level dependencies. Switch back to Container Apps backed by ACR if any of these scenarios appear:
+Keep the current App Service ZIP strategy while its build and runtime requirements
+are satisfied. Multiple instances alone do not require containers. Reassess the hosting
+decision, rather than automatically switching to Container Apps/ACR, if these needs arise:
 
 - Native libraries that require system packages not present in the App Service Python image
 - Autoscaling past the limits of the selected plan or needing custom horizontal rules
