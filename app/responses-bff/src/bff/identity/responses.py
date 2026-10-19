@@ -6,7 +6,7 @@ from azure.core.exceptions import AzureError
 from fastapi import HTTPException, Request, status
 from bff.identity.models import AuthenticatedUser
 from bff.config.settings import Settings
-from bff.identity.internal_identity import create_internal_identity
+from bff.identity.internal_identity import create_internal_identity, create_platform_user_id
 from bff.identity.oauth_client import OAuthClient, session_binding
 
 class AsyncCredential(Protocol):
@@ -45,7 +45,10 @@ async def _upstream_headers(
         except (AzureError, httpx.RequestError) as error:
             raise HTTPException(status_code=503, detail={"code": "SERVICE_UNAVAILABLE"}) from error
         headers["Authorization"] = f"Bearer {token.token}"
-        headers["x-ms-user-identity"] = internal_identity
+        headers["x-ms-user-identity"] = create_platform_user_id(
+            user, settings.internal_identity_secret
+        )
+        headers["x-client-banking-identity"] = internal_identity
     else:
         headers["x-agent-user-id"] = internal_identity
     return headers

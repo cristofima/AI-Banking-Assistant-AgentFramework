@@ -11,6 +11,12 @@ from bff.identity.models import AuthenticatedUser
 from bff.identity.oauth_client import OAuthGrant
 
 
+def create_platform_user_id(user: AuthenticatedUser, secret: str) -> str:
+    """Derive a stable non-PII Foundry session partition identifier."""
+    message = f"foundry-user-v1:{user.sub}".encode()
+    return "banking." + hmac.new(secret.encode(), message, hashlib.sha256).hexdigest()
+
+
 def create_internal_identity(
     user: AuthenticatedUser, secret: str, grant: OAuthGrant | None = None,
 ) -> str:

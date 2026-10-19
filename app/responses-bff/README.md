@@ -68,9 +68,19 @@ connect/read/write/pool timeout (default: 15 seconds; must be positive and finit
 It overrides only `/oauth/token`; current-Identity checks retain their 3-second
 timeout. A timed-out exchange is still uncertain and is never automatically retried.
 
-The existing signed BFF-to-agent envelope carries the current server-owned grant;
-Foundry's Authorization header remains reserved for Azure credentials. Agent-to-MCP
-calls use only standard OAuth Authorization, with no custom HMAC identity header.
+The signed BFF-to-agent envelope carries the current server-owned grant. Local
+transport keeps `x-agent-user-id`. Hosted transport uses the forwarded
+`x-client-banking-identity` header; `x-ms-user-identity` contains only a stable
+HMAC-derived non-PII customer partition identifier (72 characters), never claims
+or grants. It is stable for the same authenticated subject and signing secret;
+rotating `INTERNAL_IDENTITY_SECRET` changes that partition identifier. Both headers
+are generated server-side, not copied from browser input.
+Foundry's Authorization header remains reserved for Azure credentials. The hosted
+agent verifies the signed envelope in a separate request context, without replacing
+Foundry's platform user or call IDs. See the [custom-header contract](https://learn.microsoft.com/azure/foundry/agents/concepts/hosted-agent-contract#forward-custom-request-headers-to-your-container).
+This transport repair does not establish native Toolbox customer/grant binding;
+the hosted OAuth adapter remains fail-closed pending that proof. Direct local
+Agent-to-MCP calls use standard OAuth Authorization, with no custom HMAC identity header.
 Missing/expired grants fail closed; OAuth never falls back to HMAC. RS256 MCP
 validation has a bounded revocation delay up to 3600 seconds (one hour).
 The 1000-entry custody bound includes pending states, stored grants and in-flight
@@ -84,9 +94,11 @@ recovery remain required; OAuth consent never authorizes automatic replay.
 See [ADR 0012](../../docs/adr/0012-local-oauth-jwt-validation-for-mcp.md)
 for the local validation tradeoff and key distribution requirements.
 
-This path uses direct MCP (`AGENT_RUNTIME=local`), even if the agent itself is hosted.
-OAuth Toolbox routing remains blocked until native per-customer grant binding is
-proven. Offline tests are not browser, deployed or real-model acceptance.
+The supported OAuth MCP path uses `AGENT_RUNTIME=local` and direct Account/Transaction
+MCP, even when inference uses Foundry models. `AGENT_RUNTIME=foundry` selects
+Toolbox and rejects `MCP_IDENTITY_MODE=oauth`; hosting the agent does not enable a
+direct-MCP fallback. Native OAuth Toolbox routing remains blocked until per-customer
+grant binding is proven. Offline tests are not browser, deployed or real-model acceptance.
 
 ## Request Flow
 

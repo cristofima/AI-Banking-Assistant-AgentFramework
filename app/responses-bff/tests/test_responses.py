@@ -21,7 +21,7 @@ from asgi_lifespan import LifespanManager
 from httpx import ASGITransport, AsyncClient
 
 from bff.identity.models import AuthenticatedUser
-from bff.identity.internal_identity import create_internal_identity
+from bff.identity.internal_identity import create_internal_identity, create_platform_user_id
 from bff.main import create_app as _create_app
 from bff.config.settings import Settings
 
@@ -62,6 +62,16 @@ def test_internal_identity_signs_verified_email_without_browser_credentials(loca
         signature,
         hmac.new(TEST_SECRET.encode(), encoded.encode(), hashlib.sha256).hexdigest(),
     )
+
+
+def test_platform_identity_is_stable_private_and_user_scoped() -> None:
+    user = _authenticated_user("user-a")
+    first = create_platform_user_id(user, TEST_SECRET)
+    assert first == create_platform_user_id(user, TEST_SECRET)
+    assert first != create_platform_user_id(_authenticated_user("user-b"), TEST_SECRET)
+    assert first != create_platform_user_id(user, TEST_SECRET + "different")
+    assert user.sub not in first and user.email not in first and user.customer_id not in first
+    assert re.fullmatch(r"[A-Za-z0-9._:@-]{1,256}", first)
 
 
 class FakeCredential:
@@ -163,7 +173,11 @@ async def test_foundry_mode_uses_managed_credential_and_delegated_identity() -> 
 
     async def upstream(request: httpx.Request) -> httpx.Response:
         assert request.headers["Authorization"] == "Bearer foundry-access-token"
-        assert request.headers["x-ms-user-identity"] == create_internal_identity(
+        assert request.headers["x-ms-user-identity"] == create_platform_user_id(
+            _authenticated_user("user-a"), TEST_SECRET,
+        )
+        assert re.fullmatch(r"[A-Za-z0-9._:@-]{1,256}", request.headers["x-ms-user-identity"])
+        assert request.headers["x-client-banking-identity"] == create_internal_identity(
             user=_authenticated_user("user-a"),
             secret=TEST_SECRET,
         )

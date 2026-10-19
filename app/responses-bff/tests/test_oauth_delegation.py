@@ -4,7 +4,11 @@ from __future__ import annotations
 import base64
 import json
 import time
+from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
+
+import pytest
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
@@ -21,9 +25,10 @@ from bff.identity.responses import _upstream_headers
 from fastapi import Request
 
 
-async def test_customer_callback_and_signed_delegation_remain_server_owned() -> None:
+@pytest.mark.parametrize("mode", ["local", "foundry"])
+async def test_customer_callback_and_signed_delegation_remain_server_owned(mode: str) -> None:
     secret = "synthetic-application-key-at-least-32-bytes"
-    config = Settings(_env_file=None, responses_upstream_mode="local", jwt_secret_key=secret,
+    config = Settings(_env_file=None, responses_upstream_mode=mode, jwt_secret_key=secret,
                       auth_internal_secret="synthetic-internal-key",
                       internal_identity_secret="synthetic-envelope-key-at-least-32-bytes")
     profile: dict[str, Any] = {"sub": "user-1", "customer_id": "customer-1",
@@ -52,7 +57,10 @@ async def test_customer_callback_and_signed_delegation_remain_server_owned() -> 
         return httpx.Response(200, json={"access_token": access, "token_type": "bearer",
                                         "scope": "mcp.access"})
 
-    app = create_app(config, auth_transport=httpx.MockTransport(identity), oauth_config=oauth_config)
+    credential = AsyncMock()
+    credential.get_token.return_value = SimpleNamespace(token="synthetic-foundry-token")
+    app = create_app(config, auth_transport=httpx.MockTransport(identity), oauth_config=oauth_config,
+                     credential_factory=lambda _: credential)
     async with LifespanManager(app):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://bff",
                                     headers={"Authorization": "Bearer " + browser}) as client:
@@ -72,8 +80,15 @@ async def test_customer_callback_and_signed_delegation_remain_server_owned() -> 
             request = Request({"type": "http", "app": app,
                                "headers": [(b"authorization", ("Bearer " + browser).encode())]})
             headers = await _upstream_headers(request, AuthenticatedUser(**profile), False)
-            encoded = headers["x-agent-user-id"].split(".")[1]
+            identity_header = "x-client-banking-identity" if mode == "foundry" else "x-agent-user-id"
+            encoded = headers[identity_header].split(".")[1]
+            if mode == "foundry":
+                assert len(headers[identity_header]) > 256
+                assert len(headers["x-ms-user-identity"]) <= 256
+                assert access not in headers["x-ms-user-identity"]
+                assert "demo" not in headers["x-ms-user-identity"]
+                assert "x-agent-user-id" not in headers
             envelope = json.loads(base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)))
             assert envelope["oauth_access_token"] == access
             assert envelope["oauth_expires_at"] == now + 300
-            assert "Authorization" not in headers
+            assert ("Authorization" in headers) == (mode == "foundry")
