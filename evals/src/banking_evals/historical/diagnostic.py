@@ -203,7 +203,7 @@ class BffClient:
 def _sign_internal_identity(secret: str, sub: str, customer_id: str, email: str, locale: str) -> str:
     """Mirror app/responses-bff/bff/internal_identity.py's envelope exactly.
 
-    Lets the harness call the deployed agent's x-ms-user-identity contract directly,
+    Lets the harness call the deployed agent's signed x-client-banking-identity contract directly,
     without a real BFF login (azd's own invoke/eval path has no custom-header support).
     """
     payload = json.dumps(
@@ -256,7 +256,12 @@ class HostedAgentClient:
             json=payload,
             headers={
                 "Authorization": f"Bearer {self._aad_token}",
-                "x-ms-user-identity": identity,
+                "x-ms-user-identity": "banking." + hmac.new(
+                    self._secret.encode(),
+                    f"foundry-user-v1:eval-{customer['customer_id']}".encode(),
+                    hashlib.sha256,
+                ).hexdigest(),
+                "x-client-banking-identity": identity,
             },
         )
         response.raise_for_status()
