@@ -91,7 +91,7 @@ jobs:
           set -euo pipefail
           # ARM reads verify the server, database and vault in the selected subscription/resource group.
           expected_host=$(az postgres flexible-server show --resource-group "$AZURE_RESOURCE_GROUP" --name "$AZURE_POSTGRES_SERVER_NAME" --query fullyQualifiedDomainName --output tsv --only-show-errors)
-          database=$(az postgres flexible-server db show --resource-group "$AZURE_RESOURCE_GROUP" --server-name "$AZURE_POSTGRES_SERVER_NAME" --database-name "$AZURE_POSTGRES_DATABASE_NAME" --query name --output tsv --only-show-errors)
+          database=$(az postgres flexible-server db show --resource-group "$AZURE_RESOURCE_GROUP" --server-name "$AZURE_POSTGRES_SERVER_NAME" --name "$AZURE_POSTGRES_DATABASE_NAME" --query name --output tsv --only-show-errors)
           vault_url=$(az keyvault show --resource-group "$AZURE_RESOURCE_GROUP" --name "$AZURE_KEY_VAULT_NAME" --query properties.vaultUri --output tsv --only-show-errors)
           [[ "$database" == "$AZURE_POSTGRES_DATABASE_NAME" && -n "$expected_host" && -n "$vault_url" ]] || exit 1
           arguments=("$OPERATION" --credential azure-cli --vault-url "$vault_url" --expected-host "$expected_host" --expected-database "$database" --confirm)
