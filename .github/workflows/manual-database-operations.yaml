@@ -12,6 +12,18 @@ on:
         description: Type the exact operation followed by :Development (for example migrate:Development)
         type: string
         required: true
+      client_id:
+        description: Additional OAuth client ID; leave all three client inputs blank for the configured BFF
+        type: string
+        required: false
+      redirect_uri:
+        description: Exact HTTPS callback of the additional client; never a guessed Foundry callback
+        type: string
+        required: false
+      client_secret_name:
+        description: Separate Key Vault secret name for the additional client (not a secret value)
+        type: string
+        required: false
       legacy_user_status:
         description: Migration-only legacy identity policy; leave unspecified unless explicitly approved
         type: choice
@@ -45,6 +57,9 @@ jobs:
       OAUTH_SIGNING_KEY_ID: ${{ vars.OAUTH_SIGNING_KEY_ID }}
       OAUTH_CLIENT_ID: ${{ vars.OAUTH_CLIENT_ID }}
       OAUTH_REDIRECT_URI: ${{ vars.OAUTH_REDIRECT_URI }}
+      ADDITIONAL_CLIENT_ID: ${{ inputs.client_id }}
+      ADDITIONAL_REDIRECT_URI: ${{ inputs.redirect_uri }}
+      ADDITIONAL_CLIENT_SECRET_NAME: ${{ inputs.client_secret_name }}
     steps:
       - uses: actions/checkout@v7.0.1
       - name: Validate explicit operation and configuration
@@ -60,7 +75,16 @@ jobs:
           for name in AZURE_OPERATIONS_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID AZURE_RESOURCE_GROUP AZURE_KEY_VAULT_NAME AZURE_POSTGRES_SERVER_NAME AZURE_POSTGRES_DATABASE_NAME; do
             [[ -n "${!name//[[:space:]]/}" ]] || { echo "::error::$name is required"; exit 1; }
           done
-          if [[ "$OPERATION" != migrate ]]; then
+          if [[ -n "$ADDITIONAL_CLIENT_ID$ADDITIONAL_REDIRECT_URI$ADDITIONAL_CLIENT_SECRET_NAME" ]]; then
+            [[ "$OPERATION" != migrate ]] || { echo '::error::Client inputs are not valid for migrations'; exit 1; }
+            for name in ADDITIONAL_CLIENT_ID ADDITIONAL_REDIRECT_URI ADDITIONAL_CLIENT_SECRET_NAME; do
+              [[ -n "${!name//[[:space:]]/}" ]] || { echo "::error::$name is required for an additional client"; exit 1; }
+            done
+            [[ "$ADDITIONAL_CLIENT_ID" =~ ^[A-Za-z0-9_-]{1,128}$ ]] || { echo '::error::Invalid additional client ID'; exit 1; }
+            [[ "$ADDITIONAL_CLIENT_SECRET_NAME" =~ ^oauth-client-[a-z0-9-]{1,114}$ ]] || { echo '::error::Invalid Key Vault secret name'; exit 1; }
+            [[ "$ADDITIONAL_CLIENT_ID" != "$OAUTH_CLIENT_ID" && "${ADDITIONAL_CLIENT_SECRET_NAME,,}" != oauth-client-secret ]] || { echo '::error::Additional clients must not reuse the BFF client ID or secret'; exit 1; }
+            [[ "$ADDITIONAL_REDIRECT_URI" == https://* && ! "$ADDITIONAL_REDIRECT_URI" =~ [[:space:]] ]] || { echo '::error::An exact HTTPS callback without whitespace is required'; exit 1; }
+          elif [[ "$OPERATION" != migrate ]]; then
             for name in OAUTH_CLIENT_ID OAUTH_REDIRECT_URI; do
               [[ -n "${!name//[[:space:]]/}" ]] || { echo "::error::$name is required"; exit 1; }
             done
@@ -101,7 +125,11 @@ jobs:
               arguments+=(--legacy-user-status "$LEGACY_USER_STATUS")
             fi
           else
-            arguments+=(--client-id "$OAUTH_CLIENT_ID" --redirect-uri "$OAUTH_REDIRECT_URI")
+            if [[ -n "$ADDITIONAL_CLIENT_ID" ]]; then
+              arguments+=(--client-id "$ADDITIONAL_CLIENT_ID" --redirect-uri "$ADDITIONAL_REDIRECT_URI" --client-secret-name "$ADDITIONAL_CLIENT_SECRET_NAME")
+            else
+              arguments+=(--client-id "$OAUTH_CLIENT_ID" --redirect-uri "$OAUTH_REDIRECT_URI")
+            fi
             if [[ "$OPERATION" == init-oauth ]]; then
               arguments+=(--key-uri "$OAUTH_SIGNING_KEY_URI" --key-id "$OAUTH_SIGNING_KEY_ID")
             fi
