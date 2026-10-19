@@ -27,6 +27,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v8.3.2
+      - name: Verify hosted deployment validation
+        run: node --test .github/actions/appservice-preflight/hosted.test.cjs .github/actions/appservice-preflight/preflight.test.cjs
       - name: Verify hosted requirements
         working-directory: app/agent
         run: |
@@ -74,13 +76,14 @@ jobs:
           TRANSACTION_MODEL_DEPLOYMENT_NAME: ${{ vars.TRANSACTION_MODEL_DEPLOYMENT_NAME }}
           ACCOUNT_MCP_URL: ${{ vars.ACCOUNT_MCP_URL }}
           TRANSACTION_MCP_URL: ${{ vars.TRANSACTION_MCP_URL }}
+          TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT: ${{ vars.TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT }}
           ENABLE_INSTRUMENTATION: ${{ vars.ENABLE_INSTRUMENTATION }}
           ENABLE_SENSITIVE_DATA: ${{ vars.ENABLE_SENSITIVE_DATA }}
           AZURE_EXPERIMENTAL_ENABLE_GENAI_TRACING: ${{ vars.AZURE_EXPERIMENTAL_ENABLE_GENAI_TRACING }}
           OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: ${{ vars.OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT }}
         run: |
           set -euo pipefail
-          for var in AZURE_AI_PROJECT_ID FOUNDRY_PROJECT_ENDPOINT MODEL_DEPLOYMENT_NAME ACCOUNT_MCP_URL TRANSACTION_MCP_URL; do
+          for var in AZURE_AI_PROJECT_ID FOUNDRY_PROJECT_ENDPOINT MODEL_DEPLOYMENT_NAME ACCOUNT_MCP_URL TRANSACTION_MCP_URL TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT; do
             if [ -z "${!var}" ]; then
               echo "::error::Missing required GitHub environment variable: $var"
               exit 1
@@ -88,6 +91,13 @@ jobs:
           done
           node <<'NODE'
           const { remoteHttps } = require('./.github/actions/appservice-preflight/preflight.cjs');
+          const { validateToolboxEndpoint } = require('./.github/actions/appservice-preflight/hosted.cjs');
+          try {
+            validateToolboxEndpoint(process.env.TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT);
+          } catch (error) {
+            console.error(`::error::${error.message}`);
+            process.exit(1);
+          }
           for (const name of ['FOUNDRY_PROJECT_ENDPOINT', 'ACCOUNT_MCP_URL', 'TRANSACTION_MCP_URL']) {
             const value = process.env[name];
             if (!remoteHttps(value) || (name.endsWith('_MCP_URL') && new URL(value).pathname !== '/mcp')) {
@@ -102,7 +112,7 @@ jobs:
           fi
           for var in AZURE_TENANT_ID AZURE_AI_PROJECT_ID FOUNDRY_PROJECT_ENDPOINT MODEL_DEPLOYMENT_NAME \
                      TRIAGE_MODEL_DEPLOYMENT_NAME ACCOUNT_MODEL_DEPLOYMENT_NAME TRANSACTION_MODEL_DEPLOYMENT_NAME \
-                     ACCOUNT_MCP_URL TRANSACTION_MCP_URL \
+                     ACCOUNT_MCP_URL TRANSACTION_MCP_URL TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT \
                      ENABLE_INSTRUMENTATION ENABLE_SENSITIVE_DATA \
                      AZURE_EXPERIMENTAL_ENABLE_GENAI_TRACING \
                      OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT \

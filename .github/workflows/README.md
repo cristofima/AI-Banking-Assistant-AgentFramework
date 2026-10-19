@@ -363,6 +363,7 @@ Required:
 - `MODEL_DEPLOYMENT_NAME`
 - `ACCOUNT_MCP_URL`
 - `TRANSACTION_MCP_URL`
+- `TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT`
 
 The agent manifest fixes `AGENT_RUNTIME=foundry` and `MCP_IDENTITY_MODE=oauth`;
 no OAuth private key, browser-client secret or public JWKS is consumed by the hosted
@@ -374,12 +375,29 @@ not configure these connections, and CD does not register clients or replace con
 
 The manifest also declares `banking-tools` as an agent dependency. Before agent-only
 CD, a separately authorized setup must deploy that Toolbox and resolve its dependency
-metadata. The current workflow neither deploys `banking-tools` nor injects
-`TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT` into its runner's agent azd environment. The five
-required variables above therefore do not complete Toolbox dependency setup. Supply
-verified resolved metadata through an explicit workflow change; do not invent an
-endpoint or treat a local azd environment as CI configuration. This deployment metadata
-is distinct from runtime OAuth support: setting it does not remove the adapter's gate.
+metadata. Set `TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT` in the **Development** GitHub
+Environment to the Toolbox consumer endpoint, which serves its default version, or
+an explicit version endpoint for pinned tests. CD checks only that the value is
+present and nonblank, then exports it to the runner's agent azd environment. It does
+not enforce URL format or probe endpoint availability. CD neither deploys nor
+publishes the Toolbox or registers clients. Local azd values do not configure GitHub
+runners. Updating a pinned version requires updating this GitHub variable; a consumer
+endpoint follows the published default without changing the variable.
+This is dependency metadata, not native runtime OAuth support, and requires no new
+agent YAML mapping while the runtime adapter remains gated.
+
+For the Development Toolbox consumer endpoint:
+
+```dotenv
+TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT=https://aifdevelopment58b174.services.ai.azure.com/api/projects/foundry-development/toolboxes/banking-tools/mcp?api-version=v1
+```
+
+Offline regressions run in hosted CI and in hosted CD before Azure configuration:
+
+```powershell
+rtk proxy node --test .github\actions\appservice-preflight\hosted.test.cjs .github\actions\appservice-preflight\preflight.test.cjs
+```
+
 See [deployment troubleshooting](../../docs/troubleshooting.md#deployment-oauth-and-federation-blockers)
 for the missing-endpoint failure.
 
@@ -387,10 +405,10 @@ Development configuration on 2026-10-19 created both OAuth2 connections and publ
 `banking-tools` version `3` as default, retaining version `2` for rollback. Its verified
 version-pinned endpoint is stored in the selected local agent azd environment only.
 See the [infrastructure configuration record](../../infra/README.md#native-oauth-compatibility-gate)
-for the exact callbacks, client IDs, secret names and endpoint. The native clients
-remain unregistered in Identity, and the workflow's additional-client inputs must be
-published before dispatching their protected registrations. This record does not prove
-GitHub environment variable presence, CD metadata injection or hosted OAuth acceptance.
+for the exact callbacks, client IDs, secret names and endpoint. The owner subsequently confirmed successful protected `register-client` runs for both
+native clients after merging the workflow. Those runs were not independently inspected
+in this code-change pass. This record does not prove GitHub environment variable
+presence, a successful CD metadata handoff or hosted OAuth acceptance.
 No hosted-agent deployment or model invocation occurred in that configuration step.
 
 The workflow validates public HTTPS project/MCP URLs (MCP path `/mcp`) and records
@@ -520,5 +538,5 @@ implementation nor deployment settings prove hosted or end-to-end acceptance.
 ## Troubleshooting
 
 - If deployment fails with auth/authorization errors, verify OIDC federation and role assignments for the `Development` environment identity.
-- If hosted-agent deployment fails early, verify the five required Foundry variables and the separately resolved Toolbox dependency metadata described above.
+- If hosted-agent deployment fails early, verify the six required variables listed above, including the Toolbox endpoint. Its presence check does not establish endpoint availability or native OAuth compatibility.
 - If `azd` cannot resolve a service name, check that the command is using the correct `azure.yaml` root (`-C app/agent` for hosted agent).

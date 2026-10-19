@@ -49,6 +49,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v7.0.1
+      - name: Verify hosted deployment validation
+        run: node --test .github/actions/appservice-preflight/hosted.test.cjs .github/actions/appservice-preflight/preflight.test.cjs
       - uses: astral-sh/setup-uv@v8.3.2
         with:
           python-version: "3.11"
