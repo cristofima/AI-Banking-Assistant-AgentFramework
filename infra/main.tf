@@ -72,7 +72,7 @@ resource "azurerm_key_vault_key" "oauth" {
 }
 
 resource "azurerm_role_assignment" "identity_key_vault_crypto_user" {
-  scope                = azurerm_key_vault_key.oauth.resource_id
+  scope                = azurerm_key_vault_key.oauth.resource_versionless_id
   role_definition_name = "Key Vault Crypto User"
   principal_id         = azapi_resource.identity.output.identity.principalId
 }
@@ -125,7 +125,7 @@ resource "azurerm_role_assignment" "operations_resource_reader" {
 
 resource "azurerm_role_assignment" "operations_oauth_key_reader" {
   count                = var.azure_operations_principal_id == null ? 0 : 1
-  scope                = azurerm_key_vault_key.oauth.resource_id
+  scope                = azurerm_key_vault_key.oauth.resource_versionless_id
   role_definition_name = "Key Vault Reader"
   principal_id         = var.azure_operations_principal_id
 }

@@ -170,13 +170,18 @@ with Identity through separately authorized provisioning, not this Terraform sta
 Remote Identity now uses native Key Vault signing. Terraform creates the nonexportable
 RSA-2048 `oauth-signing` key with `sign`/`verify` operations, pins its version in
 `OAUTH_SIGNING_KEY_URI`, selects `OAUTH_SIGNING_BACKEND=key_vault`, and grants Identity
-key-scoped Crypto User access. The private key never reaches Terraform state or Identity.
+key-scoped Crypto User access. Both Identity Crypto User and operations Key Vault Reader
+assignments use `resource_versionless_id` (`/keys/oauth-signing`), not the versioned
+`resource_id` (`/keys/oauth-signing/versions/...`). The signing URI remains pinned to
+its exact version independently of the RBAC scope. The private key never reaches Terraform state or Identity.
 The provisioning principal needs Crypto Officer access (in addition to the existing
 Secrets Officer grant); `deployer_principal_id` optionally creates both assignments.
 No automatic key rotation is configured; changing the key requires coordinated public
 JWKS publication and redeployment/restart, not an implicit rollover.
 
-Manual operations use a separate federated principal, not the regular CD principal.
+Manual operations select a federated principal through dedicated configuration;
+Development currently reuses the regular CD principal. A separate operations principal
+requires an explicitly approved isolation change.
 Set root azd `AZURE_OPERATIONS_PRINCIPAL_ID` to its object ID for Terraform grants;
 set protected GitHub Development `AZURE_OPERATIONS_CLIENT_ID` to its application ID
 for OIDC login. Terraform grants resource-group Reader, key-scoped Key Vault Reader
@@ -212,8 +217,32 @@ establish hosted readiness; do not bypass the gate or route it through a shared
 grant. Development azd configuration and root provisioning completed on 2026-10-18;
 its final preview reported no changes. The operations identity currently reuses the
 existing GitHub CD principal, including scoped OAuth-secret write access. GitHub
-variables, OAuth initialization/client registration, authorized migrations, code rollout
-and runtime verification remain separate pending steps.
+variables, code rollout and runtime verification remain separate gates. The owner
+confirmed successful Development migration and `init-oauth` after the key-scoped RBAC
+repair. This is owner-observed workflow evidence, not consumer reference resolution or
+hosted OAuth acceptance.
+
+### Foundry MCP connections and Toolbox
+
+Root Terraform provisions the Foundry account/project, not the OAuth project connections
+or Toolbox. The separate [agent manifest](../app/agent/azure.yaml) declares Account and
+Transaction MCP tools in `banking-tools`, referencing `account-mcp` and `transaction-mcp`.
+For a separately authorized configuration/deployment:
+
+1. Create those OAuth2 connections in the selected Foundry project using the public
+   Account/Transaction HTTPS `/mcp` endpoints and exact `mcp.access` scope.
+2. Obtain each connection's actual platform callback and register compatible native
+   confidential clients in Identity. Do not guess callbacks or automatically reuse the
+   BFF client/secret, whose callback belongs to the frontend.
+3. Deploy `banking-tools` before `home-banking-agent`, then verify its resolved dependency
+   metadata in the selected agent azd environment. The deployment-only GitHub runner
+   must also receive that metadata; local azd configuration is not copied into CI.
+4. Verify native callback/S256 compatibility, banking-user/caller/grant binding and
+   two-user isolation before enabling the currently rejected Toolbox OAuth runtime path.
+
+The [hosted-agent workflow guide](../.github/workflows/README.md#hosted-agent-variables-cd-hosted-agentyaml)
+describes the current CD gap. Creating connections or deploying the Toolbox does not
+remove the runtime gate or authorize shared grants, fabricated call IDs or HMAC fallback.
 
 Account starts with `python -m uvicorn banking_account.main:app --host 0.0.0.0 --port 8080 --proxy-headers`;
 Transaction uses `banking_transaction.main:app` with the same options.
