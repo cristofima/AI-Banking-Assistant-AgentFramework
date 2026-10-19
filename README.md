@@ -229,21 +229,25 @@ version-pinned Toolbox endpoint is persisted in local agent azd only.
 
 This is configuration evidence, not usable native OAuth or hosted acceptance:
 
-- Publish the prepared manual-workflow overrides and register both native clients
-  through the protected workflow using their existing independent secrets and exact
-  callbacks. Creating connections did not register clients in Identity.
-- Supply verified Toolbox dependency metadata to hosted CD; its current agent-only
-  workflow does not inject `TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT`. Local azd values do
-  not configure GitHub runners.
+- The owner confirmed successful protected workflow registrations for both native
+  clients after merging the workflow. This is owner-reported operation evidence,
+  not independently captured native OAuth acceptance.
+- Set `TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT` in the Development GitHub Environment.
+  Hosted CD checks that the dependency endpoint is nonblank and exports it before
+  agent-only deployment, without enforcing its URL format. The consumer endpoint
+  follows the published default; version-specific endpoints remain usable for tests.
+  Local azd values do not configure runners. This presence check does not probe
+  endpoint availability. GitHub variable presence and successful deployment remain
+  unverified.
 - Prove callback/S256/client-auth compatibility, Consumer prerequisites, actual
   platform call IDs and banking-user/native-caller/individual-grant binding before
   implementing the currently rejected `foundry/oauth` adapter. Two-user consent,
   expiry/logout/recovery and hosted isolation remain separate authorized checks.
 
 See the [infrastructure configuration record](infra/README.md#native-oauth-compatibility-gate)
-for callbacks, secret names, the endpoint and version-pinned rollback limits;
+for callbacks, secret names, consumer/pinned endpoints and rollback behavior;
 [hosted CD configuration](.github/workflows/README.md#hosted-agent-variables-cd-hosted-agentyaml)
-for the metadata gap; and [#81](https://github.com/cristofima/AI-Banking-Assistant-AgentFramework/issues/81)
+for the endpoint variable and handoff; and [#81](https://github.com/cristofima/AI-Banking-Assistant-AgentFramework/issues/81)
 for native acceptance. [#78](https://github.com/cristofima/AI-Banking-Assistant-AgentFramework/issues/78)
 owns local OAuth UX/operations and renewal policy. Supported local direct-MCP OAuth
 and default HMAC compatibility remain unchanged; invalid OAuth never falls back to

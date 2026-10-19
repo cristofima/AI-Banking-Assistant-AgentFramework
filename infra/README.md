@@ -250,7 +250,7 @@ For a separately authorized configuration/deployment:
    two-user isolation before enabling the currently rejected Toolbox OAuth runtime path.
 
 The [hosted-agent workflow guide](../.github/workflows/README.md#hosted-agent-variables-cd-hosted-agentyaml)
-describes the current CD gap. Creating connections or deploying the Toolbox does not
+describes the implemented endpoint handoff and remaining runner/runtime verification. Creating connections or deploying the Toolbox does not
 remove the runtime gate or authorize shared grants, fabricated call IDs or HMAC fallback.
 
 #### Native OAuth compatibility gate
@@ -304,8 +304,14 @@ https://aifdevelopment58b174.services.ai.azure.com/api/projects/foundry-developm
 
 The version, default selection, connection references and endpoint readback were
 verified after publication. No changes to the agent YAML files were needed. This is
-configuration evidence only: GitHub CD still needs an explicit metadata handoff,
-and neither native runtime identity support nor per-user OAuth compatibility is proven.
+configuration evidence only. Hosted CD requires a nonblank endpoint from the
+Development GitHub Environment and exports it to its agent azd environment without
+enforcing URL format or probing availability. For default-version consumption, set
+`https://aifdevelopment58b174.services.ai.azure.com/api/projects/foundry-development/toolboxes/banking-tools/mcp?api-version=v1`;
+keep the version-specific endpoint for pinned tests. Publishing or rolling back the
+Toolbox default retargets the consumer endpoint without changing that variable.
+Set that GitHub variable explicitly; local azd configuration does not populate it. The mapping is covered by offline regressions, not a successful hosted
+CD run, native runtime identity support or per-user OAuth compatibility proof.
 Rollback of a version-pinned consumer also requires updating its endpoint; changing
 the Toolbox default alone does not retarget consumers pinned to version `3`.
 Do not rotate or replace the native credentials on retry. Rotation, revocation,
@@ -326,8 +332,11 @@ consumer requirements for per-user OAuth. Custom-user session delegation alone d
 not establish compatibility with that OAuth grant resolution. Keep foundry/oauth
 rejected until this distinction and actual callback/S256/client authentication are
 proven. The initial inspection was read-only; the subsequent authorized work created
-connections and deployed/published only the Toolbox. No Identity client registration,
-hosted-agent deployment, consent flow, MCP call or model invocation was performed;
+connections and deployed/published only the Toolbox. That configuration step did not
+register Identity clients or perform a hosted-agent deployment, consent flow, MCP call
+or model invocation. The owner subsequently confirmed successful protected
+`register-client` runs for both native clients; those runs were not independently
+inspected. This confirmation does not establish native OAuth compatibility;
 two-user hosted isolation remains open
 in [#81](https://github.com/cristofima/AI-Banking-Assistant-AgentFramework/issues/81).
 
