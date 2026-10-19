@@ -6,7 +6,7 @@ import json
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-from azure.core.exceptions import ResourceNotFoundError
+from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 from joserfc.jwk import RSAKey
 import pytest
 from sqlalchemy import Engine
@@ -80,11 +80,48 @@ def test_initialize_generates_once_and_verifies_identical_rerun(
     keys.get_key.assert_called_with("oauth-signing", "synthetic-version")
 
 
+@pytest.mark.parametrize(("stage", "writes"), [
+    ("signing-key-read", 0), ("jwks-read", 0), ("client-secret-read", 0),
+    ("jwks-publication", 1), ("client-secret-publication", 2),
+])
+def test_initialize_reports_exact_azure_failure_stage(
+    remote_clients: tuple[Mock, Mock], stage: str, writes: int,
+) -> None:
+    client, keys = remote_clients
+    error = HttpResponseError("sensitive upstream detail")
+    error.status_code = 403
+    if stage == "signing-key-read":
+        keys.get_key.side_effect = error
+    elif stage.endswith("read"):
+        original_read = client.get_secret.side_effect
+        failed_name = "oauth-jwks" if stage == "jwks-read" else "oauth-client-secret"
+
+        def read(name: str) -> SimpleNamespace:
+            if name == failed_name:
+                raise error
+            return original_read(name)
+
+        client.get_secret.side_effect = read
+    else:
+        original_write = client.set_secret.side_effect
+        failed_name = "oauth-jwks" if stage == "jwks-publication" else "oauth-client-secret"
+
+        def write(name: str, value: str) -> None:
+            if name == failed_name:
+                raise error
+            original_write(name, value)
+
+        client.set_secret.side_effect = write
+    with pytest.raises(ValueError, match=f"stage={stage}; code=AZURE_ACCESS_DENIED"):
+        initialize(client, keys)
+    assert client.set_secret.call_count == writes
+
+
 def test_initialize_rejects_jwks_change_without_writes(remote_clients: tuple[Mock, Mock]) -> None:
     client, keys = remote_clients
     initialize(client, keys)
     client.set_secret.reset_mock()
-    with pytest.raises(ValueError, match="Existing JWKS differs"):
+    with pytest.raises(ValueError, match="stage=jwks-validation; code=VALIDATION_FAILED"):
         initialize_oauth(client, keys, key_uri=KEY_URI, key_id="different-key",
                          jwks_name="oauth-jwks", client_secret_name="oauth-client-secret")
     client.set_secret.assert_not_called()

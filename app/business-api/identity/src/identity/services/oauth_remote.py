@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Iterator
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
@@ -9,7 +11,9 @@ import re
 import secrets
 import subprocess
 
-from azure.core.exceptions import AzureError, ResourceNotFoundError
+from azure.core.exceptions import (
+    AzureError, ClientAuthenticationError, HttpResponseError, ResourceNotFoundError,
+)
 from azure.identity import AzureCliCredential, ManagedIdentityCredential
 from azure.keyvault.keys import KeyClient
 from azure.keyvault.secrets import SecretClient
@@ -21,6 +25,42 @@ from sqlmodel import Session, create_engine
 
 from identity.services.oauth_provisioning import ensure_client, validate_client_metadata
 from identity.services.oauth_signing import encoded, key_location
+
+
+class RemoteOperationError(ValueError):
+    """Controlled failure metadata without upstream exception content."""
+
+    def __init__(self, stage: str, code: str) -> None:
+        self.stage = stage
+        self.code = code
+        super().__init__(f"stage={stage}; code={code}")
+
+
+@contextmanager
+def operation_stage(stage: str) -> Iterator[None]:
+    try:
+        yield
+    except RemoteOperationError:
+        raise
+    except (AzureError, ValueError, SQLAlchemyError, subprocess.SubprocessError, OSError) as error:
+        if isinstance(error, ClientAuthenticationError):
+            code = "AZURE_AUTHENTICATION_FAILED"
+        elif isinstance(error, HttpResponseError):
+            code = {
+                403: "AZURE_ACCESS_DENIED", 404: "AZURE_RESOURCE_NOT_FOUND",
+                409: "AZURE_CONFLICT", 429: "AZURE_THROTTLED",
+            }.get(error.status_code, "AZURE_REQUEST_FAILED")
+        elif isinstance(error, AzureError):
+            code = "AZURE_REQUEST_FAILED"
+        elif isinstance(error, SQLAlchemyError):
+            code = "DATABASE_OPERATION_FAILED"
+        elif isinstance(error, subprocess.SubprocessError):
+            code = "MIGRATION_PROCESS_FAILED"
+        elif isinstance(error, OSError):
+            code = "IO_FAILED"
+        else:
+            code = "VALIDATION_FAILED"
+        raise RemoteOperationError(stage, code) from None
 
 
 def read_secret(client: SecretClient, name: str) -> str | None:
@@ -42,30 +82,39 @@ def mask_secret(value: str) -> None:
 
 def initialize_oauth(secret_client: SecretClient, key_client: KeyClient, *,
                      key_uri: str, key_id: str, jwks_name: str, client_secret_name: str) -> str:
-    vault, name, version = key_location(key_uri)
-    if vault != secret_client.vault_url.rstrip("/") or not key_id.strip() or len(key_id) > 128:
-        raise ValueError("Key and secret vault must match; an explicit key ID is required")
-    key = key_client.get_key(name, version)
-    if (key.id != key_uri or key.properties.enabled is not True or key.key.kty != "RSA"
-            or "sign" not in key.key.key_ops or not key.key.n or not key.key.e):
-        raise ValueError("An enabled version-pinned RSA signing key is required")
-    public = {"kty": "RSA", "kid": key_id, "n": encoded(bytes(key.key.n)),
-              "e": encoded(bytes(key.key.e)), "alg": "RS256", "use": "sig"}
-    if RSAKey.import_key(public).public_key.key_size < 2048:
-        raise ValueError("RSA key must be at least 2048 bits")
-    jwks = {"keys": [public]}
-    previous = read_secret(secret_client, jwks_name)
-    if previous is not None and json.loads(previous) != jwks:
-        raise ValueError("Existing JWKS differs; rotation requires separate authorization")
-    secret = read_secret(secret_client, client_secret_name)
-    if secret is not None and (not secret.strip() or not 32 <= len(secret) <= 512):
-        raise ValueError("Existing client secret is invalid; refusing replacement")
+    with operation_stage("signing-key-configuration"):
+        vault, name, version = key_location(key_uri)
+        if vault != secret_client.vault_url.rstrip("/") or not key_id.strip() or len(key_id) > 128:
+            raise ValueError("Key and secret vault must match; an explicit key ID is required")
+    with operation_stage("signing-key-read"):
+        key = key_client.get_key(name, version)
+    with operation_stage("signing-key-validation"):
+        if (key.id != key_uri or key.properties.enabled is not True or key.key.kty != "RSA"
+                or "sign" not in key.key.key_ops or not key.key.n or not key.key.e):
+            raise ValueError("An enabled version-pinned RSA signing key is required")
+        public = {"kty": "RSA", "kid": key_id, "n": encoded(bytes(key.key.n)),
+                  "e": encoded(bytes(key.key.e)), "alg": "RS256", "use": "sig"}
+        if RSAKey.import_key(public).public_key.key_size < 2048:
+            raise ValueError("RSA key must be at least 2048 bits")
+        jwks = {"keys": [public]}
+    with operation_stage("jwks-read"):
+        previous = read_secret(secret_client, jwks_name)
+    with operation_stage("jwks-validation"):
+        if previous is not None and json.loads(previous) != jwks:
+            raise ValueError("Existing JWKS differs; rotation requires separate authorization")
+    with operation_stage("client-secret-read"):
+        secret = read_secret(secret_client, client_secret_name)
+    with operation_stage("client-secret-validation"):
+        if secret is not None and (not secret.strip() or not 32 <= len(secret) <= 512):
+            raise ValueError("Existing client secret is invalid; refusing replacement")
     if previous is None:
-        secret_client.set_secret(jwks_name, json.dumps(jwks, separators=(",", ":")))
+        with operation_stage("jwks-publication"):
+            secret_client.set_secret(jwks_name, json.dumps(jwks, separators=(",", ":")))
     if secret is None:
-        secret = secrets.token_urlsafe(32)
-        mask_secret(secret)
-        secret_client.set_secret(client_secret_name, secret)
+        with operation_stage("client-secret-publication"):
+            secret = secrets.token_urlsafe(32)
+            mask_secret(secret)
+            secret_client.set_secret(client_secret_name, secret)
     return secret
 
 
@@ -137,37 +186,54 @@ def main() -> None:
     parser.add_argument("--confirm", action="store_true", required=True)
     args = parser.parse_args()
     try:
-        if args.operation == "migrate" and not args.data_project:
-            raise ValueError("Migration project is required")
-        if args.operation != "migrate" and (not args.client_id or not args.redirect_uri):
-            raise ValueError("Explicit client ID and HTTPS redirect are required")
-        if args.operation != "migrate":
-            validate_client_metadata(args.client_id, args.redirect_uri)
-        if args.operation == "init-oauth" and (not args.key_uri or not args.key_id):
-            raise ValueError("Pinned key URI and key ID are required")
-        credential = AzureCliCredential() if args.credential == "azure-cli" else ManagedIdentityCredential()
+        with operation_stage("configuration"):
+            _run_operation(args)
+    except RemoteOperationError as error:
+        parser.exit(1, f"Remote operation rejected; {error}. "
+                    "Check authorized configuration, access and schema.\n")
+    print("Remote operation completed and verified")
+
+
+def _run_operation(args: argparse.Namespace) -> None:
+    if args.operation == "migrate" and not args.data_project:
+        raise ValueError("Migration project is required")
+    if args.operation != "migrate" and (not args.client_id or not args.redirect_uri):
+        raise ValueError("Explicit client ID and HTTPS redirect are required")
+    if args.operation != "migrate":
+        validate_client_metadata(args.client_id, args.redirect_uri)
+    if args.operation == "init-oauth" and (not args.key_uri or not args.key_id):
+        raise ValueError("Pinned key URI and key ID are required")
+    with operation_stage("azure-client-setup"):
+        credential = (AzureCliCredential() if args.credential == "azure-cli"
+                      else ManagedIdentityCredential())
         with credential, SecretClient(args.vault_url, credential, logging_enable=False) as client:
-            uri = read_secret(client, args.database_secret_name)
-            if uri is None:
-                raise ValueError("Database secret must already exist")
-            verified_database_uri(uri, args.expected_host, args.expected_database)
+            with operation_stage("database-secret-read"):
+                uri = read_secret(client, args.database_secret_name)
+                if uri is None:
+                    raise ValueError("Database secret must already exist")
+            with operation_stage("database-target-validation"):
+                verified_database_uri(uri, args.expected_host, args.expected_database)
             if args.operation == "migrate":
-                migrate_database(uri, args.data_project, args.legacy_user_status)
+                with operation_stage("database-migration"):
+                    migrate_database(uri, args.data_project, args.legacy_user_status)
             else:
                 if args.operation == "init-oauth":
-                    vault, _, _ = key_location(args.key_uri)
-                    with KeyClient(vault, credential, logging_enable=False) as keys:
-                        secret = initialize_oauth(client, keys, key_uri=args.key_uri,
-                                                  key_id=args.key_id, jwks_name=args.jwks_secret_name,
-                                                  client_secret_name=args.client_secret_name)
+                    with operation_stage("signing-key-configuration"):
+                        vault, _, _ = key_location(args.key_uri)
+                    with operation_stage("signing-key-client-setup"):
+                        with KeyClient(vault, credential, logging_enable=False) as keys:
+                            secret = initialize_oauth(
+                                client, keys, key_uri=args.key_uri, key_id=args.key_id,
+                                jwks_name=args.jwks_secret_name,
+                                client_secret_name=args.client_secret_name,
+                            )
                 else:
-                    secret = read_secret(client, args.client_secret_name)
-                    if secret is None:
-                        raise ValueError("Client secret must already exist")
-                register_client(uri, args.client_id, secret, args.redirect_uri)
-    except (AzureError, ValueError, SQLAlchemyError, subprocess.SubprocessError, OSError):
-        parser.exit(1, "Remote operation rejected; check authorized configuration, access and schema.\n")
-    print("Remote operation completed and verified")
+                    with operation_stage("client-secret-read"):
+                        secret = read_secret(client, args.client_secret_name)
+                        if secret is None:
+                            raise ValueError("Client secret must already exist")
+                with operation_stage("database-client-registration"):
+                    register_client(uri, args.client_id, secret, args.redirect_uri)
 
 
 if __name__ == "__main__":
