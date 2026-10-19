@@ -56,9 +56,12 @@ def initialize(client: Mock, keys: Mock) -> str:
                             jwks_name="oauth-jwks", client_secret_name="oauth-client-secret")
 
 
+@pytest.mark.parametrize("github_actions", ["false", "true"])
 def test_initialize_generates_once_and_verifies_identical_rerun(
     remote_clients: tuple[Mock, Mock], capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch, github_actions: str,
 ) -> None:
+    monkeypatch.setenv("GITHUB_ACTIONS", github_actions)
     client, keys = remote_clients
     secret = initialize(client, keys)
     assert len(secret) == 43
@@ -67,7 +70,13 @@ def test_initialize_generates_once_and_verifies_identical_rerun(
     assert set(jwks["keys"][0]) == {"kty", "kid", "n", "e", "alg", "use"}
     assert initialize(client, keys) == secret
     assert client.set_secret.call_count == 2
-    assert secret not in capsys.readouterr().out
+    captured = capsys.readouterr()
+    lines = captured.out.splitlines()
+    secret_masks = sum(line == f"::add-mask::{secret}" for line in lines)
+    assert secret_masks == (2 if github_actions == "true" else 0)
+    ordinary_output = "\n".join(line for line in lines if not line.startswith("::add-mask::"))
+    assert secret not in ordinary_output
+    assert secret not in captured.err
     keys.get_key.assert_called_with("oauth-signing", "synthetic-version")
 
 
