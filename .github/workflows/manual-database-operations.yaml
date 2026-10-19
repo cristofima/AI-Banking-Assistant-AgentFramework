@@ -76,9 +76,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          uv sync --directory app/business-api/identity --frozen --no-env-file
+          uv sync --directory app/business-api/identity --frozen
           if [[ "$OPERATION" == migrate ]]; then
-            uv sync --directory app/business-api/data --frozen --no-env-file
+            uv sync --directory app/business-api/data --frozen
           fi
       - uses: azure/login@v2
         with:
