@@ -4,7 +4,9 @@
 
 This is an AI-first banking customer-service prototype built for the Factored AI &
 Data Hackathon 2026, extending the public
-`Azure-Samples/agent-openai-python-banking-assistant` sample. It implements one
+`Azure-Samples/agent-openai-python-banking-assistant` sample. The event has concluded;
+ongoing development follows GitHub issue #24 and its linked acceptance work, not the
+historical judging rubric. It implements one
 coherent workflow: Account/Transaction inquiries through a conversational agent, with
 a single persisted support-case layer on top for transaction disputes.
 
@@ -81,8 +83,12 @@ remote signing through a version-pinned, non-exported RSA key in Azure Key Vault
 `services/oauth_provisioning.py` explicitly registers or verifies identical active
 clients, never at startup. `services/oauth_remote.py` owns approved migration,
 OAuth initialization and client-registration commands using Key Vault credentials
-in memory; initialization never applies migrations. OAuth issuance checks current
-customer profile/version; it does not replace banking login or authorize dispute creation.
+in memory; initialization never applies migrations. The protected manual workflow
+accepts all-or-none `client_id`, `redirect_uri` and `client_secret_name` overrides for
+additional confidential clients; blank overrides preserve the BFF defaults.
+`register-client` uses an existing secret and never creates or rotates it. OAuth issuance
+checks current customer profile/version; it does not replace banking login or authorize
+dispute creation.
 
 ### `app/agent/src/app/`
 
@@ -171,8 +177,10 @@ uses explicit service `resourceName` bindings, while standalone Identity CD uses
 its name output. Terraform also owns the native OAuth RSA key, version-pinned Identity
 signing settings and scoped operations-principal grants. The manual workflow authenticates
 through Azure OIDC; Development currently shares its CD and operations principal, so
-those grants do not establish a separate administrative identity. Key Vault access does
-not establish PostgreSQL network reachability or SQL migration privileges.
+those grants do not establish a separate administrative identity. Terraform's scoped
+grants do not describe all effective inherited Azure permissions; verify the actual
+runner principal and access before diagnosing a denial. Key Vault access does not
+establish PostgreSQL network reachability or SQL migration privileges.
 Provisioning, remote DB grants, migrations and coordinated rollout remain separate
 acceptance gates; Terraform declarations are not deployed-isolation evidence.
 
@@ -181,6 +189,20 @@ acceptance gates; Terraform declarations are not deployed-isolation evidence.
 Two independent `azd` project roots: the root manifest provisions the App Service
 stack via Terraform; `app/agent/azure.yaml` provisions the hosted Foundry agent
 separately. Commands against the agent stack need `--cwd app/agent`.
+`banking-tools` is a separate Toolbox service referencing the `account-mcp` and
+`transaction-mcp` OAuth2 project connections with explicit tool allowlists. Root
+Terraform does not create these connections or register their Identity clients.
+Toolbox deployment creates a version; explicit publication selects the default.
+Version-pinned consumers must also update their endpoint when rolling back.
+
+The hosted CD workflow deploys only `home-banking-agent`; it currently does not inject
+`TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT`. Local azd dependency metadata is not runner
+configuration. Connection/Toolbox provisioning does not implement native OAuth binding:
+`adapters/runtime_tools.py` remains fail-closed pending callback/S256/client-auth,
+actual platform call IDs and banking-user/native-caller/individual-grant proof.
+Issue #81 owns that work. The Development configuration record in `infra/README.md`
+holds verified resource versions, callbacks and remaining operations rather than
+making this code map a deployment ledger.
 
 ### `evals/`, `.github/` and `.vscode/`
 
