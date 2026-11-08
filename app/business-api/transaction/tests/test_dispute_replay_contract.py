@@ -15,7 +15,7 @@ from starlette.concurrency import run_in_threadpool
 
 from banking_transaction.models.transactions import DisputeCase, DisputeCaseEvent
 
-from banking_evals.mcp_replay import load_contracts
+from banking_evals.mcp.contracts import load_contracts
 
 ROOT = Path(__file__).resolve().parents[4]
 

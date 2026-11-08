@@ -9,7 +9,7 @@ dependencies = [
     "fastapi[all]==0.141.1",
     "uvicorn==0.54.0",
     "httpx==0.28.1",
-    "azure-identity==1.26.0",
+    "azure-identity==1.27.0",
     "agent-framework-core==1.25.0",
     "agent-framework-foundry==1.16.1",
     "agent-framework-foundry-hosting==1.0.0b261106",
@@ -17,7 +17,7 @@ dependencies = [
     "agent-framework-openai==1.18.1",
     "agent-framework-orchestrations==1.4.2",
     "mcp==2.3.0",
-    "azure-monitor-opentelemetry==1.8.11",
+    "azure-monitor-opentelemetry==1.8.12",
     "opentelemetry-semantic-conventions-ai==0.5.1",
 ]
 

@@ -84,15 +84,15 @@ azure-core-tracing-opentelemetry==1.0.0b13 ; sys_platform != 'emscripten'
     # via
     #   azure-monitor-opentelemetry
     #   microsoft-opentelemetry
-azure-identity==1.26.0 ; sys_platform != 'emscripten'
+azure-identity==1.27.0 ; sys_platform != 'emscripten'
     # via
     #   azure-ai-agentserver-core
     #   azure-ai-projects
     #   azure-monitor-opentelemetry-exporter
     #   banking-assistant-agent
-azure-monitor-opentelemetry==1.8.11 ; sys_platform != 'emscripten'
+azure-monitor-opentelemetry==1.8.12 ; sys_platform != 'emscripten'
     # via banking-assistant-agent
-azure-monitor-opentelemetry-exporter==1.0.0b58 ; sys_platform != 'emscripten'
+azure-monitor-opentelemetry-exporter==1.0.0b59 ; sys_platform != 'emscripten'
     # via
     #   azure-monitor-opentelemetry
     #   microsoft-opentelemetry

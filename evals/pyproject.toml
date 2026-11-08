@@ -3,7 +3,7 @@ name = "banking-evals"
 version = "0.1.0"
 description = "Synthetic banking evaluation contracts and offline scoring"
 requires-python = ">=3.11"
-dependencies = ["httpx==0.28.1", "pydantic>=2,<3", "mcp>=2.3,<3"]
+dependencies = ["httpx==0.28.1", "pydantic>=2,<3", "mcp>=1.24,<3"]
 
 [project.optional-dependencies]
 offline = ["pytest==9.1.1", "pytest-asyncio==1.4.0"]
