@@ -1,4 +1,4 @@
-"""Verification for short-lived internal service principals."""
+"""Verification for short-lived internal MCP principals shared by Account and Transaction."""
 
 from __future__ import annotations
 

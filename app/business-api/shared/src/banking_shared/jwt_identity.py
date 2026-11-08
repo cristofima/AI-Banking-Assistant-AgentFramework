@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from typing import Annotated
+from typing import Annotated, Any
 
 import httpx
 import jwt
@@ -27,6 +27,27 @@ def _auth_client() -> httpx.AsyncClient:
         base_url=os.environ.get("AUTH_USERS_ENDPOINT", "http://127.0.0.1:8090"),
         timeout=3.0, follow_redirects=False,
     )
+
+
+async def introspect_token(token: str, internal_secret: str) -> Any:
+    """Return the current Identity profile for a token; 401 and outages map to HTTP errors."""
+    try:
+        async with _auth_client() as client:
+            response = await client.post(
+                "/internal/introspect", json={"token": token},
+                headers={"Authorization": f"Bearer {internal_secret}"},
+            )
+    except httpx.RequestError:
+        raise _unavailable() from None
+    if response.status_code == 401:
+        raise _invalid()
+    if response.status_code != 200:
+        raise _unavailable()
+    try:
+        profile = response.json()
+    except ValueError:
+        raise _unavailable() from None
+    return profile
 
 
 async def get_jwt_customer_id(authorization: Annotated[str | None, Header()] = None) -> str:
@@ -53,22 +74,7 @@ async def get_jwt_customer_id(authorization: Annotated[str | None, Header()] = N
         or any(not isinstance(claims.get(key), str) or not claims[key].strip()
                for key in ("sub", "customer_id", "email", "locale"))):
         raise _invalid()
-    try:
-        async with _auth_client() as client:
-            response = await client.post(
-                "/internal/introspect", json={"token": token},
-                headers={"Authorization": f"Bearer {internal_secret}"},
-            )
-    except httpx.RequestError:
-        raise _unavailable() from None
-    if response.status_code == 401:
-        raise _invalid()
-    if response.status_code != 200:
-        raise _unavailable()
-    try:
-        profile = response.json()
-    except ValueError:
-        raise _unavailable() from None
+    profile = await introspect_token(token, internal_secret)
     keys = ("sub", "customer_id", "email", "locale", "role", "identity_version")
     if (not isinstance(profile, dict) or any(key not in profile for key in keys)
         or type(profile["identity_version"]) is not int

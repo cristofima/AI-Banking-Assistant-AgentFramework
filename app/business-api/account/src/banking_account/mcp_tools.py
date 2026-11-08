@@ -5,7 +5,7 @@ from fastmcp import FastMCP
 from fastmcp.server.dependencies import CurrentHeaders
 import logging
 from typing import Annotated
-from banking_account.auth.internal_identity import get_customer_id
+from banking_shared.internal_identity import get_customer_id
 from banking_account.services.products import AccountService, UserService, card_service_singleton
 
 logger = logging.getLogger(__name__)

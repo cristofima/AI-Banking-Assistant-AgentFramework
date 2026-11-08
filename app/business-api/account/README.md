@@ -27,7 +27,7 @@ The installed package is [banking_account](src/banking_account/):
 - [routers](src/banking_account/routers/) owns browser REST boundaries.
 - [services](src/banking_account/services/) owns product reads, errors and authorization.
 - [projections](src/banking_account/projections/) maps persisted/runtime values to DTOs.
-- [auth](src/banking_account/auth/) keeps browser JWT and agent bearer verification separate.
+- Browser JWT and agent bearer verification come from `banking_shared` (`jwt_identity`, `internal_identity`), shared with Transaction.
 - [observability](src/banking_account/observability/) owns logging and tracing.
 - [mcp_tools.py](src/banking_account/mcp_tools.py) delegates tools to services;
   [main.py](src/banking_account/main.py) composes the application.

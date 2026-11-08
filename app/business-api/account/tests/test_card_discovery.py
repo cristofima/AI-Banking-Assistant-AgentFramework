@@ -14,7 +14,7 @@ from fastmcp import Client
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, create_engine
 
-from banking_account.auth import internal_identity
+from banking_shared import internal_identity
 from banking_account import mcp_tools
 from banking_account.services.products import CardService
 

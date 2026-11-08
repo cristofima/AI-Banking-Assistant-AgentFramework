@@ -5,7 +5,7 @@ from fastmcp import FastMCP
 from fastmcp.server.dependencies import CurrentHeaders
 import logging
 from banking_transaction.services.disputes import support_case_service_singleton as dispute_service
-from banking_transaction.auth.internal_identity import get_customer_id
+from banking_shared.internal_identity import get_customer_id
 from banking_transaction.services.transactions import transaction_service_singleton as service
 
 logger = logging.getLogger(__name__)

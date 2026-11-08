@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 import logging
 
 from banking_account.services.errors import AccountOperationError
-from banking_account.auth.jwt_identity import get_jwt_customer_id
+from banking_shared.jwt_identity import get_jwt_customer_id
 from banking_account.models.products import AccountSummary, Card, CardSummary
 from banking_account.services.products import account_service_singleton, card_service_singleton
 

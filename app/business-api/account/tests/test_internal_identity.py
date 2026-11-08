@@ -1,28 +1,15 @@
 """Verification tests for Account internal principals."""
 
-import base64
-import hashlib
-import hmac
-import json
 import time
 
 import pytest
 
-from banking_account.auth.internal_identity import get_customer_id
+from banking_shared.internal_identity import get_customer_id
+from banking_shared.testing import INTERNAL_IDENTITY_SECRET, internal_authorization
 
 
-TEST_SECRET = "test-internal-identity-secret-32-bytes"
-
-
-def _authorization(expires_at: int) -> str:
-    payload = json.dumps(
-        {"customer_id": "local-customer", "exp": expires_at, "sub": "local-user"},
-        separators=(",", ":"),
-        sort_keys=True,
-    ).encode()
-    encoded = base64.urlsafe_b64encode(payload).rstrip(b"=").decode()
-    signature = hmac.new(TEST_SECRET.encode(), encoded.encode(), hashlib.sha256).hexdigest()
-    return f"Bearer v1.{encoded}.{signature}"
+TEST_SECRET = INTERNAL_IDENTITY_SECRET
+_authorization = internal_authorization
 
 
 def test_valid_principal_returns_customer_id(monkeypatch: pytest.MonkeyPatch) -> None:

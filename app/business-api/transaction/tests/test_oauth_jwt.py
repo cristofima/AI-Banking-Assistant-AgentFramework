@@ -13,7 +13,7 @@ from joserfc.jwk import RSAKey
 
 from banking_shared.oauth_jwt import public_jwks
 from banking_transaction import mcp_tools
-from banking_transaction.auth.internal_identity import get_customer_id
+from banking_shared.internal_identity import get_customer_id
 
 
 @pytest.fixture

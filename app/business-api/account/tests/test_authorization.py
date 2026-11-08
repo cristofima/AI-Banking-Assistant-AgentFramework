@@ -16,7 +16,7 @@ from sqlmodel import Session, create_engine
 
 from banking_account import mcp_tools
 from banking_account.routers import products as routers
-from banking_account.auth.jwt_identity import get_jwt_customer_id
+from banking_shared.jwt_identity import get_jwt_customer_id
 from banking_account.services.products import AccountService, CardService, UserService
 
 

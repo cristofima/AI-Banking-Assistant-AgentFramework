@@ -11,7 +11,7 @@ from joserfc import jwt
 from joserfc.jwk import OctKey, RSAKey
 
 from banking_shared.oauth_jwt import public_jwks
-from banking_account.auth.internal_identity import get_customer_id
+from banking_shared.internal_identity import get_customer_id
 
 
 @pytest.fixture

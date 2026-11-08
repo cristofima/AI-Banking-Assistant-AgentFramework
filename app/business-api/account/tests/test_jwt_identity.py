@@ -1,39 +1,20 @@
 """Synthetic application JWT revocation and customer-role boundary regressions."""
-from collections.abc import Callable
 from typing import Any
-
-from datetime import datetime, timedelta, timezone
 
 import httpx
 import jwt
 import pytest
 from fastapi import HTTPException
 
-from banking_account.auth import jwt_identity
+from banking_shared import jwt_identity
+from banking_shared.testing import (  # noqa: F401
+    JWT_SECRET as SECRET,
+    customer_claims as claims,
+    jwt_environment,
+    mock_introspection as transport,
+)
 
 pytestmark = pytest.mark.asyncio
-
-SECRET = "synthetic-signing-secret-at-least-32-bytes"
-
-
-def claims() -> dict[str, Any]:
-    return {"sub": "user-1", "customer_id": "customer-1", "email": "demo@example.com",
-            "locale": "es", "role": "customer", "identity_version": 1,
-            "iss": "home-banking-api", "aud": "home-banking-web",
-            "exp": datetime.now(timezone.utc) + timedelta(minutes=5)}
-
-
-@pytest.fixture(autouse=True)
-def environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("JWT_SECRET_KEY", SECRET)
-    monkeypatch.setenv("AUTH_INTERNAL_SECRET", "synthetic-internal-secret")
-    monkeypatch.setenv("JWT_ISSUER", "home-banking-api")
-    monkeypatch.setenv("JWT_AUDIENCE", "home-banking-web")
-
-
-def transport(monkeypatch: pytest.MonkeyPatch, handler: Callable[[httpx.Request], httpx.Response]) -> None:
-    monkeypatch.setattr(jwt_identity, "_auth_client", lambda: httpx.AsyncClient(
-        base_url="http://auth", timeout=3, transport=httpx.MockTransport(handler)))
 
 
 async def invoke(payload: dict[str, Any], secret: str = SECRET) -> str:
