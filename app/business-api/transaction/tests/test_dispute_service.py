@@ -21,7 +21,7 @@ from sqlmodel import Session, create_engine, select
 from banking_transaction.routers import disputes as dispute_routers
 from banking_transaction.services.disputes import CardOnlyDisputeError, SupportCaseService
 from banking_transaction.models.transactions import DisputeCase
-from banking_transaction.auth.jwt_identity import get_jwt_customer_id
+from banking_shared.jwt_identity import get_jwt_customer_id
 from banking_transaction.auth.operator_identity import OperatorPrincipal
 from banking_transaction.models.conversation import CaseConversation, ConversationMessage
 from banking_transaction.models.conversation_record import CaseConversationSnapshot

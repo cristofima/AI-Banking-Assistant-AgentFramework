@@ -8,7 +8,7 @@ from banking_transaction.services.disputes import (
     CardOnlyDisputeError,
     support_case_service_singleton as service,
 )
-from banking_transaction.auth.jwt_identity import get_jwt_customer_id
+from banking_shared.jwt_identity import get_jwt_customer_id
 from banking_transaction.consent.preview import DisputePreviewError
 from banking_transaction.models.conversation import CaseConversation
 from banking_transaction.models.transactions import (

@@ -24,7 +24,7 @@ from sqlalchemy.schema import CreateSchema, DropSchema
 from sqlmodel import Session, create_engine, select
 
 from banking_transaction import mcp_tools
-from banking_transaction.auth.jwt_identity import get_jwt_customer_id
+from banking_shared.jwt_identity import get_jwt_customer_id
 from banking_transaction.consent.preview import read_preview
 from banking_transaction.models.conversation import ConversationMessage
 from banking_transaction.routers import disputes as routes

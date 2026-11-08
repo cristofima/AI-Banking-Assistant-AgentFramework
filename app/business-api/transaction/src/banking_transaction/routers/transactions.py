@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 import logging
 from typing import Annotated, Optional
 
-from banking_transaction.auth.jwt_identity import get_jwt_customer_id
+from banking_shared.jwt_identity import get_jwt_customer_id
 from banking_transaction.models.transactions import Transaction, TransactionPage
 from banking_transaction.services.transactions import transaction_service_singleton as service
 

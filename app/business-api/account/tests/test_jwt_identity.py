@@ -9,7 +9,7 @@ import jwt
 import pytest
 from fastapi import HTTPException
 
-from banking_account.auth import jwt_identity
+from banking_shared import jwt_identity
 
 pytestmark = pytest.mark.asyncio
 

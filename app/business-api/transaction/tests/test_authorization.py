@@ -12,7 +12,7 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, create_engine
 
 from banking_transaction.routers import transactions as routers
-from banking_transaction.auth.jwt_identity import get_jwt_customer_id
+from banking_shared.jwt_identity import get_jwt_customer_id
 from banking_transaction.services.transactions import TransactionService
 
 

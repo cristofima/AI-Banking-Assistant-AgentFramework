@@ -108,8 +108,8 @@ have separate contracts.
 
 ### `app/business-api/account/src/banking_account/` and `app/business-api/transaction/src/banking_transaction/`
 
-Both expose `mcp_tools.py` (agent-only tools via `auth/internal_identity.py`'s
-explicit OAuth/HMAC mode), `routers/` (browser REST via `auth/jwt_identity.py`),
+Both expose `mcp_tools.py` (agent-only tools via `banking_shared/internal_identity.py`'s
+explicit OAuth/HMAC mode), `routers/` (browser REST via `banking_shared/jwt_identity.py`),
 `services/` (business logic and resource ownership), `projections/` (read DTO
 assembly), and `models/` (Pydantic DTOs, not canonical tables).
 Transaction's `services/disputes.py`, `consent/preview.py` and `routers/disputes.py`
