@@ -103,9 +103,9 @@ and its [configuration guide](../../../.github/workflows/README.md#manual-databa
 instead of restoring a local database remotely:
 
 1. Apply the separately authorized Terraform configuration and operations-principal grants.
-   Development provisioning completed on 2026-10-18 using the existing GitHub CD OIDC
-   principal for operations as well. GitHub environment variables still require separate
-   configuration; successful provisioning does not verify runner connectivity or SQL grants.
+   The existing GitHub CD OIDC principal can also serve as the operations principal.
+   GitHub environment variables require separate configuration; successful provisioning
+   does not verify runner connectivity or SQL grants.
 2. Review migration lineage, backup/restore readiness and the selected branch checkout; dispatch
    `migrate` with `migrate:Development`. The CLI resolves the latest single checkout head
    automatically, without a target-revision input. Manual dispatch permits any branch
@@ -136,17 +136,15 @@ before requesting any new secret-scoped grant. Use actual connection callbacks, 
 This is administrative provisioning, not a public dynamic client-registration endpoint,
 and does not establish native Toolbox binding or hosted OAuth acceptance.
 
-The authorized Development configuration on 2026-10-19 created `account-mcp` and
-`transaction-mcp` OAuth2 connections with independent existing secrets, and obtained
-their actual platform callbacks. The native clients are `foundry-account-mcp`
+The `account-mcp` and `transaction-mcp` OAuth2 connections use independent existing
+secrets and their actual platform callbacks. The native clients are `foundry-account-mcp`
 with secret name `oauth-client-foundry-account-mcp`, and `foundry-transaction-mcp` with
-`oauth-client-foundry-transaction-mcp`. The owner subsequently confirmed successful
-protected `register-client` runs for both clients after merging the workflow; these
-runs were not independently inspected. Do not repeat registration or rotate credentials
-implicitly. Each client uses its exact callback from the
-[infrastructure configuration record](../../../infra/README.md#native-oauth-compatibility-gate).
+`oauth-client-foundry-transaction-mcp`. Registration runs through the protected
+`register-client` workflow; do not repeat it or rotate credentials implicitly. Each
+client uses its exact callback from the
+[infrastructure configuration](../../../infra/README.md#native-oauth-compatibility-gate).
 No new signing key or `init-oauth` run is needed for these existing credentials.
-Connection creation and Toolbox publication alone did not register either client.
+Connection creation and Toolbox publication alone do not register either client.
 The hosted CD endpoint setting is dependency metadata, not an Identity registration
 or OAuth compatibility check. Callback availability is verified; functional
 callback/S256/client-auth compatibility, per-user grant binding and two-user hosted

@@ -321,12 +321,10 @@ does not remove arbitrary sensitive content; local agent message capture is enab
 
 ## Local inquiry verification
 
-On 2026-09-30, user-supplied local browser evidence through the BFF confirmed an
-owned-account answer and a foreign-account denial against the persisted-data path.
-The foreign request called `getAccountDetails` with `product_number`; its tool
-result was `ACCESS_DENIED`, followed by a visible assistant denial and a completed
-Responses stream without foreign financial data. This is a tool-level denial,
-not an HTTP 403 for the successful SSE transport.
+Through the BFF, a foreign-account request calls `getAccountDetails` with
+`product_number`; the tool result is `ACCESS_DENIED`, followed by a visible assistant
+denial and a completed Responses stream without foreign financial data. This is a
+tool-level denial, not an HTTP 403 for the successful SSE transport.
 
 Public lookup parameters use product numbers rather than internal product keys.
 Bank numbers are displayed in full; card numbers are masked. Full Transaction chat,

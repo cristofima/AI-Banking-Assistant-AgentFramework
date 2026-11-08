@@ -13,11 +13,9 @@ without bank accounts returns an empty list. Missing or invalid authentication f
 before the service read. This applies to supported HMAC and direct OAuth verification;
 it does not prove native Foundry caller/grant binding. REST authentication is unchanged.
 
-The authorized Development Account deployment completed on 2026-10-20 UTC.
-The remote OpenAPI endpoint returned HTTP 200, and MCP `tools/list` independently
-confirmed that `userName` is optional and nullable. No customer tool call was made:
-this proves deployment and the public schema, not native consent, ownership or binding.
-Use a fresh diagnostic conversation to avoid a previously cached tool schema.
+The public MCP `tools/list` schema declares `userName` optional and nullable. A schema
+listing does not prove native consent, ownership or binding. Use a fresh diagnostic
+conversation to avoid a cached tool schema.
 
 ## Package layout and local startup
 
