@@ -219,6 +219,27 @@ describe("Responses provider visible output", () => {
     expect(ended).toHaveBeenCalledOnce();
   });
 
+  it("shows the consent link without a failure when the turn ends incomplete for consent", () => {
+    start();
+    const link = "https://consent.example.test/authorize?token=abc";
+    event({ type: "response.output_item.added", item: { type: "oauth_consent_request", id: "consent-1", consent_link: link, server_label: "account" } });
+    event({ type: "response.incomplete" });
+    event({ type: "error", code: "CONTINUATION_UNAVAILABLE", allow_retry: false });
+    finish();
+    expect(errorItems()).toEqual([]);
+    expect(errors).not.toHaveBeenCalled();
+    const text = JSON.stringify(messages());
+    expect(text).toContain(link);
+  });
+
+  it("ignores consent links that are not HTTPS", () => {
+    start();
+    event({ type: "response.output_item.added", item: { type: "oauth_consent_request", id: "consent-1", consent_link: "javascript:alert(1)" } });
+    event({ type: "response.incomplete" }); finish();
+    expect(JSON.stringify(messages())).not.toContain("javascript:");
+    expect(errorItems()).toHaveLength(1);
+  });
+
   it("does not request persisted consent for an accepted IN_REVIEW case", () => {
     start();
     event({ type: "response.output_item.done", item: { type: "mcp_call", name: "reportTransactionDispute", output: {

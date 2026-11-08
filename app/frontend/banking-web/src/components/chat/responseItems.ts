@@ -7,6 +7,7 @@ export interface ToolOutputItem {
   call_id?: string;
   name?: string;
   output?: unknown;
+  consent_link?: string;
   error?: unknown;
 }
 

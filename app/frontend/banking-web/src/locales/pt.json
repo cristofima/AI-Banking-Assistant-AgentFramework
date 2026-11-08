@@ -59,6 +59,8 @@
   "Approval response not completed. Please retry.": "A resposta de aprovação não foi concluída. Tente novamente.",
   "Tool permission is separate from dispute consent.": "A permissão para usar a ferramenta é independente do consentimento para a contestação.",
   "The response could not be completed.": "Não foi possível concluir a resposta.",
+  "Authorization is required to access your banking data. Open the link, approve access, then send your request again.": "É necessária autorização para acessar seus dados bancários. Abra o link, aprove o acesso e envie sua solicitação novamente.",
+  "Authorize access": "Autorizar acesso",
   "Dispute consent": "Consentimento para a contestação",
   "Approve to continue reviewing this dispute, or decline to withdraw it.": "Aprove para continuar a análise desta contestação ou recuse para retirá-la.",
   "This records your case decision, not tool permission, a refund, or card protection.": "Isso registra sua decisão sobre o caso, não uma permissão para ferramentas, um reembolso ou uma proteção de cartão.",

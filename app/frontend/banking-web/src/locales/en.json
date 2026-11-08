@@ -59,6 +59,8 @@
   "Approval response not completed. Please retry.": "Approval response not completed. Please retry.",
   "Tool permission is separate from dispute consent.": "Tool permission is separate from dispute consent.",
   "The response could not be completed.": "The response could not be completed.",
+  "Authorization is required to access your banking data. Open the link, approve access, then send your request again.": "Authorization is required to access your banking data. Open the link, approve access, then send your request again.",
+  "Authorize access": "Authorize access",
   "Dispute consent": "Dispute consent",
   "Approve to continue reviewing this dispute, or decline to withdraw it.": "Approve to continue reviewing this dispute, or decline to withdraw it.",
   "This records your case decision, not tool permission, a refund, or card protection.": "This records your case decision, not tool permission, a refund, or card protection.",
