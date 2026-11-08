@@ -45,9 +45,14 @@ Default `MCP_IDENTITY_MODE=hmac` preserves existing behavior.
 The hosted manifest fixes `AGENT_RUNTIME=foundry` and `MCP_IDENTITY_MODE=oauth`
 for the approved remote Toolbox target; neither requires an azd environment variable.
 Local execution remains `local`/`oauth`, connecting directly to the two MCP services.
-The current adapter still rejects OAuth Toolbox consumption until supported per-user
-caller/grant binding is implemented and verified. The hosted target is not runtime
-readiness. Keep the BFF and both MCP services in the same identity mode.
+The adapter now supports native OAuth Toolbox consumption offline: it sends no banking
+grant or HMAC, requires the platform request call ID and never fabricates one. A
+consent challenge raised while connecting the Toolbox is deferred by
+`ToolboxConsentMiddleware` and surfaced at run time as an `oauth_consent_request`
+item, so the host ends the turn as `incomplete` with the link. In this mode the BFF
+sends no local grant and `/oauth/status` reports `required: false`. Native
+banking-user/caller/grant binding and two-user isolation remain unproven in hosted
+runs, so the hosted target is not runtime readiness. Keep the BFF and both MCP services in the same identity mode.
 No OAuth client secret, signing private key or JWKS is passed to the agent; those
 belong to Identity, confidential clients or MCP validators.
 
@@ -140,6 +145,125 @@ with a static connection token, expose the signer, or weaken MCP authorization.
 A diagnostic resource or an alternative authentication/transport strategy requires
 explicit authorization before further deployment.
 
+### Isolated OAuth binding probe (offline preparation)
+
+[OAuthBindingProbe](src/app/adapters/oauth_binding_probe.py) is an isolated Toolbox
+client, not a production adapter. The separate temporary diagnostic host is
+described below. It is deliberately
+not imported by the banking workflow. It requires an existing platform call ID,
+uses the SDK's platform-managed authentication without banking HMAC headers or BFF
+grants, and permits only `account___getAccountsByUserName` and
+`transaction___getLastTransactions`. Direct calls outside this fixed allowlist fail
+before dispatch. Use `close()` to release the owned client without connecting during
+offline checks.
+
+```powershell
+rtk proxy uv run --directory app\agent --frozen --no-sync python -m pytest tests\test_oauth_binding_probe_host.py tests\test_oauth_binding_probe.py tests\test_toolbox_caller_context.py tests\test_runtime_tools.py -q
+```
+
+Offline tests verify these safeguards with synthetic contexts and stubbed dispatch;
+they do not prove native OAuth issuance, consent, MCP delivery or banking ownership.
+A separately authorized hosted experiment still needs a diagnostic host, native
+client/callback and S256 compatibility checks, and two independently consented test
+users. Compare each caller's owned reads and foreign-resource denials against approved
+evidence; do not expose raw tokens, grants or customer data in logs. A successful
+call alone is not binding proof. The temporary [diagnostic host](src/app/adapters/oauth_binding_probe_host.py)
+provides a separate request-scoped Responses factory with explicit project/model
+configuration. It does not load banking settings, inject BFF identity/grants, or
+modify the production entrypoint. Importing it does not start a server or connect.
+The temporary `oauth-binding-diagnostic` service in [azure.yaml](azure.yaml) uses
+[oauth_probe_main.py](oauth_probe_main.py), with instrumentation and sensitive
+capture disabled. It shares the existing project and Toolbox dependency metadata,
+but receives no banking signer or BFF grants. It is not wired into VS Code tasks
+or CI/CD workflows. Deploy only this service explicitly; do not use an all-service
+deployment merely to update the diagnostic.
+
+The host can eventually be launched through the installed module
+`app.adapters.oauth_binding_probe_host` with `--project-endpoint` and
+`--model-deployment`, but do not start it or invoke models without separate execution
+authorization. Local calls without a platform call ID fail closed. Its prompt asks
+for a data-free final summary; this is not a transport redaction boundary: raw tool
+output may still appear in Responses events or platform traces. Use only approved
+synthetic test identities/data, disable sensitive telemetry in the authorized
+experiment, and keep captured evidence private. No real-customer run is authorized
+by this preparation. Remove the temporary host/probe after the experiment or retain
+them only as explicitly owned diagnostics, never as a second banking specialist.
+On 2026-10-19, an explicitly authorized local deployment activated
+`home-banking-agent` version 32 and `oauth-binding-diagnostic` version 1 in the
+existing development project. Separate version GETs confirmed both were `active`.
+The focused offline suite passed 20 tests before deployment. No model invocation,
+native consent, two-user binding or backend ownership check was run; activation
+alone proves none of those. The production OAuth gate remains unchanged.
+
+### Native OAuth diagnostic findings
+
+Owner-supplied Playground screenshots and a log analysis shared on 2026-10-20 UTC
+provide limited runtime evidence for `oauth-binding-diagnostic` version 1:
+
+- Native consent was requested for Account and Transaction. Transaction requested
+  consent again; the supplied analysis does not establish why or show an executed
+  `getLastTransactions` call.
+- At 01:08:16 UTC, `getAccountsByUserName` returned an ownership denial. At
+  01:08:28 UTC, a subsequent Account call succeeded; a separate owner-supplied
+  trace screenshot shows an account tool-result payload. The initial arguments
+  and caller/grant/customer correlation remain unverified here.
+- The host deliberately omitted that payload from its final answer. This is prompt
+  behavior, not a read failure or a guarantee that telemetry redacts tool results.
+- HTTP 200 Responses requests and the presence of user/call IDs do not establish
+  successful tools, correct identity binding or isolation. The shared log analysis
+  is attributed evidence, not an independently repeated log inspection.
+
+Before enabling the main banking agent through BFF, verify:
+
+1. Application JWT validation and current-Identity checks, signed BFF-to-agent
+   banking context, actual native caller and individual OAuth grant all correspond
+   to the intended banking customer. Playground consent does not establish this
+   mapping for the BFF's authenticated Azure caller.
+2. Both Account and Transaction support two independently consented users, owned
+   reads, controlled foreign-resource denials and concurrent-session isolation.
+   Tool arguments, including user names, must never select authentication authority.
+3. Native consent requests reach the browser safely through BFF, remain bound to
+   the correct session/customer, and handle Allow/Deny, expiry, logout and recovery
+   without shared grants, token exposure or automatic replay of uncertain turns.
+4. Authorized telemetry inspection discovers the diagnostic's actual Application
+   Insights/workspace linkage and correlates request/dependency operations with
+   Identity and Account/Transaction evidence. Start with 2026-10-20 01:04–01:10 UTC
+   and broaden only if ingestion or clock evidence requires it. Instrumentation
+   switches may limit availability; absent traces do not prove absent execution.
+   Do not publish consent URLs, tokens, customer identifiers or financial payloads.
+5. Only after binding proof, review the production adapter, BFF/native-consent
+   transport and deployment metadata changes, preserve fail-closed behavior, and
+   run focused regressions plus separately authorized end-to-end checks. Changing
+   the BFF endpoint alone does not integrate native OAuth.
+
+The production gate remains intact. These observations do not close issue #81;
+new invocations, telemetry configuration changes and deployments require separate
+execution authorization. No credentials or private log links belong in this guide.
+
+### Offline caller-context diagnostic
+
+Run the installed-SDK header diagnostic and the native OAuth gate regression without
+Azure credentials, MCP connections or model calls:
+
+```powershell
+rtk proxy uv run --directory app\agent --frozen --no-sync python -m pytest tests\test_toolbox_caller_context.py tests\test_runtime_tools.py -q
+```
+
+The diagnostic exercises the real `FoundryToolbox` operation-boundary header hook
+with synthetic request contexts. It checks consecutive and concurrent callers,
+missing call IDs, context restoration and exclusion of platform user/session IDs
+from outbound headers. A missing call ID is not replaced with a banking subject or
+session ID. The gate regression verifies that native OAuth is rejected before
+constructing tools or resolving banking grants.
+
+These checks establish only installed-SDK header composition, not HTTP delivery,
+MCP session reuse, native consent or downstream grant binding. Foundry owns the
+OAuth credentials selected by each `project_connection_id`; the BFF's existing grant
+is not evidence of a native grant. Keep the native OAuth gate until actual callback,
+S256/client authentication, Consumer/tenant compatibility and two-user binding are
+proven. See [Toolbox authentication](https://learn.microsoft.com/azure/foundry/agents/how-to/tools/tool-authentication)
+and [MCP OAuth](https://learn.microsoft.com/azure/foundry/agents/how-to/mcp-authentication).
+
 Run the following from the repository root only after authorizing cloud operations.
 Use the existing agent azd environment, with `FOUNDRY_PROJECT_ENDPOINT`,
 `AZURE_SUBSCRIPTION_ID`, `ACCOUNT_MCP_URL` and `TRANSACTION_MCP_URL` already configured.
@@ -181,6 +305,69 @@ route; version 27 predates the routing change. The alternative
 [toolbox.yaml](toolbox.yaml) requires named `account-mcp` and `transaction-mcp`
 project connections created with `--auth-type none`; use either that imperative
 path or the declarative service, not both for the same Toolbox.
+
+### No-email discovery (version 3 deployed)
+
+The updated diagnostic instructions omit `userName` for account discovery. Account
+resolves the owner from its verified MCP token; a message-supplied identity cannot
+replace that owner. Recent transactions use a full authorized account number, never
+an internal product ID. Multiple accounts require an explicit selection; Account
+consent does not establish Transaction consent. Denied or incomplete reads are not
+replayed automatically, and the final answer still omits private tool results.
+
+The authorized Development rollout on 2026-10-20 UTC deployed Account and created
+diagnostic version `3`; an independent status check confirmed `active`, the diagnostic
+entrypoint and a nonempty telemetry connection, with sensitive capture disabled.
+Account returned HTTP 200 for OpenAPI, and direct MCP `tools/list` confirmed the optional,
+nullable `userName` schema. Packaging staging directories were removed. No model or
+customer tool invocation was made; Toolbox schema refresh and no-email discovery still
+need a fresh human-consented conversation. No principal-agent/BFF switch, new client
+registration or production-gate removal was performed. First prove one-user Account
+and Transaction reads, then independently consented two-user isolation, concurrency,
+denial, expiry/logout and safe recovery without replay.
+
+### Diagnostic correlation (introduced in version 2)
+
+The isolated probe now emits explicit `oauth_probe.read` spans through a dedicated
+Azure Monitor exporter when `APPLICATIONINSIGHTS_CONNECTION_STRING` is configured.
+The diagnostic manifest enables the OpenTelemetry SDK for these manual spans only;
+SDK/model auto-instrumentation and message-content capture remain disabled. No
+telemetry connection means no exported probe spans.
+
+The explicitly authorized Development deployment created diagnostic version `2`.
+`azd ai agent show` confirmed `active`, a Responses endpoint and a nonempty telemetry
+connection, with auto-instrumentation and sensitive capture still disabled. The
+existing Application Insights connection was supplied in deployment-process memory,
+not persisted into azd configuration; future deployments must supply it again.
+Activation and configuration do not prove span delivery or a successful tool read.
+No model invocation was run during deployment verification; a human-consented
+one-user Account/Transaction test is the next runtime check.
+
+Attributes include an allowlisted tool name, caller-presence flags and keyed
+references for platform call, user and session IDs. References are comparable only
+within the same worker lifetime; `worker_ref` identifies that scope. They cannot be
+joined to raw platform IDs or MCP grant IDs. Arguments, results, exception text,
+banking identities and credentials are not attached. `transport_outcome=returned`
+means only that the SDK returned: it includes tool-level denials and is not ownership
+or binding success. `interrupted` includes exceptions and cancellation; nothing is
+retried by this instrumentation. Platform logs remain outside this exporter policy.
+
+Only `oauth-binding-diagnostic` was redeployed for this diagnostic change. Do
+not deploy the principal agent, change the BFF endpoint or remove the native OAuth
+gate based on these offline checks. The probe still lacks signed BFF context and
+cannot observe which banking customer the native OAuth token authorizes. Therefore
+these spans narrow caller/session reuse questions but do not prove the complete
+caller → individual grant → banking-user relationship.
+
+Before a BFF integration experiment, agree on an isolated transport and consent
+path that preserves JWT/current-Identity checks and session-bound grant custody.
+Do not reuse Playground grants. Capture two independently consented users, owned
+and foreign read outcomes, concurrent requests and same-session consent reuse.
+Then check expiry/logout and uncertain-turn recovery without replay. Correlating
+native token authority requires separately approved sanitized Identity/MCP evidence;
+deploying this probe alone cannot explain missing downstream grant traces. Keep #81
+open until that evidence exists. No cloud deployment, model invocation or database
+operation is implied by this preparation.
 
 ## Grounding and confidentiality
 
@@ -364,8 +551,8 @@ Configure the Foundry project endpoint and the name of a model deployment in tha
 FOUNDRY_PROJECT_ENDPOINT=https://your-resource.services.ai.azure.com/api/projects/your-project
 AZURE_AI_PROJECT_ID=/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.CognitiveServices/accounts/<account-name>/projects/<project-name>
 MODEL_DEPLOYMENT_NAME=gpt-5.4
-ACCOUNT_MCP_URL=http://localhost:8070/mcp
-TRANSACTION_MCP_URL=http://localhost:8071/mcp
+ACCOUNT_MCP_URL=http://localhost:8070/mcp/
+TRANSACTION_MCP_URL=http://localhost:8071/mcp/
 INTERNAL_IDENTITY_SECRET=<shared-secret-at-least-32-characters>
 ```
 
@@ -550,14 +737,16 @@ cancellation and temporary versus saved case-history limits. This follows the
 [Microsoft multi-turn guidance](https://learn.microsoft.com/azure/foundry/how-to/develop/framework-hosted-agents#multi-turn-conversations);
 offline checkpoint tests do not establish live hosted acceptance.
 
-[The entrypoint](main.py) passes a zero-argument factory to the native
-`ResponsesHostServer`. It builds a fresh workflow for each request while reusing
-clients by deployment. The runtime restores the matching checkpoint before
-new input; requests never share mutable graphs or executors.
-[Native-host tests](tests/test_hosted_workflow.py) execute factory-produced workflows
-under interleaved success, error and cancellation paths. The pinned hosting beta
-still deprecates `WorkflowAgent` hosting; its supported fresh-factory path preserves
-our checkpoint/context semantics without migrating to a different workflow API.
+[The entrypoint](main.py) passes a request-aware factory and
+[a turn parser](src/app/adapters/responses_turn.py) to the native
+`ResponsesHostServer(workflow=..., parse_response=...)`. The factory builds a fresh
+workflow and fresh chat clients and Toolbox tools for every request, because the
+hosting resolver rejects any resource shared across requests; clients are deduplicated
+by deployment only inside one request. The runtime owns checkpoints and restores the
+matching one before new input. The parser forwards approval and function-output
+items as workflow replies and any other input as new messages.
+[Native-route tests](tests/test_native_responses_host.py) and
+[concurrency tests](tests/test_hosted_workflow.py) drive the real `/responses` route.
 
 The entrypoint explicitly retains a 100-item transport history limit because
 Responses 2.3.0 otherwise defaults to unlimited history. Workflow continuation uses
@@ -580,9 +769,19 @@ allowing a specialist's stale final answer to terminate a follow-up without an
 answer. The adapter preserves normal completion, function approvals and
 `request_info` continuations. It uses a narrow protected builder hook; revalidate
 it when upgrading the SDK and remove it when upstream fixes fresh-turn broadcast.
-[Actual-host regression tests](tests/test_responses_handoff_checkpoints.py) cover
-both conversation-ID and previous-response-ID restoration, repeated turns,
-cross-specialist routing, exactly-once input delivery and separate response chains.
+[Actual-host regression tests](tests/test_native_responses_host.py) cover
+previous-response-ID restoration, repeated turns, cross-specialist routing,
+exactly-once input delivery and separate response chains; the stock SDK
+`HandoffBuilder` is pinned there as a strict expected failure, so the test tells us
+when the adapter can be removed. A
+[consent boundary test](tests/test_native_consent_boundary.py) records that the stock
+SDK turns a connect-time MCP consent error from a nested agent into a generic failed
+response (no `oauth_consent_request` item, no link). The
+[Toolbox consent middleware](src/app/adapters/toolbox_consent_middleware.py) defers
+that error at connect, including the bare `MCPError` (-32006) that carries both
+Account and Transaction sources, and re-raises it inside the run as native consent
+output; a tool shared by two specialists reaches both. Binding and two-user isolation
+remain unproven hosted, so OAuth Toolbox acceptance stays gated.
 These deterministic tests do not establish hosted or real-model acceptance.
 
 The default checkpoint provider uses `FoundryStateStore`. Outside Foundry hosting,

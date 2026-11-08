@@ -134,7 +134,7 @@ Key Vault read access. Check the runner's actual principal and inherited permiss
 before requesting any new secret-scoped grant. Use actual connection callbacks, never placeholders. See the
 [workflow input and permission contract](../../../.github/workflows/README.md#manual-database-and-oauth-operations).
 This is administrative provisioning, not a public dynamic client-registration endpoint,
-and does not remove the Toolbox fail-closed gate.
+and does not establish native Toolbox binding or hosted OAuth acceptance.
 
 The authorized Development configuration on 2026-10-19 created `account-mcp` and
 `transaction-mcp` OAuth2 connections with independent existing secrets, and obtained

@@ -210,11 +210,10 @@ agent, and no agent configuration is managed here. Keep public JWKS synchronized
 with signing-key changes; versionless references do not prove immediate runtime
 refresh or rotation readiness.
 
-The hosted/native Toolbox OAuth path remains intentionally fail-closed until
+The hosted/native Toolbox OAuth path has offline consent transport, but
 banking-user/native-caller/grant binding, callback/S256 compatibility and two-user
-isolation are proven. These deployment declarations do not enable that path or
-establish hosted readiness; do not bypass the gate or route it through a shared
-grant. Development azd configuration and root provisioning completed on 2026-10-18;
+isolation remain unproven. These deployment declarations do not establish hosted
+readiness; do not route the path through a shared grant or an HMAC fallback. Development azd configuration and root provisioning completed on 2026-10-18;
 its final preview reported no changes. The operations identity currently reuses the
 existing GitHub CD principal, including scoped OAuth-secret write access. GitHub
 variables, code rollout and runtime verification remain separate gates. The owner

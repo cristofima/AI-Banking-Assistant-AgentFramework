@@ -26,8 +26,8 @@ Hosted CD exports a nonblank `TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT` from the Devel
 GitHub Environment without format or availability checks. The consumer endpoint
 follows the published default; a version-specific endpoint pins experiments. CD
 neither publishes the Toolbox nor registers clients. The manifest's `foundry/oauth`
-runtime remains fail-closed pending native identity/grant binding proof; packaging
-and metadata do not establish hosted OAuth support. See the
+runtime has offline native consent transport, but native identity/grant binding is
+unproven; packaging and metadata do not establish hosted OAuth support. See the
 [deployment gate](deployment-guide.md#hosted-oauth-prerequisites-and-deployment-gate).
 
 ## MCP API deployment

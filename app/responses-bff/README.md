@@ -79,7 +79,7 @@ Foundry's Authorization header remains reserved for Azure credentials. The hoste
 agent verifies the signed envelope in a separate request context, without replacing
 Foundry's platform user or call IDs. See the [custom-header contract](https://learn.microsoft.com/azure/foundry/agents/concepts/hosted-agent-contract#forward-custom-request-headers-to-your-container).
 This transport repair does not establish native Toolbox customer/grant binding;
-the hosted OAuth adapter remains fail-closed pending that proof. Direct local
+hosted OAuth acceptance remains gated on that proof (consent transport is implemented offline). Direct local
 Agent-to-MCP calls use standard OAuth Authorization, with no custom HMAC identity header.
 Missing/expired grants fail closed; OAuth never falls back to HMAC. RS256 MCP
 validation has a bounded revocation delay up to 3600 seconds (one hour).

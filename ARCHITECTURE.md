@@ -92,7 +92,7 @@ dispute creation.
 
 ### `app/agent/src/app/`
 
-Root `app/agent/main.py` serves native `ResponsesHostServer(create_agent)` locally
+Root `app/agent/main.py` serves native `ResponsesHostServer(workflow=...)` locally
 and hosted, with a per-request workflow factory and a 100-item history boundary.
 `agents/azure_chat/hosted_workflow.py` builds the single `HandoffBuilder` workflow;
 `account_agent.py` and `transaction_agent.py` own specialist definitions. The host
@@ -201,9 +201,12 @@ exports that nonblank dependency endpoint to the runner's agent azd environment
 without enforcing its URL format. The consumer endpoint follows the published
 default; a version-specific endpoint pins tests. CD does not deploy or publish the Toolbox. Local azd metadata is not
 runner configuration, and the code mapping is not evidence of a successful CD run.
-Connection/Toolbox provisioning does not implement native OAuth binding:
-`adapters/runtime_tools.py` remains fail-closed pending callback/S256/client-auth,
-actual platform call IDs and banking-user/native-caller/individual-grant proof.
+Connection/Toolbox provisioning does not implement native OAuth binding.
+`adapters/runtime_tools.py` builds native Toolbox tools and
+`adapters/toolbox_consent_middleware.py` surfaces connect-time consent challenges as
+native `oauth_consent_request` output, covered offline only. Callback/S256/client-auth
+compatibility, actual platform call IDs and banking-user/native-caller/individual-grant
+binding remain unproven hosted; there is no HMAC or shared-grant fallback.
 Issue #81 owns that work. The Development configuration record in `infra/README.md`
 holds verified resource versions, callbacks and remaining operations rather than
 making this code map a deployment ledger.
