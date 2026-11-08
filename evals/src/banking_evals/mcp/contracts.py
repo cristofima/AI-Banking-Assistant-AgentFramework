@@ -3,16 +3,12 @@
 from __future__ import annotations
 
 import ast
-from contextlib import asynccontextmanager
-from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 import json
 from pathlib import Path
 from typing import Any
 
-from mcp import ClientSession, types
-from mcp.server import Server
-from mcp.shared.memory import create_connected_server_and_client_session
+from mcp import types
 
 
 from banking_evals.resources import repository_root

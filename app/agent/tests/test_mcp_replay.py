@@ -23,15 +23,15 @@ async def test_replay_discovers_contracts_and_executes_without_http() -> None:
         tools = await session.list_tools()
         contract = next(item for item in tools.tools if item.name == "getAccountDetails")
         assert contract.description == "Get account details and available payment methods"
-        assert contract.inputSchema["required"] == ["product_number"]
-        assert "headers" not in contract.inputSchema["properties"]
+        assert contract.input_schema["required"] == ["product_number"]
+        assert "headers" not in contract.input_schema["properties"]
         async with MCPStreamableHTTPTool(
-            name="Account MCP server client", url="in-memory://account", session=session,
+            name="Account MCP server client", url=None, mcp_client=session,
             load_prompts=False,
         ) as client:
             assert any(item.name == "getAccountDetails" for item in client.functions)
             result = await session.call_tool("getAccountDetails", {"product_number": "SYNTHETIC-001"})
-            assert not result.isError
+            assert not result.is_error
             assert json.loads(result.content[0].text)["balance"] == 12
     replay.assert_complete()
 
@@ -43,10 +43,10 @@ async def test_replay_propagates_errors_and_rejects_unexpected_calls() -> None:
     )])
     async with replay.connect() as session:
         denied = await session.call_tool("getAccountDetails", {"product_number": "FOREIGN"})
-        assert denied.isError
+        assert denied.is_error
         replay.assert_complete()
         unexpected = await session.call_tool("getAccountsByUserName", {"userName": "other"})
-        assert unexpected.isError
+        assert unexpected.is_error
     with pytest.raises(AssertionError, match="Unexpected replay call"):
         replay.assert_complete()
 
@@ -69,19 +69,19 @@ async def test_workflow_passes_injected_sessions_to_all_mcp_clients() -> None:
         with patch("app.agents.azure_chat.account_agent.MCPStreamableHTTPTool") as account_tool:
             with patch("app.agents.azure_chat.transaction_agent.MCPStreamableHTTPTool") as transaction_tool:
                 account_tool.return_value = MCPStreamableHTTPTool(
-                    name="account", url="in-memory://account", session=account_session,
+                    name="account", url=None, mcp_client=account_session,
                 )
                 transaction_tool.return_value = MCPStreamableHTTPTool(
-                    name="transaction", url="in-memory://transaction", session=transaction_session,
+                    name="transaction", url=None, mcp_client=transaction_session,
                 )
                 build_hosted_workflow(
                     MagicMock(), "in-memory://account", "in-memory://transaction",
                     "test-secret-key-with-at-least-32-bytes",
-                    account_mcp_session=account_session, transaction_mcp_session=transaction_session,
+                    account_mcp_client=account_session, transaction_mcp_client=transaction_session,
                 )
-        assert account_tool.call_args.kwargs["session"] is account_session
-        assert transaction_tool.call_args_list[0].kwargs["session"] is account_session
-        assert transaction_tool.call_args_list[1].kwargs["session"] is transaction_session
+        assert account_tool.call_args.kwargs["mcp_client"] is account_session
+        assert transaction_tool.call_args_list[0].kwargs["mcp_client"] is account_session
+        assert transaction_tool.call_args_list[1].kwargs["mcp_client"] is transaction_session
         assert account_tool.call_args.kwargs["header_provider"] is None
         assert all(call.kwargs["header_provider"] is None
                    for call in transaction_tool.call_args_list)
@@ -104,16 +104,16 @@ async def test_specialist_invokes_injected_mcp_tools_without_http_identity(
             if specialist == "account":
                 AccountAgent(
                     MagicMock(), "in-memory://account", "test-secret",
-                    account_mcp_session=account_session,
+                    account_mcp_client=account_session,
                 ).build_af_agent()
             else:
                 TransactionHistoryAgent(
                     MagicMock(), "in-memory://account", "in-memory://transaction", "test-secret",
-                    account_mcp_session=account_session, transaction_mcp_session=transaction_session,
+                    account_mcp_client=account_session, transaction_mcp_client=transaction_session,
                 ).build_af_agent()
         for call in constructor.call_args_list:
             async with MCPStreamableHTTPTool(**call.kwargs) as client:
-                tool_name = "getAccountDetails" if call.kwargs["session"] is account_session else "listSupportCases"
+                tool_name = "getAccountDetails" if call.kwargs["mcp_client"] is account_session else "listSupportCases"
                 function = next(item for item in client.functions if item.name == tool_name)
                 arguments = {"product_number": "TEST"} if tool_name == "getAccountDetails" else {}
                 await function.invoke(arguments=arguments)
@@ -131,7 +131,7 @@ def test_production_mcp_clients_retain_signed_header_providers() -> None:
                                   "test-secret-key-with-at-least-32-bytes")
     calls = [account_tool.call_args, *transaction_tool.call_args_list]
     assert len(calls) == 3
-    assert all(call.kwargs["session"] is None for call in calls)
+    assert all(call.kwargs["mcp_client"] is None for call in calls)
     assert all(callable(call.kwargs["header_provider"]) for call in calls)
 
 
@@ -188,8 +188,8 @@ async def test_runner_records_full_transcript_and_interleaved_tools() -> None:
         assert args[0] is triage_client
         assert kwargs["account_chat_client"] is account_client
         assert kwargs["transaction_chat_client"] is transaction_client
-        account_session = kwargs["account_mcp_session"]
-        transaction_session = kwargs["transaction_mcp_session"]
+        account_session = kwargs["account_mcp_client"]
+        transaction_session = kwargs["transaction_mcp_client"]
         workflow = MagicMock()
         workflow.as_agent.return_value.run.return_value.get_final_response = AsyncMock(
             side_effect=final_response,
@@ -218,7 +218,7 @@ def test_replay_fixtures_match_public_tool_arguments() -> None:
     cases = json.loads((Path(__file__).resolve().parents[3] / "evals" / "replay_cases.json").read_text())
     for case in cases:
         for server in ("account", "transaction"):
-            contracts = {tool.name: tool.inputSchema for tool in load_contracts(server)}
+            contracts = {tool.name: tool.input_schema for tool in load_contracts(server)}
             for reply in case.get(server, []):
                 assert set(reply["arguments"]) == set(contracts[reply["tool"]]["properties"])
 
