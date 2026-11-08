@@ -13,6 +13,17 @@ from banking_evals.mcp_replay import ReplayReply, ReplayServer, load_contracts
 from banking_evals.run_dispute_replay import run_baseline
 
 
+def test_account_discovery_contract_preserves_optional_nullable_username() -> None:
+    contracts = {tool.name: tool.inputSchema for tool in load_contracts("account")}
+    schema = contracts["getAccountsByUserName"]
+    assert "userName" not in schema.get("required", [])
+    assert schema["properties"]["userName"]["default"] is None
+    assert schema["properties"]["userName"]["anyOf"] == [
+        {"type": "string"}, {"type": "null"},
+    ]
+    assert "product_number" in contracts["getAccountDetails"]["required"]
+
+
 def expanded_sources() -> list[dict[str, Any]]:
     return [expand_case(source) for source in json.loads(DATASET.read_text(encoding="utf-8"))["cases"]]
 

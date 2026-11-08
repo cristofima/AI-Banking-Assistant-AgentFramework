@@ -20,7 +20,7 @@ from banking_evals.resources import repository_root
 ROOT = repository_root()
 
 
-def _argument_schema(argument: ast.arg) -> dict[str, str]:
+def _argument_schema(argument: ast.arg) -> dict[str, Any]:
     annotation = argument.annotation
     description = None
     if isinstance(annotation, ast.Subscript):
@@ -30,11 +30,18 @@ def _argument_schema(argument: ast.arg) -> dict[str, str]:
             raise ValueError("Unsupported Annotated contract")
         annotation, description_node = annotation.slice.elts
         description = ast.literal_eval(description_node)
+    nullable = False
+    if isinstance(annotation, ast.BinOp) and isinstance(annotation.op, ast.BitOr):
+        if not isinstance(annotation.right, ast.Constant) or annotation.right.value is not None:
+            raise ValueError("Unsupported contract annotation")
+        nullable = True
+        annotation = annotation.left
     if not isinstance(annotation, ast.Name) or annotation.id not in {"str", "bool"}:
         raise ValueError("Unsupported contract annotation")
-    schema = {
-        "type": "string" if annotation.id == "str" else "boolean",
-    }
+    value_type = "string" if annotation.id == "str" else "boolean"
+    schema: dict[str, Any] = {
+        "anyOf": [{"type": value_type}, {"type": "null"}],
+    } if nullable else {"type": value_type}
     if description is not None:
         schema["description"] = description
     return schema
@@ -49,8 +56,19 @@ def _tool_contract(function: ast.FunctionDef | ast.AsyncFunctionDef, decorator: 
     schema: dict[str, Any] = {
         "type": "object", "properties": properties, "additionalProperties": False,
     }
-    if properties:
-        schema["required"] = list(properties)
+    default_start = len(function.args.args) - len(function.args.defaults)
+    required = []
+    for index, argument in enumerate(function.args.args):
+        if argument.arg not in properties:
+            continue
+        if index < default_start:
+            required.append(argument.arg)
+        else:
+            properties[argument.arg]["default"] = ast.literal_eval(
+                function.args.defaults[index - default_start],
+            )
+    if required:
+        schema["required"] = required
     return types.Tool(
         name=metadata["name"], description=metadata["description"], inputSchema=schema,
     )
