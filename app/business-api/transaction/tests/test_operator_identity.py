@@ -7,6 +7,7 @@ import jwt
 import pytest
 from fastapi import FastAPI, HTTPException
 
+from banking_shared import jwt_identity
 from banking_transaction.auth import operator_identity
 from banking_transaction.routers import operator as operator_routers
 
@@ -37,7 +38,7 @@ def environment(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def respond(monkeypatch: pytest.MonkeyPatch, status: int, body: Any) -> None:
-    monkeypatch.setattr(operator_identity, "_auth_client", lambda: httpx.AsyncClient(
+    monkeypatch.setattr(jwt_identity, "_auth_client", lambda: httpx.AsyncClient(
         base_url="http://identity", transport=httpx.MockTransport(lambda request: httpx.Response(status, json=body)),
     ))
 
@@ -53,7 +54,7 @@ async def test_every_operator_endpoint_introspects_each_request(monkeypatch: pyt
         assert request.headers["Authorization"] == "Bearer synthetic-internal-secret"
         calls.append(request)
         return httpx.Response(200, json=profile(claims()))
-    monkeypatch.setattr(operator_identity, "_auth_client", lambda: httpx.AsyncClient(
+    monkeypatch.setattr(jwt_identity, "_auth_client", lambda: httpx.AsyncClient(
         base_url="http://identity", transport=httpx.MockTransport(handler), timeout=3,
     ))
     app = FastAPI()
@@ -84,7 +85,7 @@ async def test_valid_other_roles_forbidden(monkeypatch: pytest.MonkeyPatch, role
 async def test_invalid_claims(monkeypatch: pytest.MonkeyPatch, field: str, value: Any) -> None:
     payload = claims()
     payload[field] = value
-    monkeypatch.setattr(operator_identity, "_auth_client", lambda: pytest.fail("Invalid claims reached Identity"))
+    monkeypatch.setattr(jwt_identity, "_auth_client", lambda: pytest.fail("Invalid claims reached Identity"))
     with pytest.raises(HTTPException) as error:
         await invoke(payload)
     assert error.value.status_code == 401
@@ -113,7 +114,7 @@ async def test_controlled_identity_failure(monkeypatch: pytest.MonkeyPatch, stat
 async def test_network_failure_and_internal_bearer_denied(monkeypatch: pytest.MonkeyPatch) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ReadTimeout("Synthetic timeout", request=request)
-    monkeypatch.setattr(operator_identity, "_auth_client", lambda: httpx.AsyncClient(
+    monkeypatch.setattr(jwt_identity, "_auth_client", lambda: httpx.AsyncClient(
         base_url="http://identity", transport=httpx.MockTransport(handler),
     ))
     with pytest.raises(HTTPException) as error:
