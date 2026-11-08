@@ -1,7 +1,9 @@
 """Tests for the Responses-hosted banking workflow."""
 
 import asyncio
+import threading
 from collections.abc import AsyncIterator
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -9,14 +11,17 @@ import pytest
 
 from agent_framework import (
     Agent, AgentContext, AgentResponse, AgentResponseUpdate, AgentSession, ChatResponse,
-    ChatResponseUpdate, Content, InMemoryCheckpointStorage, Message, ResponseStream, WorkflowAgent,
+    ChatResponseUpdate, Content, Message, ResponseStream, Workflow,
     tool,
 )
 from agent_framework.foundry import FoundryChatClient
 from agent_framework.orchestrations import HandoffBuilder
-from agent_framework_foundry_hosting import ResponsesHostServer
+from agent_framework_foundry_hosting import HostedResponseRequest, ResponsesHostServer
 from agent_framework.exceptions import ToolExecutionException
+from starlette.testclient import TestClient
 
+from app.adapters.checkpointed_handoff import CheckpointedHandoffBuilder
+from app.adapters.responses_turn import parse_response
 from app.agents.azure_chat.hosted_workflow import (
     TRIAGE_INSTRUCTIONS,
     _has_completed_agent_response,
@@ -351,22 +356,17 @@ async def test_dispute_sdk_continuation_preserves_proposal_and_receipt(decision:
     assert "synthetic-preview" not in receipt.text
 
 
-@pytest.mark.parametrize("peer_outcome", ["success", "error", "cancellation"])
-async def test_host_isolates_concurrent_workflow_requests(peer_outcome: str) -> None:
-    client = FoundryChatClient(
-        project_endpoint="https://example.services.ai.azure.com/api/projects/test",
-        model="test-model", credential=MagicMock(),
-    )
-    entered = {name: asyncio.Event() for name in ("primary", "peer", "later")}
-    release = {name: asyncio.Event() for name in entered}
-    exited = {name: asyncio.Event() for name in entered}
-    model_inputs: dict[str, list[list[str]]] = {name: [] for name in entered}
-    request_agents: dict[str, WorkflowAgent] = {}
-    outputs: dict[str, list[str]] = {name: [] for name in entered}
+@pytest.mark.parametrize("peer_outcome", ["success", "error"])
+def test_host_isolates_concurrent_workflow_requests(peer_outcome: str) -> None:
+    entered = {name: threading.Event() for name in ("primary", "peer")}
+    release = {name: threading.Event() for name in entered}
+    model_inputs: dict[str, list[list[str]]] = {name: [] for name in (*entered, "later")}
+    workflows: list[Workflow] = []
+    clients: list[FoundryChatClient] = []
 
-    def model_response(*args: Any, **kwargs: Any) -> ResponseStream:
+    def model_response(_client: Any, *args: Any, **kwargs: Any) -> ResponseStream:
         texts = [message.text for message in kwargs["messages"]]
-        name = next(name for name in entered if f"Request {name}" in texts)
+        name = next(name for name in model_inputs if f"Request {name}" in texts)
         model_inputs[name].append(texts)
         is_triage = kwargs["options"]["instructions"] == "Route requests"
 
@@ -376,19 +376,22 @@ async def test_host_isolates_concurrent_workflow_requests(peer_outcome: str) -> 
                     f"handoff-{name}", "handoff_to_AccountAgent", arguments="{}",
                 )]
             else:
-                entered[name].set()
-                try:
-                    await release[name].wait()
-                    if name == "peer" and peer_outcome == "error":
-                        raise RuntimeError("synthetic model failure")
-                    contents = [Content.from_text(f"Answer {name}")]
-                finally:
-                    exited[name].set()
+                if name in entered:
+                    entered[name].set()
+                    await asyncio.to_thread(release[name].wait, 10)
+                if name == "peer" and peer_outcome == "error":
+                    raise RuntimeError("synthetic model failure")
+                contents = [Content.from_text(f"Answer {name}")]
             yield ChatResponseUpdate(role="assistant", contents=contents)
 
         return ResponseStream(updates(), finalizer=ChatResponse.from_updates)
 
-    def create_agent() -> WorkflowAgent:
+    def create_workflow(_request: HostedResponseRequest) -> Workflow:
+        client = FoundryChatClient(
+            project_endpoint="https://example.services.ai.azure.com/api/projects/test",
+            model="test-model", credential=MagicMock(),
+        )
+        clients.append(client)
         triage = Agent(
             client=client, name="triage_agent", instructions="Route requests",
             context_providers=[NoHistoryProvider()],
@@ -400,111 +403,58 @@ async def test_host_isolates_concurrent_workflow_requests(peer_outcome: str) -> 
             context_providers=[NoHistoryProvider()],
             require_per_service_call_history_persistence=True,
         )
-        return HandoffBuilder(
+        workflow = CheckpointedHandoffBuilder(
             participants=[triage, specialist], termination_condition=_has_completed_agent_response,
-        ).with_start_agent(triage).add_handoff(triage, [specialist]).build().as_agent(
-            name="home_banking_agent",
+        ).with_start_agent(triage).add_handoff(triage, [specialist]).build()
+        workflows.append(workflow)
+        return workflow
+
+    server = ResponsesHostServer(workflow=create_workflow, parse_response=parse_response)
+
+    def post(http: TestClient, name: str) -> dict[str, Any]:
+        reply = http.post("/responses", json={
+            "model": "test-model", "input": f"Request {name}", "store": True,
+            "agent_session_id": f"session-{name}",
+        })
+        assert reply.status_code == 200, reply.text
+        return reply.json()
+
+    def answer(payload: dict[str, Any]) -> str:
+        return "".join(
+            part["text"] for item in payload["output"] if item["type"] == "message"
+            for part in item["content"] if part["type"] == "output_text"
         )
 
-    host = ResponsesHostServer(create_agent)
-    stores: dict[str, InMemoryCheckpointStorage] = {}
-    host._checkpoint_storage_provider = MagicMock()
-    host._checkpoint_storage_provider.get_store.side_effect = lambda **kwargs: stores.setdefault(
-        kwargs["context_id"], InMemoryCheckpointStorage(),
-    )
-    host._function_approval_storage_provider = MagicMock()
+    with patch.object(FoundryChatClient, "_inner_get_response", model_response), \
+            TestClient(server) as http, ThreadPoolExecutor(max_workers=2) as pool:
+        primary = pool.submit(post, http, "primary")
+        peer = pool.submit(post, http, "peer")
+        assert all(entered[name].wait(10) for name in entered)
+        assert not primary.done()
+        assert not peer.done()
+        release["peer"].set()
+        peer_payload = peer.result(timeout=10)
+        assert not primary.done()
+        release["primary"].set()
+        primary_payload = primary.result(timeout=10)
+        later_payload = post(http, "later")
 
-    async def run_prepared(
-        server: ResponsesHostServer, request: Any, context: Any,
-        cancellation_signal: Any, response_event_stream: Any, agent: WorkflowAgent,
-        *args: Any,
-    ) -> AsyncIterator[Any]:
-        name = request["input"].removeprefix("Request ")
-        request_agents[name] = agent
-        tracker = MagicMock()
-
-        async def handle_update(update: Any, **kwargs: Any) -> AsyncIterator[Any]:
-            for content in update.contents:
-                if content.type == "text":
-                    outputs[name].append(content.text or "")
-            if False:
-                yield None
-
-        tracker.handle_update = handle_update
-        async for event in server._handle_inner_workflow(
-            request, context, response_event_stream, tracker, cancellation_signal, agent,
-        ):
-            yield event
-
-    async def consume(name: str, cancellation: asyncio.Event) -> None:
-        context = MagicMock()
-        context.get_input_items = AsyncMock(return_value=[{
-            "type": "message", "role": "user", "content": f"Request {name}",
-        }])
-        context.response_id = f"response-{name}"
-        context.conversation_id = None
-        context.is_recovery = False
-        context.shutdown = asyncio.Event()
-        request = {"model": "test-model", "input": f"Request {name}"}
-        async for _ in host._handle_response(request, context, cancellation):
-            pass
-
-    cancellation = asyncio.Event()
-    with patch.object(client, "_inner_get_response", model_response), patch.object(
-        ResponsesHostServer, "_handle_prepared_response", run_prepared,
-    ), patch(
-        "agent_framework_foundry_hosting._responses.get_request_context",
-        return_value=MagicMock(session_id=None, user_id=None, call_id=None),
-    ):
-        primary = asyncio.create_task(consume("primary", asyncio.Event()))
-        peer = asyncio.create_task(consume("peer", cancellation))
-        try:
-            async with asyncio.timeout(10):
-                await asyncio.gather(entered["primary"].wait(), entered["peer"].wait())
-                assert not primary.done()
-                assert not peer.done()
-                if peer_outcome == "cancellation":
-                    cancellation.set()
-                else:
-                    release["peer"].set()
-                if peer_outcome == "error":
-                    with pytest.raises(RuntimeError, match="synthetic model failure"):
-                        await peer
-                else:
-                    await peer
-                await exited["peer"].wait()
-                assert not primary.done()
-                assert not exited["primary"].is_set()
-                assert outputs["primary"] == []
-                release["primary"].set()
-                await primary
-                release["later"].set()
-                await consume("later", asyncio.Event())
-        finally:
-            for task in (primary, peer):
-                if not task.done():
-                    task.cancel()
-            await asyncio.gather(primary, peer, return_exceptions=True)
-
-    assert outputs == {
-        "primary": ["Answer primary"],
-        "peer": ["Answer peer"] if peer_outcome == "success" else [],
-        "later": ["Answer later"],
-    }
-    agents = list(request_agents.values())
-    assert len(agents) == 3
-    assert len({id(agent) for agent in agents}) == 3
-    assert len({id(agent.workflow) for agent in agents}) == 3
-    for executor_id in agents[0].workflow.executors:
-        assert len({id(agent.workflow.executors[executor_id]) for agent in agents}) == 3
-    assert set(stores) == {"response-primary", "response-peer", "response-later"}
-    assert len({id(store) for store in stores.values()}) == 3
+    assert answer(primary_payload) == "Answer primary"
+    assert answer(later_payload) == "Answer later"
+    if peer_outcome == "success":
+        assert answer(peer_payload) == "Answer peer"
+    else:
+        assert peer_payload["status"] == "failed"
+    assert len(workflows) == 3
+    assert len({id(workflow) for workflow in workflows}) == 3
+    assert len({id(client) for client in clients}) == 3
+    for executor_id in workflows[0].executors:
+        assert len({id(workflow.executors[executor_id]) for workflow in workflows}) == 3
     for name, calls in model_inputs.items():
         assert len(calls) == 2
         for texts in calls:
             assert texts.count(f"Request {name}") == 1
-            assert not any(f"Request {other}" in texts for other in entered if other != name)
-    assert host._agent_source is create_agent
+            assert not any(f"Request {other}" in texts for other in model_inputs if other != name)
 
 
 @pytest.mark.parametrize("stream", [False, True])
@@ -636,8 +586,9 @@ def test_build_hosted_workflow_without_mcp_connections() -> None:
         "test-secret-key-with-at-least-32-bytes",
     )
 
-    agent = workflow.as_agent(name="home_banking_agent")
-    server = ResponsesHostServer(agent)
+    server = ResponsesHostServer(
+        workflow=lambda _request: workflow, parse_response=parse_response,
+    )
 
     assert workflow.name == "banking_assistant_handoff"
     assert server is not None

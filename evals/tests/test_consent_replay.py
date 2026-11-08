@@ -13,6 +13,17 @@ from banking_evals.mcp_replay import ReplayReply, ReplayServer, load_contracts
 from banking_evals.run_dispute_replay import run_baseline
 
 
+def test_account_discovery_contract_preserves_optional_nullable_username() -> None:
+    contracts = {tool.name: tool.input_schema for tool in load_contracts("account")}
+    schema = contracts["getAccountsByUserName"]
+    assert "userName" not in schema.get("required", [])
+    assert schema["properties"]["userName"]["default"] is None
+    assert schema["properties"]["userName"]["anyOf"] == [
+        {"type": "string"}, {"type": "null"},
+    ]
+    assert "product_number" in contracts["getAccountDetails"]["required"]
+
+
 def expanded_sources() -> list[dict[str, Any]]:
     return [expand_case(source) for source in json.loads(DATASET.read_text(encoding="utf-8"))["cases"]]
 
@@ -96,14 +107,14 @@ async def test_async_consent_tools_are_discovered_and_invoked_through_sdk() -> N
         "reportTransactionDispute": {"preview_token": "TOKEN"},
         "recoverTransactionDispute": {"preview_token": "TOKEN"},
     }
-    contracts = {tool.name: tool.inputSchema for tool in load_contracts("transaction")}
+    contracts = {tool.name: tool.input_schema for tool in load_contracts("transaction")}
     replay = ReplayServer("transaction", [
         ReplayReply(name, arguments, None if name == "recoverTransactionDispute" else {"synthetic": name})
         for name, arguments in expected.items()
     ])
-    async with replay.connect() as session:
+    async with replay.connect() as mcp_client:
         async with MCPStreamableHTTPTool(
-            name="Consent replay", url="in-memory://transaction", session=session,
+            name="Consent replay", url=None, mcp_client=mcp_client,
             load_prompts=False,
         ) as client:
             for name, arguments in expected.items():

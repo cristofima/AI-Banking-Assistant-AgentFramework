@@ -7,7 +7,7 @@ dependencies = [
   "fastapi==0.141.1",
   "uvicorn==0.54.0",
   "pyjwt==2.10.1",
-  "authlib==1.9.1",
+  "authlib==1.9.5",
   "azure-identity>=1.19,<2",
   "azure-keyvault-keys>=4.10,<5",
   "azure-keyvault-secrets>=4.9,<5",

@@ -14,14 +14,18 @@ dependencies = [
     "sqlmodel>=0.0.24,<1",
     "uvicorn==0.54.0",
     "pyjwt==2.10.1",
-    "authlib==1.9.1",
+    "authlib==1.9.5",
 ]
 
 [tool.uv.sources]
 banking-shared = { path = "../shared", editable = true }
 
 [dependency-groups]
-dev = ["pytest==9.1.1", "pytest-asyncio==1.4.0"]
+dev = [
+    "httpx2>=2.15.1",
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+]
 
 [build-system]
 requires = ["hatchling"]

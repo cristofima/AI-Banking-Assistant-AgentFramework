@@ -10,9 +10,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-from mcp import ClientSession, types
+from mcp import Client, types
 from mcp.server import Server
-from mcp.shared.memory import create_connected_server_and_client_session
 
 
 from banking_evals.resources import repository_root
@@ -41,15 +40,15 @@ class ReplayServer:
     _position: int = field(default=0, init=False)
 
     def build(self) -> Server:
-        server = Server(f"banking-replay-{self.name}")
         contracts = load_contracts(self.name)
 
-        @server.list_tools()
-        async def list_tools() -> list[types.Tool]:
-            return contracts
+        async def list_tools(
+            ctx: Any, params: types.PaginatedRequestParams | None
+        ) -> types.ListToolsResult:
+            return types.ListToolsResult(tools=contracts)
 
-        @server.call_tool()
-        async def call_tool(name: str, arguments: dict[str, Any]) -> types.CallToolResult:
+        async def call_tool(ctx: Any, params: types.CallToolRequestParams) -> types.CallToolResult:
+            name, arguments = params.name, params.arguments or {}
             call = {"server": self.name, "tool": name, "arguments": arguments}
             if self.turn is not None:
                 call["turn"] = self.turn
@@ -78,7 +77,9 @@ class ReplayServer:
                 content=[types.TextContent(type="text", text=error)], isError=True,
             )
 
-        return server
+        return Server(
+            f"banking-replay-{self.name}", on_list_tools=list_tools, on_call_tool=call_tool,
+        )
 
     def assert_complete(self) -> None:
         if self.failures or self._position != len(self.replies):
@@ -88,6 +89,6 @@ class ReplayServer:
             )
 
     @asynccontextmanager
-    async def connect(self) -> AsyncIterator[ClientSession]:
-        async with create_connected_server_and_client_session(self.build()) as session:
-            yield session
+    async def connect(self) -> AsyncIterator[Client]:
+        async with Client(self.build()) as client:
+            yield client

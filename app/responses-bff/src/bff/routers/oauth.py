@@ -30,7 +30,8 @@ async def grant_status(
     oauth: OAuthClient = request.app.state.oauth_client
     if oauth.config.mcp_identity_mode not in {"hmac", "oauth"}:
         raise unavailable()
-    return {"required": oauth.config.mcp_identity_mode == "oauth",
+    native = request.app.state.settings.responses_upstream_mode == "foundry"
+    return {"required": oauth.config.mcp_identity_mode == "oauth" and not native,
             "ready": oauth.current(session_binding(request, user)) is not None}
 
 

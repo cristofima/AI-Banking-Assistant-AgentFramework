@@ -115,6 +115,7 @@ export function ChatProvider({
   const streamingThreadRef = useRef<string | null>(null);
   const assistantItemsRef = useRef(new Map<string, string>());
   const visibleOutputRef = useRef(false);
+  const consentRequestedRef = useRef(false);
   const assistantTextRef = useRef(false);
   const reportedErrorRef = useRef(false);
   const lastMessageRef = useRef<string | null>(null);
@@ -318,9 +319,13 @@ export function ChatProvider({
         if (!streamFailedRef.current) streamOutcomeRef.current = "success";
         return;
       }
-      if (event.type === "response.incomplete") {
+      if (event.type === "response.incomplete" && !consentRequestedRef.current) {
         streamOutcomeRef.current = "error";
         streamFailedRef.current = true;
+      }
+      if (consentRequestedRef.current &&
+        (event.type === "response.incomplete" || event.code === "CONTINUATION_UNAVAILABLE")) {
+        return;
       }
 
       if (
@@ -336,6 +341,23 @@ export function ChatProvider({
 
       if (event.type === "response.output_item.added" || event.type === "response.output_item.done") {
         const item = event.item as ToolOutputItem | undefined;
+        if (item?.type === "oauth_consent_request") {
+          const link = typeof item.consent_link === "string" ? item.consent_link : "";
+          if (!link.startsWith("https://")) return;
+          consentRequestedRef.current = true;
+          visibleOutputRef.current = true;
+          setHasReceivedStreamEvent(true);
+          // The link is shown to the customer only; the turn is never replayed automatically.
+          addItem(threadId, {
+            id: `consent_${threadId}_${item.id ?? link}`, thread_id: threadId, created_at: now(),
+            type: "assistant_message",
+            content: [{
+              type: "output_text", annotations: [],
+              text: `${t("Authorization is required to access your banking data. Open the link, approve access, then send your request again.")}\n\n[${t("Authorize access")}](${link})`,
+            }],
+          });
+          return;
+        }
         if (item?.type === "mcp_approval_request" && item.id) {
           setHasReceivedStreamEvent(true);
           handleApprovalRequest(threadId, item as ApprovalRequest);
@@ -522,6 +544,7 @@ export function ChatProvider({
       streamingThreadRef.current = threadId;
       assistantItemsRef.current.clear();
       visibleOutputRef.current = false;
+      consentRequestedRef.current = false;
       assistantTextRef.current = false;
       reportedErrorRef.current = false;
       setIsStreaming(true);

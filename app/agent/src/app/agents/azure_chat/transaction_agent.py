@@ -1,12 +1,13 @@
 import logging
 
 from agent_framework import Agent, BaseChatClient, MCPStreamableHTTPTool
-from mcp import ClientSession
+from mcp import Client
 
 from app.agents.azure_chat.guardrails import BANKING_GUARDRAILS
 from app.common.internal_identity import mcp_header_provider
 from app.adapters.tool_error_middleware import OwnershipErrorMiddleware
 from app.adapters.refusal_locale_middleware import RefusalLocaleMiddleware
+from app.adapters.toolbox_consent_middleware import ToolboxConsentMiddleware
 from app.context.user_profile_provider import UserProfileProvider
 
 
@@ -171,8 +172,8 @@ class TransactionHistoryAgent :
                  transaction_mcp_server_url: str,
                  internal_identity_secret: str,
                  *,
-                 account_mcp_session: ClientSession | None = None,
-                 transaction_mcp_session: ClientSession | None = None,
+                 account_mcp_client: Client | None = None,
+                 transaction_mcp_client: Client | None = None,
                  account_tool: MCPStreamableHTTPTool | None = None,
                  transaction_tool: MCPStreamableHTTPTool | None = None,
                   ) -> None:
@@ -180,8 +181,8 @@ class TransactionHistoryAgent :
         self.account_mcp_server_url = account_mcp_server_url
         self.transaction_mcp_server_url = transaction_mcp_server_url
         self.internal_identity_secret = internal_identity_secret
-        self.account_mcp_session = account_mcp_session
-        self.transaction_mcp_session = transaction_mcp_session
+        self.account_mcp_client = account_mcp_client
+        self.transaction_mcp_client = transaction_mcp_client
         self.account_tool = account_tool
         self.transaction_tool = transaction_tool
 
@@ -195,18 +196,18 @@ class TransactionHistoryAgent :
 
       account_mcp_server = self.account_tool if self.account_tool is not None else MCPStreamableHTTPTool(
           name="Account MCP server client",
-          url=self.account_mcp_server_url,
-          session=self.account_mcp_session,
+          url=self.account_mcp_server_url if self.account_mcp_client is None else None,
+          mcp_client=self.account_mcp_client,
           header_provider=(mcp_header_provider(self.internal_identity_secret)
-                           if self.account_mcp_session is None else None),
+                           if self.account_mcp_client is None else None),
        )
 
       transaction_mcp_server = self.transaction_tool if self.transaction_tool is not None else MCPStreamableHTTPTool(
           name="Transaction MCP server client",
-          url=self.transaction_mcp_server_url,
-          session=self.transaction_mcp_session,
+          url=self.transaction_mcp_server_url if self.transaction_mcp_client is None else None,
+          mcp_client=self.transaction_mcp_client,
           header_provider=(mcp_header_provider(self.internal_identity_secret)
-                           if self.transaction_mcp_session is None else None),
+                           if self.transaction_mcp_client is None else None),
      )
 
       return Agent(
@@ -216,6 +217,7 @@ class TransactionHistoryAgent :
           require_per_service_call_history_persistence=True,
           tools=[account_mcp_server, transaction_mcp_server],
           middleware=[
+              ToolboxConsentMiddleware([account_mcp_server, transaction_mcp_server]),
               OwnershipErrorMiddleware(),
               RefusalLocaleMiddleware(self.internal_identity_secret),
           ],

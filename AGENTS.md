@@ -225,7 +225,7 @@ map and accepted ADRs for current decisions.
   noneditably; do not use `--no-emit-project`, flatten packages, or add `PYTHONPATH`
   or runtime `sys.path` repairs. Regenerate with the frozen export documented in
   [the agent guide](app/agent/README.md#hosted-source-dependency-installation).
-  Preserve the per-request `ResponsesHostServer(create_agent)` factory, async telemetry
+  Preserve the per-request `ResponsesHostServer(workflow=...)` factory, async telemetry
   flush and 100-item history boundary, separate from checkpoints/snapshots.
 - A source ZIP need not contain site-packages. Check remote import paths and the
   actual startup exception before attributing HTTP 424 / `session_not_ready` to
@@ -276,10 +276,19 @@ map and accepted ADRs for current decisions.
 - Refresh tokens are not implemented. Any OAuth renewal expansion must define
   rotation/reuse, revocation/current identity, lifetime, custody and logout first.
   Do not infer application-login JWT renewal or mutation replay from OAuth renewal.
-- OAuth Toolbox remains fail-closed until supported banking-user/native-caller/grant
+- Native Toolbox consent transport is implemented offline (`ToolboxConsentMiddleware`),
+  but hosted acceptance stays gated until supported banking-user/native-caller/grant
   binding, actual callback/S256 compatibility and two-user isolation are proven.
-  Never synthesize platform call IDs, share customer grants, put a signer in a
+  Never fall back to HMAC when OAuth is unavailable. Never synthesize platform call IDs, share customer grants, put a signer in a
   connection or silently route local runtime through Toolbox.
+- Treat native OAuth consent as a structured protocol challenge, distinct from a
+  failed business read. Verify the complete Toolbox/SDK/Responses transport before
+  claiming UI support; HTTP 200 or an OAuth content factory alone is insufficient.
+  Do not expose raw exception details or consent links to the model as a workaround.
+  Preserve session binding and no automatic replay of failed or uncertain turns.
+- A configured telemetry connection does not establish successful ingestion. Separate
+  telemetry authorization failures from MCP consent and ownership outcomes; inspect
+  supported host/exporter controls before proposing instrumentation or RBAC changes.
 - Compare timezone-aware instants by converting to UTC, not replacing their offset.
   UTC issuance and PostgreSQL timezone-aware storage must preserve the same instant.
 - Record local, hosted and offline evidence separately in task documentation.

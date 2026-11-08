@@ -13,7 +13,7 @@ from urllib.parse import urlencode
 
 import httpx
 from fastapi import HTTPException, Request
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from banking_shared.oauth_jwt import OAUTH_SCOPE, validate_access_token
@@ -32,6 +32,7 @@ class OAuthClientConfig(BaseSettings):
     oauth_issuer: str = ""
     oauth_audience: str = ""
     oauth_jwks: str = ""
+    oauth_token_timeout_seconds: float = Field(default=15.0, gt=0, allow_inf_nan=False)
 
 
 @dataclass(frozen=True)
@@ -127,6 +128,7 @@ class OAuthClient:
                     "redirect_uri": config.oauth_redirect_uri, "code_verifier": pending.verifier},
                 auth=httpx.BasicAuth(config.oauth_client_id,
                                     config.oauth_client_secret.get_secret_value()),
+                timeout=config.oauth_token_timeout_seconds,
             )
             category = "upstream_status"
             response.raise_for_status()

@@ -2,13 +2,13 @@
 
 > [!WARNING]
 > Provisioning and hosted identity transport have not been verified end to end for the
-> hackathon environment. Review the Terraform plan and existing resource ownership before
+> Development environment. Review the Terraform plan and existing resource ownership before
 > running these commands. The root project targets App Service through Terraform; the
 > hosted agent uses a separate azd project at `app/agent/azure.yaml`.
 
 ## **🚀 Quick Start**
 
-Clone [this fork](https://github.com/cristofima/factored-hackathon-2026-cristopher-coronado)
+Clone [this fork](https://github.com/cristofima/AI-Banking-Assistant-AgentFramework)
 and work from its repository root. Initializing the upstream sample does not reproduce
 this fork's Identity, BFF, PostgreSQL or operator workflow.
 
@@ -40,11 +40,37 @@ rtk proxy azd up --cwd app\agent
 - Agent `azd up --cwd app/agent` provisions the `model-router` and `gpt-5.4`
   deployments declared in the [agent manifest](../app/agent/azure.yaml) for the
   configured Foundry project, then deploys the hosted workflow. Model access and
-  regional capacity remain deployment prerequisites.
+  regional capacity remain deployment prerequisites. This command includes dependency
+  provisioning; do not use it for an agent-only code rollout.
 
-3. After deployment, use the printed web URL for an authorized smoke test. A printed
-   URL or successful deploy command does not prove Identity availability, database
-   migrations, hosted identity transport or customer/operator end-to-end behavior.
+### Hosted OAuth prerequisites and deployment gate
+
+The [agent manifest](../app/agent/azure.yaml) selects `foundry/oauth`, but the runtime
+adapter still rejects that combination. A deployment command or a resolved Toolbox
+endpoint does not make the hosted banking path usable. Keep experiments separately
+authorized until callback/S256/client-auth compatibility, Consumer prerequisites,
+actual platform call IDs and banking-user/native-caller/individual-grant binding
+are proven. Two-user hosted isolation and consent remain separate acceptance checks.
+
+OAuth connections, Identity client registrations and Toolbox publication are separate
+operations, not implicit consequences of agent deployment. The owner reported
+successful protected registrations for both native clients; this is not independent
+runtime verification. See the [configuration record](../infra/README.md#native-oauth-compatibility-gate)
+and [issue #81](https://github.com/cristofima/AI-Banking-Assistant-AgentFramework/issues/81).
+
+For hosted CD, configure `TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT` in the Development
+GitHub Environment. CD requires a nonblank value and exports it to its agent azd
+environment; it neither enforces URL format nor probes availability. Prefer the
+consumer endpoint that follows the published default; use a version-specific endpoint
+for pinned experiments. Local azd metadata does not configure GitHub runners. CD
+only deploys `home-banking-agent`, not connections, clients or the Toolbox. See the
+[workflow variable contract](../.github/workflows/README.md#hosted-agent-variables-cd-hosted-agentyaml).
+
+### Post-deployment checks
+
+After deployment, use the printed web URL for an authorized smoke test. A printed
+URL or successful deploy command does not prove Identity availability, database
+migrations, hosted identity transport or customer/operator end-to-end behavior.
 
 ## Python package staging and startup
 
@@ -106,8 +132,13 @@ rtk proxy azd deploy
 For hosted-agent code changes, use:
 
 ```powershell
-rtk proxy azd deploy --cwd app\agent
+rtk proxy azd deploy home-banking-agent --cwd app\agent
 ```
+
+Select the intended agent azd environment and resolve its project/Toolbox dependency
+metadata first. Preserve the existing BFF-to-agent signer mapping. This agent-only
+command does not register OAuth clients or publish a Toolbox version, and the native
+runtime gate above still applies.
 
 If you changed the root infrastructure files (`infra` or the root `azure.yaml`), review
 the Terraform plan and then reprovision the App Service stack:

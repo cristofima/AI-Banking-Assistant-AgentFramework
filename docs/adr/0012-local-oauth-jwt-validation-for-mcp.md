@@ -16,11 +16,15 @@ can remove that dependency but delay revocation until expiry.
 
 Custom browser authentication and the signed BFF-to-Foundry identity envelope are
 separate boundaries. Foundry uses Azure authentication on its Authorization header,
-and native Toolbox per-user OAuth grant binding remains unverified.
+and native Toolbox per-user OAuth grant binding remains unverified. Here, local
+means the agent runtime uses direct MCP HTTP connections, not that model inference
+is offline: those calls can still use Foundry-hosted models.
 
 ## Decision
 
-Implement an opt-in direct-HTTP MCP path using Identity-issued RS256 access tokens.
+Use the implemented opt-in direct-HTTP MCP path (`AGENT_RUNTIME=local`,
+`MCP_IDENTITY_MODE=oauth`) with Identity-issued RS256 access tokens. This proposal
+records the local JWT-validation tradeoff; it does not authorize native hosted OAuth.
 MCP services validate trusted public keys, issuer, audience, expiry, customer claims
 and exact `mcp.access` scope locally, then preserve existing customer-resource ownership
 checks. The scope authorizes the existing customer MCP surface, including dispute
@@ -32,8 +36,10 @@ fall back to HMAC. Preserve HMAC as the default compatibility path.
 
 The confidential BFF owns authorization-code S256 exchange and server-side token
 custody. It delegates the current grant through its existing signed identity
-envelope, never through browser token storage or model instructions. OAuth Toolbox
-routing fails closed until real per-user delegation is proven.
+envelope, never through browser token storage or model instructions. The `foundry/oauth` adapter
+continues to reject native Toolbox routing until real per-user delegation is proven.
+Connection creation, client registration, Toolbox publication and CD endpoint metadata
+cannot substitute for that proof.
 
 Use a 3600-second (one-hour) access-token lifetime, requested on 2026-10-18,
 with no implicit refresh. Authorization codes and BFF state retain 300 seconds.

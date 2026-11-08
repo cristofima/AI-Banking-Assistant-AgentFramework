@@ -14,7 +14,7 @@ import pytest
 from joserfc import jwt
 from joserfc.jwk import RSAKey
 from fastapi import FastAPI, HTTPException, Request
-from pydantic import SecretStr
+from pydantic import SecretStr, ValidationError
 
 from bff.config.settings import Settings
 from bff.identity.models import AuthenticatedUser
@@ -74,9 +74,27 @@ def begin(oauth: OAuthClient, binding: str = "session-1") -> tuple[str, str]:
     return state, verifier
 
 
-async def test_exchange_custodies_signed_customer_grant_once(
-    oauth: OAuthClient, signing_key: Any, user: AuthenticatedUser,
+def test_token_timeout_defaults_and_environment_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("OAUTH_TOKEN_TIMEOUT_SECONDS", raising=False)
+    assert OAuthClientConfig().oauth_token_timeout_seconds == 15.0
+    monkeypatch.setenv("OAUTH_TOKEN_TIMEOUT_SECONDS", "20.5")
+    assert OAuthClientConfig().oauth_token_timeout_seconds == 20.5
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "nan", "inf", "invalid"])
+def test_invalid_token_timeout_is_rejected(
+    monkeypatch: pytest.MonkeyPatch, value: str,
 ) -> None:
+    monkeypatch.setenv("OAUTH_TOKEN_TIMEOUT_SECONDS", value)
+    with pytest.raises(ValidationError):
+        OAuthClientConfig()
+
+
+@pytest.mark.parametrize("timeout", [15.0, 20.5])
+async def test_exchange_custodies_signed_customer_grant_once(
+    oauth: OAuthClient, signing_key: Any, user: AuthenticatedUser, timeout: float,
+) -> None:
+    oauth.config.oauth_token_timeout_seconds = timeout
     state, verifier = begin(oauth)
     token = token_for(signing_key, user)
     calls: list[httpx.Request] = []
@@ -84,6 +102,9 @@ async def test_exchange_custodies_signed_customer_grant_once(
     def handler(request: httpx.Request) -> httpx.Response:
         calls.append(request)
         assert request.url.path == "/oauth/token"
+        assert request.extensions["timeout"] == {
+            "connect": timeout, "read": timeout, "write": timeout, "pool": timeout,
+        }
         assert request.headers["authorization"].startswith("Basic ")
         form = parse_qs(request.content.decode())
         assert form["code_verifier"] == [verifier]
@@ -102,6 +123,7 @@ async def test_exchange_custodies_signed_customer_grant_once(
     assert token not in repr(grant)
     assert oauth.current("session-2") is None
     assert len(calls) == 1
+    assert client.timeout == httpx.Timeout(5.0)
 
 
 @pytest.mark.parametrize("changes", [

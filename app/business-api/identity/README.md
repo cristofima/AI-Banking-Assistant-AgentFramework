@@ -134,18 +134,21 @@ Key Vault read access. Check the runner's actual principal and inherited permiss
 before requesting any new secret-scoped grant. Use actual connection callbacks, never placeholders. See the
 [workflow input and permission contract](../../../.github/workflows/README.md#manual-database-and-oauth-operations).
 This is administrative provisioning, not a public dynamic client-registration endpoint,
-and does not remove the Toolbox fail-closed gate.
+and does not establish native Toolbox binding or hosted OAuth acceptance.
 
 The authorized Development configuration on 2026-10-19 created `account-mcp` and
 `transaction-mcp` OAuth2 connections with independent existing secrets, and obtained
-their actual platform callbacks. The pending registrations are `foundry-account-mcp`
+their actual platform callbacks. The native clients are `foundry-account-mcp`
 with secret name `oauth-client-foundry-account-mcp`, and `foundry-transaction-mcp` with
-`oauth-client-foundry-transaction-mcp`. Use each connection's exact callback from the
-[infrastructure configuration record](../../../infra/README.md#native-oauth-compatibility-gate)
-and dispatch `register-client` separately for each after the workflow overrides are
-published. No new signing key or `init-oauth` run is needed just to register these
-existing credentials. Connection creation and Toolbox version `3` publication did not
-register either client in Identity. Callback availability is verified; functional
+`oauth-client-foundry-transaction-mcp`. The owner subsequently confirmed successful
+protected `register-client` runs for both clients after merging the workflow; these
+runs were not independently inspected. Do not repeat registration or rotate credentials
+implicitly. Each client uses its exact callback from the
+[infrastructure configuration record](../../../infra/README.md#native-oauth-compatibility-gate).
+No new signing key or `init-oauth` run is needed for these existing credentials.
+Connection creation and Toolbox publication alone did not register either client.
+The hosted CD endpoint setting is dependency metadata, not an Identity registration
+or OAuth compatibility check. Callback availability is verified; functional
 callback/S256/client-auth compatibility, per-user grant binding and two-user hosted
 isolation are not. Refresh tokens remain unsupported.
 

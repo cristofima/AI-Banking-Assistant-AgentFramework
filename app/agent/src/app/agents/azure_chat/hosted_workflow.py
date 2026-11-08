@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 
 from agent_framework import Agent, BaseChatClient, Message, Workflow, MCPStreamableHTTPTool
-from mcp import ClientSession
+from mcp import Client
 
 from app.agents.azure_chat.account_agent import AccountAgent
 from app.agents.azure_chat.guardrails import BANKING_GUARDRAILS
@@ -37,9 +37,13 @@ def _has_completed_agent_response(conversation: Sequence[Message]) -> bool:
         return False
 
     message = conversation[-1]
+    if message.role != "assistant":
+        return False
+    # A consent challenge ends the turn; the client resumes it with a new request.
+    if any(content.type == "oauth_consent_request" for content in message.contents):
+        return True
     return (
-        message.role == "assistant"
-        and any(
+        any(
             content.type == "text" and content.text and content.text.strip()
             for content in message.contents
         )
@@ -55,8 +59,8 @@ def build_hosted_workflow(
     *,
     account_chat_client: BaseChatClient | None = None,
     transaction_chat_client: BaseChatClient | None = None,
-    account_mcp_session: ClientSession | None = None,
-    transaction_mcp_session: ClientSession | None = None,
+    account_mcp_client: Client | None = None,
+    transaction_mcp_client: Client | None = None,
     account_tool: MCPStreamableHTTPTool | None = None,
     transaction_tool: MCPStreamableHTTPTool | None = None,
 ) -> Workflow:
@@ -77,7 +81,7 @@ def build_hosted_workflow(
         account_chat_client if account_chat_client is not None else chat_client,
         account_mcp_server_url,
         internal_identity_secret,
-        account_mcp_session=account_mcp_session,
+        account_mcp_client=account_mcp_client,
         account_tool=account_tool,
     ).build_af_agent()
     transaction_agent = TransactionHistoryAgent(
@@ -85,8 +89,8 @@ def build_hosted_workflow(
         account_mcp_server_url,
         transaction_mcp_server_url,
         internal_identity_secret,
-        account_mcp_session=account_mcp_session,
-        transaction_mcp_session=transaction_mcp_session,
+        account_mcp_client=account_mcp_client,
+        transaction_mcp_client=transaction_mcp_client,
         account_tool=account_tool,
         transaction_tool=transaction_tool,
     ).build_af_agent()

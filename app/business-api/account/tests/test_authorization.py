@@ -327,6 +327,90 @@ def test_mcp_number_lookup_returns_full_account_without_primary_keys(
     asyncio.run(call_account_tool())
 
 
+@pytest.mark.parametrize("customer_id", ["customer-owned", "customer-foreign"])
+def test_account_list_without_username_uses_only_verified_owner(
+    session_factory: Callable[[], Session], customer_id: str,
+) -> None:
+    accounts = UserService(session_factory).get_accounts_by_user_name(None, customer_id)
+    assert len(accounts) == 1
+    assert accounts[0].accountNumber == (
+        "ACCOUNT-SOURCE-NUMBER" if customer_id == "customer-owned" else None
+    )
+
+
+@pytest.mark.parametrize("customer_id", ["missing-customer", ""])
+def test_account_list_without_username_rejects_invalid_owner(
+    session_factory: Callable[[], Session], customer_id: str,
+) -> None:
+    with pytest.raises((PermissionError, ValueError)):
+        UserService(session_factory).get_accounts_by_user_name(None, customer_id)
+
+
+@pytest.mark.parametrize("user_name", ["", "   ", "foreign@example.com"])
+def test_optional_legacy_username_cannot_override_owner(
+    session_factory: Callable[[], Session], user_name: str,
+) -> None:
+    with pytest.raises((PermissionError, ValueError)):
+        UserService(session_factory).get_accounts_by_user_name(user_name, "customer-owned")
+
+
+async def test_mcp_account_list_schema_and_no_username_read(
+    session_factory: Callable[[], Session], monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(mcp_tools, "user_service", UserService(session_factory))
+    monkeypatch.setattr(mcp_tools, "get_customer_id", lambda headers: "customer-owned")
+    async with Client(mcp_tools.mcp) as client:
+        tools = await client.list_tools()
+        tool = next(tool for tool in tools if tool.name == "getAccountsByUserName")
+        assert "userName" not in tool.inputSchema.get("required", [])
+        result = await client.call_tool("getAccountsByUserName", {})
+        denied = await client.call_tool(
+            "getAccountsByUserName", {"userName": "foreign@example.com"},
+            raise_on_error=False,
+        )
+    assert not result.is_error
+    text = " ".join(content.text for content in result.content)
+    assert "ACCOUNT-SOURCE-NUMBER" in text
+    assert "Grace" not in text
+    assert denied.is_error
+
+
+def test_account_list_without_username_returns_empty_for_customer_without_accounts(
+    session_factory: Callable[[], Session],
+) -> None:
+    with session_factory() as session:
+        session.add(Customer(customer_id="customer-empty", email="empty@example.com"))
+        session.commit()
+    assert UserService(session_factory).get_accounts_by_user_name(None, "customer-empty") == []
+
+
+def test_optional_legacy_username_preserves_normalized_matching(
+    session_factory: Callable[[], Session],
+) -> None:
+    accounts = UserService(session_factory).get_accounts_by_user_name(
+        " OWNER@EXAMPLE.COM ", "customer-owned",
+    )
+    assert len(accounts) == 1
+    assert accounts[0].accountNumber == "ACCOUNT-SOURCE-NUMBER"
+
+
+async def test_mcp_account_list_denies_before_service_when_identity_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def deny_identity(headers: object) -> str:
+        raise PermissionError("Authentication required")
+
+    def unexpected_read(user_name: str | None, customer_id: str) -> list[object]:
+        pytest.fail("Service must not run after identity verification fails")
+
+    monkeypatch.setattr(mcp_tools, "get_customer_id", deny_identity)
+    monkeypatch.setattr(mcp_tools.user_service, "get_accounts_by_user_name", unexpected_read)
+    async with Client(mcp_tools.mcp) as client:
+        result = await client.call_tool("getAccountsByUserName", {}, raise_on_error=False)
+    assert result.is_error
+    assert result.structured_content is None
+
+
 def test_foreign_user_name_is_denied(session_factory: Callable[[], Session]) -> None:
     with pytest.raises(PermissionError, match="authenticated customer"):
         UserService(session_factory).get_accounts_by_user_name(

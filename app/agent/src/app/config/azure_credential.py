@@ -1,48 +1,49 @@
+import threading
+import time
+from typing import Any
+
+from azure.core.credentials import AccessToken, AccessTokenInfo
 from azure.identity import ManagedIdentityCredential, AzureCliCredential
-from azure.identity.aio import ManagedIdentityCredential as AioManagedIdentityCredential, AzureCliCredential as AioCliCredential
 from app.config.settings import settings
 
-async def get_azure_credential_async() -> AioCliCredential | AioManagedIdentityCredential:
-    """
-    Returns an Azure credential asynchronously based on the application environment.
+_REFRESH_MARGIN_SECONDS = 300
+_CLI_PROCESS_TIMEOUT_SECONDS = 30
+_TOKEN_OPTION_KEYS = ("claims", "tenant_id", "enable_cae")
 
-    If the environment is 'local', it uses AioCliCredential.
-    Otherwise, it uses AioManagedIdentityCredential.
 
-    Returns:
-        Credential object: Either AioCliCredential or AioManagedIdentityCredential.
-    """
-    if settings.AGENT_RUNTIME == 'local':
-        return AioCliCredential()
-    else:
-        return AioManagedIdentityCredential(client_id=settings.AZURE_CLIENT_ID)
+class CachedAzureCliCredential(AzureCliCredential):
+    """AzureCliCredential that reuses tokens, so per-request clients do not spawn `az` each time."""
 
-def get_async_azure_credential() -> AioCliCredential | AioManagedIdentityCredential:
-    """
-    Returns an Azure credential asynchronously based on the application environment.
+    def __init__(self, **kwargs: Any) -> None:
+        kwargs.setdefault("process_timeout", _CLI_PROCESS_TIMEOUT_SECONDS)
+        super().__init__(**kwargs)
+        self._token_cache: dict[tuple[Any, ...], AccessTokenInfo] = {}
+        self._cache_lock = threading.Lock()
 
-    If the environment is 'local', it uses AioCliCredential.
-    Otherwise, it uses AioManagedIdentityCredential.
+    def get_token_info(self, *scopes: str, options: Any = None) -> AccessTokenInfo:
+        key = (scopes, repr(sorted((options or {}).items())))
+        with self._cache_lock:
+            cached = self._token_cache.get(key)
+            if cached and cached.expires_on - time.time() > _REFRESH_MARGIN_SECONDS:
+                return cached
+            token = super().get_token_info(*scopes, options=options)
+            self._token_cache[key] = token
+            return token
 
-    Returns:
-        Credential object: Either AioCliCredential or AioManagedIdentityCredential.
-    """
-    if settings.AGENT_RUNTIME == 'local':
-        return AioCliCredential()
-    else:
-        return AioManagedIdentityCredential(client_id=settings.AZURE_CLIENT_ID)
+    def get_token(self, *scopes: str, **kwargs: Any) -> AccessToken:
+        options = {name: kwargs[name] for name in _TOKEN_OPTION_KEYS if name in kwargs}
+        info = self.get_token_info(*scopes, options=options)
+        return AccessToken(info.token, info.expires_on)
+
 
 def get_azure_credential() -> AzureCliCredential | ManagedIdentityCredential:
     """
     Returns an Azure credential based on the application environment.
 
-    If the environment is 'local', it uses AzureCliCredential.
+    If the environment is 'local', it uses a token-caching AzureCliCredential.
     Otherwise, it uses ManagedIdentityCredential.
-
-    Returns:
-        Credential object: Either AzureCliCredential or ManagedIdentityCredential.
     """
     if settings.AGENT_RUNTIME == 'local':
-        return AzureCliCredential()
+        return CachedAzureCliCredential()
     else:
         return ManagedIdentityCredential(client_id=settings.AZURE_CLIENT_ID)

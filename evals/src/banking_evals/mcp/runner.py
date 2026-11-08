@@ -77,8 +77,8 @@ async def run_case(
             }
             workflow = build_hosted_workflow(
                 client, "in-memory://account", "in-memory://transaction", secret,
-                account_mcp_session=sessions["account"],
-                transaction_mcp_session=sessions["transaction"],
+                account_mcp_client=sessions["account"],
+                transaction_mcp_client=sessions["transaction"],
                 account_chat_client=account_chat_client,
                 transaction_chat_client=transaction_chat_client,
             )

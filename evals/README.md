@@ -203,12 +203,15 @@ semantic quality, locale correctness, service authorization or live acceptance.
 
 ## Reviewed freeze alignment
 
-Freeze revision 19 updates only five reviewed dependency hashes: Account MCP card
-identity lookup, the Agent entrypoint, and Agent credential, logging and settings
-configuration. It resolves the remaining mismatches recorded by revision 18 while
-preserving exact dataset bytes, consent expansions and dependency coverage. The
-review is recorded in `dispute_freeze.json`; offline validation does not establish
-native Toolbox grant binding, hosted readiness, model quality or live-data parity.
+Freeze revision 20 updates only three reviewed transport dependency hashes: the
+Agent entrypoint, banking identity middleware and historical hosted diagnostic.
+Hosted requests now separate the opaque platform partition from signed banking
+claims in the forwarded `x-client-banking-identity` header; local identity,
+signature validation, real platform call IDs and the native OAuth Toolbox gate
+remain unchanged. Exact dataset bytes, consent expansions and dependency coverage
+are preserved. The review is recorded in [dispute_freeze.json](dispute_freeze.json); offline validation
+does not establish deployed header forwarding, impersonation permission, native
+Toolbox grant binding, hosted readiness, model quality or live-data parity.
 
 ## Historical offline regression evidence
 

@@ -76,7 +76,7 @@ class DeterministicIntake:
 
     async def call(self, tool: str, arguments: dict[str, Any]) -> Any:
         reply = await self.session.call_tool(tool, arguments)
-        if reply.isError:
+        if reply.is_error:
             self.stopped = True
             raise ValueError("Controlled synthetic tool denial or unavailability")
         return json.loads(reply.content[0].text)
