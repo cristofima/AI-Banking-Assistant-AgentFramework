@@ -121,7 +121,7 @@ jobs:
           done
       - name: Record OAuth deployment boundary
         run: |
-          echo "::warning::Hosted foundry/oauth remains fail-closed in the runtime adapter until native banking-user/grant binding is verified. Deployment does not enable OAuth Toolbox calls."
+          echo "::warning::Hosted foundry/oauth uses native Toolbox consent, but banking-user/grant binding and two-user isolation are not verified by this deployment."
           echo "OAuth connections account-mcp and transaction-mcp must already be owner-configured in the selected project with exact platform callbacks and mcp.access. This workflow does not register clients or configure connections." >> "$GITHUB_STEP_SUMMARY"
       - name: Deploy hosted agent artifact
         run: azd -C app/agent deploy home-banking-agent --no-prompt

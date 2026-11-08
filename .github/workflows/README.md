@@ -412,9 +412,9 @@ presence, a successful CD metadata handoff or hosted OAuth acceptance.
 No hosted-agent deployment or model invocation occurred in that configuration step.
 
 The workflow validates public HTTPS project/MCP URLs (MCP path `/mcp`) and records
-the deployment boundary in its summary. The runtime adapter still **fails closed** for
-OAuth Toolbox passthrough pending native banking-user/caller/grant binding and two-user
-isolation proof. Artifact deployment or `agent show` is not hosted OAuth readiness.
+the deployment boundary in its summary. The runtime adapter supports native OAuth
+Toolbox calls offline, but banking-user/caller/grant binding and two-user isolation are
+unproven hosted. Artifact deployment or `agent show` is not hosted OAuth readiness.
 Do not replace this gate with HMAC fallback, a shared grant or a fabricated call ID.
 
 Optional (per-agent model deployments):
