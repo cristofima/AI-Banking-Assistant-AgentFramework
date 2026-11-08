@@ -21,7 +21,11 @@ dependencies = [
 banking-shared = { path = "../shared", editable = true }
 
 [dependency-groups]
-dev = ["pytest==9.1.1", "pytest-asyncio==1.4.0"]
+dev = [
+    "httpx2>=2.15.1",
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+]
 
 [build-system]
 requires = ["hatchling"]

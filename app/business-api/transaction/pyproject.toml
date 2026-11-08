@@ -22,7 +22,12 @@ banking-shared = { path = "../shared", editable = true }
 banking-evals = { path = "../../../evals", editable = true }
 
 [dependency-groups]
-dev = ["pytest==9.1.1", "pytest-asyncio==1.4.0", "banking-evals"]
+dev = [
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+    "banking-evals",
+    "httpx2>=2.15.1",
+]
 
 [build-system]
 requires = ["hatchling"]

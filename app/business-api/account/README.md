@@ -5,6 +5,20 @@ and separately authenticated, agent-only MCP tools. Business ownership checks li
 in [services/products.py](src/banking_account/services/products.py); canonical card
 types are `Debit Card` and `Credit Card`.
 
+MCP `getAccountsByUserName` accepts an omitted `userName` and discovers accounts
+only for the customer resolved from the verified MCP bearer. No email is needed
+in the conversation. An explicitly supplied legacy username must still match that
+customer; blank or foreign values fail rather than switch identity. A valid customer
+without bank accounts returns an empty list. Missing or invalid authentication fails
+before the service read. This applies to supported HMAC and direct OAuth verification;
+it does not prove native Foundry caller/grant binding. REST authentication is unchanged.
+
+The authorized Development Account deployment completed on 2026-10-20 UTC.
+The remote OpenAPI endpoint returned HTTP 200, and MCP `tools/list` independently
+confirmed that `userName` is optional and nullable. No customer tool call was made:
+this proves deployment and the public schema, not native consent, ownership or binding.
+Use a fresh diagnostic conversation to avoid a previously cached tool schema.
+
 ## Package layout and local startup
 
 The installed package is [banking_account](src/banking_account/):

@@ -116,14 +116,17 @@ class UserService:
     def __init__(self, session_factory: SessionFactory = create_session) -> None:
         self._session_factory = session_factory
 
-    def get_accounts_by_user_name(self, user_name: str, customer_id: str) -> list[Account]:
-        _require_identifier(user_name, "UserName")
+    def get_accounts_by_user_name(
+        self, user_name: str | None, customer_id: str,
+    ) -> list[Account]:
+        _require_identifier(customer_id, "CustomerId")
+        if user_name is not None:
+            _require_identifier(user_name, "UserName")
         with self._session_factory() as session:
-            customer = session.exec(
-                select(Customer)
-                .where(Customer.customer_id == customer_id)
-                .where(Customer.email == user_name.strip().lower())
-            ).first()
+            query = select(Customer).where(Customer.customer_id == customer_id)
+            if user_name is not None:
+                query = query.where(Customer.email == user_name.strip().lower())
+            customer = session.exec(query).first()
             if customer is None:
                 raise PermissionError("Account does not belong to the authenticated customer")
 

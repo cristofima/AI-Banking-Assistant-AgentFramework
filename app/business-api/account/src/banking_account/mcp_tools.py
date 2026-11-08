@@ -1,6 +1,6 @@
 from asyncio import to_thread
 
-from banking_account.models.products import CardDiscoveryResult
+from banking_account.models.products import Account, CardDiscoveryResult
 from fastmcp import FastMCP
 from fastmcp.server.dependencies import CurrentHeaders
 import logging
@@ -13,13 +13,19 @@ user_service = UserService()
 account_service = AccountService()
 mcp = FastMCP("Account MCP Server")
 
-@mcp.tool(name="getAccountsByUserName", description="Get the list of all accounts for a specific user")
-def get_accounts_by_user_name(
-    userName: Annotated[str, "username of logged user"],
+@mcp.tool(
+    name="getAccountsByUserName",
+    description=(
+        "Get accounts owned by the authenticated customer. Omit userName; identity comes "
+        "from the verified bearer token. An optional legacy username must match that customer."
+    ),
+)
+async def get_accounts_by_user_name(
+    userName: Annotated[str | None, "Optional legacy username; omit for authenticated reads"] = None,
     headers: dict[str, str] = CurrentHeaders(),
-):
-    logger.info("getAccountsByUserName called with userName=%s", userName)
-    return user_service.get_accounts_by_user_name(userName, get_customer_id(headers))
+) -> list[Account]:
+    customer_id = await to_thread(get_customer_id, headers)
+    return await to_thread(user_service.get_accounts_by_user_name, userName, customer_id)
 
 @mcp.tool(name="getAccountDetails", description="Get account details and available payment methods")
 def get_account_details(
