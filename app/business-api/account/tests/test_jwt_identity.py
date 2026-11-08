@@ -1,8 +1,5 @@
 """Synthetic application JWT revocation and customer-role boundary regressions."""
-from collections.abc import Callable
 from typing import Any
-
-from datetime import datetime, timedelta, timezone
 
 import httpx
 import jwt
@@ -10,22 +7,14 @@ import pytest
 from fastapi import HTTPException
 
 from banking_shared import jwt_identity
-from banking_shared.testing import JWT_SECRET, customer_claims, set_jwt_environment
+from banking_shared.testing import (  # noqa: F401
+    JWT_SECRET as SECRET,
+    customer_claims as claims,
+    jwt_environment,
+    mock_introspection as transport,
+)
 
 pytestmark = pytest.mark.asyncio
-
-SECRET = JWT_SECRET
-claims = customer_claims
-
-
-@pytest.fixture(autouse=True)
-def environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    set_jwt_environment(monkeypatch)
-
-
-def transport(monkeypatch: pytest.MonkeyPatch, handler: Callable[[httpx.Request], httpx.Response]) -> None:
-    monkeypatch.setattr(jwt_identity, "_auth_client", lambda: httpx.AsyncClient(
-        base_url="http://auth", timeout=3, transport=httpx.MockTransport(handler)))
 
 
 async def invoke(payload: dict[str, Any], secret: str = SECRET) -> str:

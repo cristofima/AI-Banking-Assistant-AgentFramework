@@ -1,8 +1,6 @@
 """Transaction dispute routes enforce the shared customer JWT boundary on every call.
 
 Generic JWT verification is covered in Account's test_jwt_identity.py."""
-from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
 from typing import Any
 from unittest.mock import Mock
 
@@ -13,22 +11,14 @@ from fastapi import FastAPI, HTTPException
 
 from banking_transaction.routers import disputes as dispute_routers
 from banking_shared import jwt_identity
-from banking_shared.testing import JWT_SECRET, customer_claims, set_jwt_environment
+from banking_shared.testing import (  # noqa: F401
+    JWT_SECRET as SECRET,
+    customer_claims as claims,
+    jwt_environment,
+    mock_introspection as transport,
+)
 
 pytestmark = pytest.mark.asyncio
-
-SECRET = JWT_SECRET
-claims = customer_claims
-
-
-@pytest.fixture(autouse=True)
-def environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    set_jwt_environment(monkeypatch)
-
-
-def transport(monkeypatch: pytest.MonkeyPatch, handler: Callable[[httpx.Request], httpx.Response]) -> None:
-    monkeypatch.setattr(jwt_identity, "_auth_client", lambda: httpx.AsyncClient(
-        base_url="http://auth", timeout=3, transport=httpx.MockTransport(handler)))
 
 
 DISPUTE_REQUESTS = [
