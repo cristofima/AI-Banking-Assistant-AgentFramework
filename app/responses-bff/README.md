@@ -301,4 +301,4 @@ and the [infrastructure guide](../../infra/README.md). Configuration preflight d
 not establish login, startup or hosted identity acceptance.
 
 For zip packaging and dependency export, follow the
-[root deployment artifact guide](../../README.md#python-dependency-artifact-for-app-service-zip-deploy).
+[root deployment artifact guide](../business-api/README.md#python-dependency-artifacts).
