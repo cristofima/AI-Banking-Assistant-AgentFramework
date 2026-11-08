@@ -9,6 +9,31 @@ import pytest
 from app.adapters import runtime_tools
 
 
+def test_native_oauth_uses_platform_credentials_without_banking_grant(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MCP_IDENTITY_MODE", "oauth")
+    calls: list[dict[str, Any]] = []
+
+    def unexpected_call(*args: Any, **kwargs: Any) -> None:
+        pytest.fail("Native OAuth must not resolve a banking grant")
+
+    def toolbox(credential: object, **kwargs: Any) -> object:
+        calls.append(kwargs)
+        return object()
+
+    monkeypatch.setattr(runtime_tools, "FoundryToolbox", toolbox)
+    monkeypatch.setattr(runtime_tools, "mcp_header_provider", unexpected_call)
+    runtime_tools.build_toolbox_tools("foundry", "https://example.test", None, "secret")
+    assert len(calls) == 2
+    provider = calls[0]["header_provider"]
+    monkeypatch.setattr(runtime_tools, "get_request_context", lambda: type("C", (), {"call_id": "call"})())
+    assert provider({}) == {}
+    monkeypatch.setattr(runtime_tools, "get_request_context", lambda: type("C", (), {"call_id": None})())
+    with pytest.raises(ValueError, match="platform request call ID"):
+        provider({})
+
+
 @pytest.mark.parametrize("runtime", ["local", "invalid", "", "FOUNDRY"])
 def test_invalid_runtime_is_rejected(runtime: str) -> None:
     with pytest.raises(ValueError, match="AGENT_RUNTIME"):

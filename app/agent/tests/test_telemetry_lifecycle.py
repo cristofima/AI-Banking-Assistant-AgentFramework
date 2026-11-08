@@ -179,7 +179,7 @@ async def test_shutdown_finishes_active_stream_and_rejects_new_work(
             source_closed.set()
 
     record = SimpleNamespace(
-        response_context=SimpleNamespace(shutdown=shutdown),
+        response_context=SimpleNamespace(shutdown=shutdown, _task_context=None),
         cancel_signal=asyncio.Event(), execution_task=None,
     )
     handler = SimpleNamespace(

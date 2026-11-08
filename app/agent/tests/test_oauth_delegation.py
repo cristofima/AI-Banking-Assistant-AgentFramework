@@ -77,8 +77,10 @@ async def test_concurrent_oauth_requests_keep_separate_bearers(
 
 def test_oauth_toolbox_does_not_emit_custom_header(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("MCP_IDENTITY_MODE", "oauth")
-    with pytest.raises(ValueError, match="direct HTTP"):
-        build_toolbox_tools("foundry", "https://example.test", None, SECRET)
+    account, _ = build_toolbox_tools("foundry", "https://example.test", None, SECRET)
+    with patch("app.adapters.runtime_tools.get_request_context") as context:
+        context.return_value.call_id = "platform-call"
+        assert account._header_provider({}) == {}
 
 
 def test_unknown_mode_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:

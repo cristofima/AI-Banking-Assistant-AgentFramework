@@ -37,9 +37,13 @@ def _has_completed_agent_response(conversation: Sequence[Message]) -> bool:
         return False
 
     message = conversation[-1]
+    if message.role != "assistant":
+        return False
+    # A consent challenge ends the turn; the client resumes it with a new request.
+    if any(content.type == "oauth_consent_request" for content in message.contents):
+        return True
     return (
-        message.role == "assistant"
-        and any(
+        any(
             content.type == "text" and content.text and content.text.strip()
             for content in message.contents
         )

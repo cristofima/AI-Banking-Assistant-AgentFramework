@@ -7,6 +7,7 @@ from app.agents.azure_chat.guardrails import BANKING_GUARDRAILS
 from app.common.internal_identity import mcp_header_provider
 from app.adapters.tool_error_middleware import OwnershipErrorMiddleware
 from app.adapters.refusal_locale_middleware import RefusalLocaleMiddleware
+from app.adapters.toolbox_consent_middleware import ToolboxConsentMiddleware
 from app.context.user_profile_provider import UserProfileProvider
 
 
@@ -216,6 +217,7 @@ class TransactionHistoryAgent :
           require_per_service_call_history_persistence=True,
           tools=[account_mcp_server, transaction_mcp_server],
           middleware=[
+              ToolboxConsentMiddleware([account_mcp_server, transaction_mcp_server]),
               OwnershipErrorMiddleware(),
               RefusalLocaleMiddleware(self.internal_identity_secret),
           ],

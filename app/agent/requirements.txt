@@ -1,22 +1,22 @@
 .
 agent-detector==2.0.0 ; sys_platform != 'emscripten'
     # via fastapi-cloud-cli
-agent-framework-core==1.21.0 ; sys_platform != 'emscripten'
+agent-framework-core==1.25.0 ; sys_platform != 'emscripten'
     # via
     #   agent-framework-foundry
     #   agent-framework-foundry-hosting
     #   agent-framework-openai
     #   agent-framework-orchestrations
     #   banking-assistant-agent
-agent-framework-foundry==1.14.1 ; sys_platform != 'emscripten'
+agent-framework-foundry==1.16.1 ; sys_platform != 'emscripten'
     # via banking-assistant-agent
-agent-framework-foundry-hosting==1.0.0b261008 ; sys_platform != 'emscripten'
+agent-framework-foundry-hosting==1.0.0b261106 ; sys_platform != 'emscripten'
     # via banking-assistant-agent
-agent-framework-openai==1.16.0 ; sys_platform != 'emscripten'
+agent-framework-openai==1.18.1 ; sys_platform != 'emscripten'
     # via
     #   agent-framework-foundry
     #   banking-assistant-agent
-agent-framework-orchestrations==1.3.1 ; sys_platform != 'emscripten'
+agent-framework-orchestrations==1.4.2 ; sys_platform != 'emscripten'
     # via banking-assistant-agent
 aiohappyeyeballs==2.7.1 ; sys_platform != 'emscripten'
     # via aiohttp
@@ -51,14 +51,14 @@ attrs==26.1.0 ; sys_platform != 'emscripten'
     #   aiohttp
     #   jsonschema
     #   referencing
-azure-ai-agentserver-core==2.2.0 ; sys_platform != 'emscripten'
+azure-ai-agentserver-core==2.3.1b1 ; sys_platform != 'emscripten'
     # via
     #   agent-framework-foundry-hosting
     #   azure-ai-agentserver-invocations
     #   azure-ai-agentserver-responses
 azure-ai-agentserver-invocations==1.2.0 ; sys_platform != 'emscripten'
     # via agent-framework-foundry-hosting
-azure-ai-agentserver-responses==2.3.0 ; sys_platform != 'emscripten'
+azure-ai-agentserver-responses==2.4.0 ; sys_platform != 'emscripten'
     # via
     #   agent-framework-foundry-hosting
     #   banking-assistant-agent
@@ -167,11 +167,11 @@ httpx==0.28.1 ; sys_platform != 'emscripten'
     #   banking-assistant-agent
     #   fastapi
     #   fastapi-cloud-cli
-    #   mcp
-httpx-sse==0.4.3 ; sys_platform != 'emscripten'
-    # via mcp
 httpx2==2.13.1 ; sys_platform != 'emscripten'
-    # via openai
+    # via
+    #   agent-framework-foundry-hosting
+    #   mcp
+    #   openai
 hypercorn==0.18.0 ; sys_platform != 'emscripten'
     # via azure-ai-agentserver-core
 hyperframe==6.1.0 ; sys_platform != 'emscripten'
@@ -206,10 +206,12 @@ markdown-it-py==4.2.0 ; sys_platform != 'emscripten'
     # via rich
 markupsafe==3.0.3 ; sys_platform != 'emscripten'
     # via jinja2
-mcp==1.30.0 ; sys_platform != 'emscripten'
+mcp==2.3.0 ; sys_platform != 'emscripten'
     # via
     #   agent-framework-foundry-hosting
     #   banking-assistant-agent
+mcp-types==2.3.0 ; sys_platform != 'emscripten'
+    # via mcp
 mdurl==0.1.2 ; sys_platform != 'emscripten'
     # via markdown-it-py
 microsoft-opentelemetry==1.4.0 ; sys_platform != 'emscripten'
@@ -241,6 +243,7 @@ opentelemetry-api==1.45.1 ; sys_platform != 'emscripten'
     #   azure-ai-agentserver-invocations
     #   azure-core-tracing-opentelemetry
     #   azure-monitor-opentelemetry-exporter
+    #   mcp
     #   microsoft-opentelemetry
     #   opentelemetry-exporter-http-transport
     #   opentelemetry-exporter-otlp-proto-http
@@ -415,6 +418,7 @@ pydantic==2.13.5 ; sys_platform != 'emscripten'
     #   fastapi
     #   fastapi-cloud-cli
     #   mcp
+    #   mcp-types
     #   openai
     #   pydantic-extra-types
     #   pydantic-settings
@@ -423,9 +427,7 @@ pydantic-core==2.46.5 ; sys_platform != 'emscripten'
 pydantic-extra-types==2.11.1 ; sys_platform != 'emscripten'
     # via fastapi
 pydantic-settings==2.15.0 ; sys_platform != 'emscripten'
-    # via
-    #   fastapi
-    #   mcp
+    # via fastapi
 pygments==2.21.0 ; sys_platform != 'emscripten'
     # via rich
 pyjwt==2.10.1 ; sys_platform != 'emscripten'
@@ -494,6 +496,8 @@ starlette==1.7.0 ; sys_platform != 'emscripten'
     #   fastapi
     #   mcp
     #   sse-starlette
+tenacity==9.1.4 ; sys_platform != 'emscripten'
+    # via agent-framework-foundry-hosting
 truststore==0.10.4 ; sys_platform != 'emscripten'
     # via
     #   httpcore2
@@ -515,6 +519,7 @@ typing-extensions==4.16.0 ; sys_platform != 'emscripten'
     #   fastapi
     #   httpx2
     #   mcp
+    #   mcp-types
     #   openai
     #   opentelemetry-api
     #   opentelemetry-exporter-otlp-proto-http

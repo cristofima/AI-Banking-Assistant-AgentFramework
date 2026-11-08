@@ -70,7 +70,7 @@ def test_host_selects_and_reuses_clients(
     with (
         patch.object(main_responses_host, "settings", configured),
         patch.object(main_responses_host, "get_azure_credential", return_value=credential),
-        patch.object(main_responses_host, "FoundryChatClient") as factory,
+        patch.object(main_responses_host, "WorkflowFoundryChatClient") as factory,
         patch.object(main_responses_host, "build_hosted_workflow") as workflow,
         patch.object(main_responses_host, "build_toolbox_tools") as toolbox,
         patch.object(main_responses_host, "ResponsesHostServer") as server,
@@ -90,17 +90,22 @@ def test_host_selects_and_reuses_clients(
             host.add_middleware.assert_called_once_with(main_responses_host.BankingIdentityMiddleware)
         else:
             host.add_middleware.assert_not_called()
-        create_agent = server.call_args.args[0]
-        create_agent()
-        create_agent()
+        create_workflow = server.call_args.kwargs["workflow"]
+        create_workflow(MagicMock())
+        create_workflow(MagicMock())
 
-    call = workflow.call_args
+    first_call, call = workflow.call_args_list
+    first_clients = (
+        first_call.args[0], first_call.kwargs["account_chat_client"],
+        first_call.kwargs["transaction_chat_client"],
+    )
     clients = (
         call.args[0], call.kwargs["account_chat_client"],
         call.kwargs["transaction_chat_client"],
     )
     assert tuple(client.model for client in clients) == expected
-    assert factory.call_count == len(set(expected))
+    assert factory.call_count == 2 * len(set(expected))
+    assert not {id(client) for client in first_clients} & {id(client) for client in clients}
     assert all(client.credential is credential for client in clients)
     assert all(client.project_endpoint == configured.FOUNDRY_PROJECT_ENDPOINT for client in clients)
     assert call.args[1:] == (
@@ -143,7 +148,7 @@ def test_local_host_requires_direct_mcp_urls(
     with (
         patch.object(main_responses_host, "settings", configured),
         patch.object(main_responses_host, "get_azure_credential", return_value=object()),
-        patch.object(main_responses_host, "FoundryChatClient"),
+        patch.object(main_responses_host, "WorkflowFoundryChatClient"),
         patch.object(main_responses_host, "build_toolbox_tools") as toolbox,
         patch.object(main_responses_host, "ResponsesHostServer") as server,
         pytest.raises(RuntimeError, match=missing_setting),
@@ -179,7 +184,7 @@ def test_host_requires_specific_deployment_or_shared_fallback(
     with (
         patch.object(main_responses_host, "settings", configured),
         patch.object(main_responses_host, "get_azure_credential", return_value=object()),
-        patch.object(main_responses_host, "FoundryChatClient"),
+        patch.object(main_responses_host, "WorkflowFoundryChatClient"),
         patch.object(main_responses_host, "ResponsesHostServer") as server,
         pytest.raises(RuntimeError) as error,
     ):
