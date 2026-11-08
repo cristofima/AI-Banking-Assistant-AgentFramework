@@ -55,6 +55,18 @@ thin CLI adapters, with implementation inside the installed package. See the
 [package map](ARCHITECTURE.md) and [service structure](app/business-api/README.md#-service-structure)
 for current namespaces and responsibilities.
 
+Account and Transaction share one implementation of customer JWT verification and
+current-Identity introspection (`banking_shared.jwt_identity`, including
+`introspect_token`, also used by Transaction operator auth) and of MCP principal
+verification (`banking_shared.internal_identity`). Change these once in Shared;
+do not copy them back into a service. Their generic tests live in Account, while
+Transaction keeps only its dispute-route and mutation tests. Synthetic JWT/HMAC
+fixtures shared by both suites live in `banking_shared.testing`. Sonar runs
+duplicate-code detection on tests too, so extract common helpers rather than
+excluding tests. Moving a file covered by `evals/dispute_freeze.json` requires a
+reviewed freeze revision, and new Shared dependencies require regenerating each
+service's `requirements.txt`.
+
 ## Local Development
 
 The root `.vscode` configuration owns local orchestration. The default task
