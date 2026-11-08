@@ -38,6 +38,30 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+
+      - name: Collect Python coverage
+        shell: bash
+        env:
+          OTEL_SDK_DISABLED: "true"
+        run: |
+          set -uo pipefail
+          for project in app/agent app/responses-bff app/business-api/identity app/business-api/account app/business-api/transaction app/business-api/data evals; do
+            extra=""
+            if [ "$project" = "evals" ]; then extra="--extra offline"; fi
+            if (cd "$project" && uv run --frozen $extra --with pytest-cov python -m pytest -q tests --cov=src --cov-report=xml:coverage.xml); then
+              :
+            else
+              echo "::warning::Tests failed or produced partial coverage for $project"
+            fi
+            if [ -f "$project/coverage.xml" ]; then
+              # Coverage filenames are relative to src; Sonar resolves them from the repository root
+              sed -i "s#filename=\"#filename=\"$project/src/#g" "$project/coverage.xml"
+            fi
+          done
       - name: Cache SonarQube packages
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:

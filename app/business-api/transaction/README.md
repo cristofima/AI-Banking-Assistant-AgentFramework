@@ -135,18 +135,13 @@ rtk proxy uv run --directory app\agent python -m pytest tests\test_hosted_workfl
 rtk proxy uv run --project evals --extra offline --frozen python -m pytest evals\tests -q --tb=short
 ```
 
-Historical focused results: **46 Transaction tests**, **74 agent tests** and
-**71 combined offline replay/eval tests passed**. Evals now runs in its independent
-offline environment; the latest full Evals run passed **52 tests** using
+The Evals suite runs in its independent offline environment using
 `--extra offline --frozen --no-sync`, including package-aware DTO loading.
-Replay freeze revision 7 reviews the new tool, instructions and package-aware
-DTO dependency graph;
-scenario bytes and expanded inputs remain unchanged. The owner confirmed browser
-recognition demonstrations with similar purchases and without matches, plus case
-history display, customer isolation and session switching. These are limited owner
-observations, not an exhaustive recognition, operator-negative or locale matrix.
-Real-model clue/locale quality, PostgreSQL read parity and hosted acceptance remain
-open. These checks do not prove reduced operator workload.
+The replay freeze reviews the recognition tool, instructions and package-aware
+DTO dependency graph; scenario bytes and expanded inputs are unchanged. Recognition
+has no exhaustive operator-negative or locale matrix.
+Real-model clue/locale quality, PostgreSQL read parity and hosted acceptance
+are not established. These checks do not prove reduced operator workload.
 
 ## Customer dispute proposal and consent
 
@@ -193,19 +188,15 @@ After application-recorded acceptance, chat reads the supplied case with
 `getSupportCase` and acknowledges the confirmed receipt instead of creating again.
 Only confirmed persistence/readback permits a successful case receipt.
 
-The owner subsequently reported the feature working. The localization follow-up
-passed 53 focused frontend tests and 80 focused agent tests; exact commands and
+Focused frontend and agent suites cover the localization; commands and
 limitations are in the linked frontend and [agent guide](../../agent/README.md#pre-intake-consent-and-localized-context).
-This observation does not complete the browser or real-model acceptance matrix.
+Offline tests do not complete the browser or real-model acceptance matrix.
 
-Offline validation of this slice: Transaction **278 passed, 7 skipped** (one existing
-warning); focused agent suites **80 passed** (24 SDK deprecation warnings); nine
-frontend suites **183 passed**, lint **0 errors/14 existing warnings**, build passed
-with its existing bundle-size warning. Scripted-model tests exercise actual SDK
+Scripted-model tests exercise actual SDK
 session/tool continuation, not real-model consent semantics. Vite build does not
 prove clean TypeScript diagnostics. Browser, hosted transport, real-model locale
-quality, approved-data parity and PostgreSQL acceptance contention remain separate
-unexecuted gates for this change.
+quality, approved-data parity and PostgreSQL acceptance contention are separate
+gates not covered by these offline checks.
 
 ## Operator queue and takeover
 
@@ -389,20 +380,18 @@ after commit, two precommit rollback points and resolved-transaction reclaim.
 Durable assertions check one case/consent/review transition and no posting, protection
 or balance change. Without both variables, these tests skip.
 
-Authorized local execution passed **10 tests** on PostgreSQL **13.0** at
-**READ COMMITTED**; a repeated run passed again and verified no newly created test
-schemas remained. The target reported Alembic revision `20261005_0012`, but fixture
-tables are created from SQLModel metadata: this is not migration-execution evidence.
+The local PostgreSQL run uses a loopback target at **READ COMMITTED** and leaves no
+test schemas behind. Fixture tables are created from SQLModel metadata, so it is
+not migration-execution evidence.
 REST/MCP tests substitute synthetic identity extraction, not business persistence.
 These results do not prove live Identity/BFF authentication, browser/model behavior,
-hosted transport, financial settlement or approved customer-data parity. Existing
-focused offline dispute/consent regressions passed **82 tests**, with these ten
-PostgreSQL cases skipped when authorization variables were absent.
+hosted transport, financial settlement or approved customer-data parity. Without the
+authorization variables, these PostgreSQL cases skip.
 
 Transaction CI explicitly excludes this local-only module through `PYTEST_ADDOPTS`,
 even if database authorization variables are present in the job environment.
 
-The operator-effects implementation was validated with the following suites:
+Operator-effects suites:
 
 ```powershell
 rtk proxy uv run --directory app\business-api\transaction python -m pytest tests -q --tb=short
@@ -410,36 +399,28 @@ rtk proxy uv run --directory app\business-api\account python -m pytest tests -q 
 rtk proxy uv run --directory app\business-api\data python -m pytest tests -q --tb=short
 ```
 
-Results: Transaction **230 passed, 7 skipped**; Account **85 passed, 1 skipped**;
-Data **118 passed**. A separately authorized loopback PostgreSQL run passed all
-**6** isolated concurrency tests, including effects retry, lifetime entitlement
-and concurrent active intake. These results do not prove migration 0011 rollout,
+The isolated PostgreSQL concurrency tests cover effects retry, lifetime entitlement
+and concurrent active intake. They do not prove migration 0011 rollout,
 browser acceptance or hosted identity transport.
 
-A read-only local persisted-data check found 100,102 Credit Card product balances:
-97,939 positive, 2,163 zero, none negative or missing. Credit Card restitution
-subtracts the original amount from the stored balance through the runtime ledger.
-This confirms the sign representation, not external settlement or issuer enforcement. A subsequent
-user-authorized localhost PostgreSQL run of `test_operator_cases.py` and
-`test_operator_postgres.py` passed **18 tests**, including all three PostgreSQL
-cases. Connection configuration was loaded internally and verified as loopback;
-only uniquely named synthetic schemas were written. Read-only cleanup verification
-found **0 remaining operator test schemas**. This verifies service-level contention,
+Credit Card product balances are stored as non-negative debt amounts. Credit Card
+restitution subtracts the original amount from the stored balance through the runtime
+ledger. This is the sign representation, not external settlement or issuer
+enforcement. `test_operator_cases.py` and `test_operator_postgres.py` run against
+loopback PostgreSQL with uniquely named synthetic schemas that are removed afterwards.
+They verify service-level contention,
 repeat conflicts and rollback/recovery, not runtime Identity checks, browser
 acceptance, claim-versus-customer-resolution races or final-verdict authority.
 
-Separately authorized local PostgreSQL execution on 2026-10-04 upgraded revision
-`20261003_0008` to `20261004_0010`. Backup integrity and read-only preservation checks
-passed: original business rows, five cases, 24 events, legacy catalog/mappings and
-Operator ownership constraints were retained. One concurrent login added an identity
-audit; all 62 original audit records were verified unchanged. Restore rehearsal and
-remote rollout were not performed. See the [data guide](../data/README.md#schema-and-ownership).
+Local PostgreSQL migration of revision `20261003_0008` to `20261004_0010` preserves
+original business rows, cases, events, legacy catalog/mappings, Operator ownership
+constraints and existing audit records. Restore rehearsal and
+remote rollout are not covered. See the [data guide](../data/README.md#schema-and-ownership).
 
-After assigned-list integration, the focused `tests\test_operator_cases.py` run
-passed 13 tests. This is synthetic service coverage, not authenticated browser
+`tests\test_operator_cases.py` is synthetic service coverage, not authenticated browser
 acceptance or operator-verdict authority.
 
-The extended rollback regressions were verified locally from the repository root:
+Rollback regressions run from the repository root:
 
 ```powershell
 $env:OPERATOR_TEST_ALLOW_WRITES = "0"
@@ -447,6 +428,6 @@ Set-Location app\business-api\transaction
 & .\.venv\Scripts\python.exe -m pytest tests\test_operator_cases.py tests\test_operator_postgres.py -q
 ```
 
-Result: **15 passed, 3 skipped**. The PostgreSQL cases were intentionally disabled;
-this verifies the offline rollback/recovery checks and collection, not PostgreSQL
+With writes disabled the PostgreSQL cases skip; this verifies the offline
+rollback/recovery checks and collection, not PostgreSQL
 execution. The existing FastAPI/Starlette test-client deprecation warning remains.

@@ -43,7 +43,7 @@
     "evals/src/banking_evals/disputes/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "evals/src/banking_evals/disputes/baseline.py": "07ed46c0a8a99a0427d9582ab43d0c56353b08dd4f09e0b135cf311eab9a2461",
     "evals/src/banking_evals/disputes/cli.py": "be492dc48f75e4fb734e91609314bc0d56579de1d1b5ed7c32ef68ab53ebc019",
-    "evals/src/banking_evals/disputes/dataset.py": "8b2860e0a0772e6e6c9714ba9c99f72806b5bc5267291a2f77f949ba0b905e7d",
+    "evals/src/banking_evals/disputes/dataset.py": "22094f5ca894adb000cd711f1925a0a70a8cac52bd612de5e81a3b193a5b6198",
     "evals/src/banking_evals/disputes/reports.py": "235760628e9ab6d13509a84f3d886b0b311686adcbfb41c81d1da858e1025af5",
     "evals/src/banking_evals/disputes/scoring.py": "f9a32b10f1bd8efcd72e6971a4c956cee971bc9d7ae88002a1c0e12baedf17a4",
     "evals/src/banking_evals/evidence.py": "ad0d20c14749faa1f305a92b69263c0c52608bf8d524fa1fc3860041bd5474d0",
@@ -68,7 +68,8 @@
     "evals/src/banking_evals/semantic/technical.py": "d0bb0881db4824b50fc91a79344e1b73f9c7a322d5d2f43949d1cb76363b19b8",
     "evals/src/banking_evals/semantic_provider.py": "3ccefccd9bad2c71fdf76fb16a38255cffc5d0c295f2e4b8bd836d183937dc31"
   },
-  "freeze_revision": 22,
+  "freeze_revision": 23,
+  "local_only_filter_removal_review": "Revision 23 records removal of the LOCAL_ONLY_PREFIXES filter from required_dependencies in disputes/dataset.py now that the isolated OAuth diagnostic modules are no longer in the repository. The dependency inventory, dataset bytes, expanded inputs, tool contracts and all other dependency hashes are unchanged; only the dataset.py hash changes.",
   "shared_identity_extraction_review": "Revision 22 records the extraction of Account and Transaction customer JWT and internal MCP identity verification into banking_shared. Only the Account and Transaction MCP tool hashes change, and only through the get_customer_id import path; verification behavior, tool names, arguments and descriptions are unchanged.",
   "account_owner_discovery_review": "Revision 21 reviews optional userName in Account MCP discovery: the verified token owner remains mandatory, supplied legacy usernames remain ownership filters, and async tool identity/service calls run in the thread pool. The Account MCP and offline contract-parser hashes change; the parser preserves nullable arguments, defaults and requiredness. Coverage adds the three isolated read-only diagnostic modules, including dedicated sanitized telemetry; exact dataset and expanded-input bytes remain unchanged. Offline checks do not prove native caller/grant binding or hosted acceptance; unrelated dependency drift is not implicitly refrozen.",
   "ci_dependency_alignment_review": "Revision 20 reviews exactly three transport dependency changes: the Agent entrypoint installs hosted-only banking identity middleware; signed claims are resolved from the forwarded x-client-banking-identity context instead of the opaque platform identity; the historical hosted diagnostic sends the same separate signed envelope and HMAC-derived non-PII partition identifier. Signature validation, local transport, real platform call IDs and the native OAuth Toolbox rejection remain unchanged. Exact dataset bytes, consent expansions, dependency coverage and business authorization are preserved. Offline checks do not establish forwarding in a deployed container, impersonation permission, native customer/grant binding, model or live-data acceptance.",

@@ -232,6 +232,17 @@ describe("Responses provider visible output", () => {
     expect(text).toContain(link);
   });
 
+  it("shows one consent card per link and no unavailable-tool task for the consent call", () => {
+    start();
+    const link = "https://consent.example.test/authorize?token=abc";
+    event({ type: "response.output_item.added", item: { type: "oauth_consent_request", id: "consent-1", consent_link: link } });
+    event({ type: "response.output_item.added", item: { type: "oauth_consent_request", id: "consent-2", consent_link: link } });
+    event({ type: "response.output_item.added", item: { type: "function_call", id: "fc-1", call_id: "call-1", name: "request_info" } });
+    event({ type: "response.incomplete" }); finish();
+    expect(messages().filter(item => JSON.stringify(item).includes(link))).toHaveLength(1);
+    expect(JSON.stringify(messages())).not.toContain("Tool result unavailable");
+  });
+
   it("ignores consent links that are not HTTPS", () => {
     start();
     event({ type: "response.output_item.added", item: { type: "oauth_consent_request", id: "consent-1", consent_link: "javascript:alert(1)" } });

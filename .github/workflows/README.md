@@ -264,8 +264,8 @@ Configure these **Development environment variables**, separately from local azd
 Root azd `AZURE_OPERATIONS_PRINCIPAL_ID` is the principal's **object ID**, not the
 workflow application's client ID. Terraform grants resource-group Reader, key-scoped
 public read, `database-url` read and Secrets Officer only on `oauth-jwks` and
-`oauth-client-secret`. Development provisioning on 2026-10-18 reused the existing CD
-principal, so that identity now also has these scoped write permissions. A distinct
+`oauth-client-secret`. The operations identity reuses the existing CD
+principal, so that identity also has these scoped write permissions. A distinct
 operations principal is an optional future isolation change, not the current setup.
 azd provisioning does not populate GitHub environment variables. Wait for RBAC
 propagation and ensure runner network/database access; this workflow grants no firewall,
@@ -307,7 +307,7 @@ grant access or provision connections. The Development Azure inspection also fou
 inherited vault-wide Secrets User assignment on the inspected CD principal. Declared
 secret-scoped grants alone therefore do not prove an effective access denial. Confirm
 the actual workflow principal and inherited assignments before diagnosing or requesting
-permissions; protected GitHub variable reads returned HTTP 403 during this session.
+permissions; protected GitHub variable reads can return HTTP 403 without admin access.
 Any new grant requires separate authorization and should be secret-scoped. Keep Account
 and Transaction client IDs and secrets distinct and preserve the BFF environment variables.
 Publishing this workflow and dispatching it are separate owner actions. Registration does
@@ -401,17 +401,16 @@ rtk proxy node --test .github\actions\appservice-preflight\hosted.test.cjs .gith
 See [deployment troubleshooting](../../docs/troubleshooting.md#deployment-oauth-and-federation-blockers)
 for the missing-endpoint failure.
 
-Development configuration on 2026-10-19 created both OAuth2 connections and published
-`banking-tools` version `3` as default, retaining version `2` for rollback. Its verified
-version-pinned endpoint is stored in the selected local agent azd environment only.
-See the [infrastructure configuration record](../../infra/README.md#native-oauth-compatibility-gate)
-for the exact callbacks, client IDs, secret names and endpoint. The owner subsequently confirmed successful protected `register-client` runs for both
-native clients after merging the workflow. Those runs were not independently inspected
-in this code-change pass. This record does not prove GitHub environment variable
-presence, a successful CD metadata handoff or hosted OAuth acceptance.
-No hosted-agent deployment or model invocation occurred in that configuration step.
+The OAuth2 connections and the `banking-tools` Toolbox default version are configured in
+the Foundry project; the version-pinned endpoint lives in the selected local agent azd
+environment only. See the [infrastructure configuration](../../infra/README.md#native-oauth-compatibility-gate)
+for the exact callbacks, client IDs, secret names and endpoint. Protected
+`register-client` runs register both native clients. This does not prove GitHub
+environment variable presence, a successful CD metadata handoff or hosted OAuth
+acceptance. Configuring connections and the Toolbox does not deploy the hosted agent
+or invoke a model.
 
-The workflow validates public HTTPS project/MCP URLs (MCP path `/mcp`) and records
+The workflow validates public HTTPS project/MCP URLs (MCP path `/mcp`) and summarizes
 the deployment boundary in its summary. The runtime adapter supports native OAuth
 Toolbox calls offline, but banking-user/caller/grant binding and two-user isolation are
 unproven hosted. Artifact deployment or `agent show` is not hosted OAuth readiness.

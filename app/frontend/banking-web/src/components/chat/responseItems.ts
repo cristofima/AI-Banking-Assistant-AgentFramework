@@ -12,7 +12,7 @@ export interface ToolOutputItem {
 }
 
 export function toolProgressKey(name: string | undefined): string | null {
-  if (!name || /handoff|transfer|triage/i.test(name)) return null;
+  if (!name || /handoff|transfer|triage|^request_info$/i.test(name)) return null;
   if (/dispute|supportcase/i.test(name)) return "Processing support case";
   if (/transaction/i.test(name)) return "Looking up transactions";
   if (/account|balance|product|card/i.test(name)) return "Looking up account information";

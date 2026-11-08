@@ -213,20 +213,16 @@ refresh or rotation readiness.
 The hosted/native Toolbox OAuth path has offline consent transport, but
 banking-user/native-caller/grant binding, callback/S256 compatibility and two-user
 isolation remain unproven. These deployment declarations do not establish hosted
-readiness; do not route the path through a shared grant or an HMAC fallback. Development azd configuration and root provisioning completed on 2026-10-18;
-its final preview reported no changes. The operations identity currently reuses the
-existing GitHub CD principal, including scoped OAuth-secret write access. GitHub
-variables, code rollout and runtime verification remain separate gates. The owner
-confirmed successful Development migration and `init-oauth` after the key-scoped RBAC
-repair. This is owner-observed workflow evidence, not hosted OAuth acceptance.
-On 2026-10-19, a separately authorized ARM Key Vault-reference refresh followed by
-status reads confirmed the OAuth references on Account, Transaction and BFF as
-`Resolved`, after cached `SecretNotFound` statuses despite existing secrets. This
-verifies reference resolution at that time, not token exchange or hosted OAuth readiness.
-Terraform's scoped operations grants are not the complete effective permission inventory:
-the Azure inspection also found inherited vault-wide Secrets User access on the inspected
-CD principal. Confirm the actual runner identity and inherited access before adding roles;
-protected GitHub variable reads were unavailable with HTTP 403.
+readiness; do not route the path through a shared grant or an HMAC fallback.
+The operations identity reuses the existing GitHub CD principal, including scoped
+OAuth-secret write access. GitHub variables, code rollout and runtime verification
+remain separate gates. Workflow success for migration and `init-oauth` is not hosted
+OAuth acceptance. App Service can cache a `SecretNotFound` status for a Key Vault
+reference after the secret exists; refresh the references and read their status to
+confirm `Resolved`. Resolved references do not prove token exchange or hosted OAuth
+readiness. Terraform's scoped operations grants are not the complete effective
+permission inventory: the CD principal can also hold inherited vault-wide Secrets User
+access. Confirm the actual runner identity and inherited access before adding roles.
 
 ### Foundry MCP connections and Toolbox
 
@@ -254,65 +250,43 @@ remove the runtime gate or authorize shared grants, fabricated call IDs or HMAC 
 
 #### Native OAuth compatibility gate
 
-The initial read-only Development inspection on 2026-10-19 found the following
-historical state, superseded by the authorized configuration recorded below:
+- The BFF system-assigned identity needs project-scoped `Foundry Agent Consumer` and
+  the explicit `UserIdentityImpersonation/action` permission. These assignments do
+  not establish individual customer/native OAuth grant binding.
+- A no-auth Toolbox experiment with inline MCP URLs, no `project_connection_id` and
+  trailing `/mcp/` paths is not the OAuth Toolbox declared by the agent manifest. Do not
+  supply its endpoint as OAuth dependency metadata.
 
-- The BFF system-assigned identity has project-scoped `Foundry Agent Consumer` and
-  the explicit `UserIdentityImpersonation/action` permission. This verifies the
-  service's assignments, not individual customer/native OAuth grant binding.
-- The project's connection inventory contained only its Application Insights
-  connection. Neither `account-mcp` nor `transaction-mcp` existed at that point.
-- `banking-tools` had default version `2`, a no-auth experiment with inline MCP URLs,
-  no `project_connection_id`, and trailing `/mcp/` paths. That version is not the OAuth
-  Toolbox declared by the current agent manifest.
-
-The subsequent GitHub Development variable read returned HTTP 403, so current
-presence of `TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT` could not be independently verified.
-The checked-in hosted CD workflow does not inject it. Do not supply version `2`'s
-experimental endpoint as verified OAuth dependency metadata.
-
-The subsequent authorized Development configuration on 2026-10-19 created and
-verified both `RemoteTool`/`OAuth2` connections with exact `mcp.access` scope and
-independent credentials held in Key Vault and Foundry, without exposing their values:
+Both connections are `RemoteTool`/`OAuth2` with exact `mcp.access` scope and
+independent credentials held in Key Vault and Foundry, never exposed:
 
 | Connection        | Identity client ID        | Key Vault secret                       | Actual platform callback                                                          |
 | ----------------- | ------------------------- | -------------------------------------- | --------------------------------------------------------------------------------- |
 | `account-mcp`     | `foundry-account-mcp`     | `oauth-client-foundry-account-mcp`     | `https://global.consent.azure-apim.net/redirect/ae31090f0320449ebac04370824883b7` |
 | `transaction-mcp` | `foundry-transaction-mcp` | `oauth-client-foundry-transaction-mcp` | `https://global.consent.azure-apim.net/redirect/af3efbb2af8444ee90ad67cfabb0c889` |
 
-These callbacks were read from the actual connections, not inferred. Both clients
-still require protected `register-client` execution in Identity; connection creation
-and enabled secrets do not prove registration or callback/S256 interoperability.
+These callbacks come from the actual connections, not inference. Both clients require
+protected `register-client` execution in Identity; connection creation and enabled
+secrets do not prove registration or callback/S256 interoperability.
 
-Using the existing agent manifest, the local command
-`azd deploy banking-tools --no-prompt --cwd app/agent` created version `3` with both
-`project_connection_id` references and the existing tool allowlists unchanged.
-Deployment did not promote it automatically: a separate
-`azd ai toolbox publish banking-tools 3 --cwd app/agent` made version `3` the default.
-Version `2` remains available for rollback with
-`azd ai toolbox publish banking-tools 2 --cwd app/agent`. These commands affect only
-the Toolbox, not the hosted agent or model deployments. Deployment preview was
-attempted but is unsupported for the `azure.ai.toolbox` host.
+`azd deploy banking-tools --no-prompt --cwd app/agent` creates a Toolbox version from the
+agent manifest, with `project_connection_id` references and the existing tool allowlists.
+Deployment does not promote the version: `azd ai toolbox publish banking-tools <version>
+--cwd app/agent` makes it the default, and republishing an earlier version rolls back.
+These commands affect only the Toolbox, not the hosted agent or model deployments.
+Deployment preview is unsupported for the `azure.ai.toolbox` host.
 
-The selected local agent azd environment now stores
-`TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT` as:
-
-```text
-https://aifdevelopment58b174.services.ai.azure.com/api/projects/foundry-development/toolboxes/banking-tools/versions/3/mcp?api-version=v1
-```
-
-The version, default selection, connection references and endpoint readback were
-verified after publication. No changes to the agent YAML files were needed. This is
-configuration evidence only. Hosted CD requires a nonblank endpoint from the
-Development GitHub Environment and exports it to its agent azd environment without
-enforcing URL format or probing availability. For default-version consumption, set
+The agent azd environment stores `TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT`. Hosted CD requires
+a nonblank endpoint from the Development GitHub Environment and exports it to its agent
+azd environment without enforcing URL format or probing availability. Local azd
+configuration does not populate that GitHub variable; set it explicitly. For
+default-version consumption use
 `https://aifdevelopment58b174.services.ai.azure.com/api/projects/foundry-development/toolboxes/banking-tools/mcp?api-version=v1`;
-keep the version-specific endpoint for pinned tests. Publishing or rolling back the
-Toolbox default retargets the consumer endpoint without changing that variable.
-Set that GitHub variable explicitly; local azd configuration does not populate it. The mapping is covered by offline regressions, not a successful hosted
+use the `.../banking-tools/versions/<version>/mcp?api-version=v1` form for pinned tests.
+Publishing or rolling back the Toolbox default retargets default-version consumers
+without changing that variable. A version-pinned consumer needs its endpoint updated
+on rollback. The mapping is covered by offline regressions, not a successful hosted
 CD run, native runtime identity support or per-user OAuth compatibility proof.
-Rollback of a version-pinned consumer also requires updating its endpoint; changing
-the Toolbox default alone does not retarget consumers pinned to version `3`.
 Do not rotate or replace the native credentials on retry. Rotation, revocation,
 connection replacement and Identity client changes require separately approved,
 coordinated operations; no automatic rollback across these systems is implemented.
@@ -330,12 +304,9 @@ requires the real hosted `x-agent-foundry-call-id` and documents same-tenant Ent
 consumer requirements for per-user OAuth. Custom-user session delegation alone does
 not establish compatibility with that OAuth grant resolution. Keep foundry/oauth
 rejected until this distinction and actual callback/S256/client authentication are
-proven. The initial inspection was read-only; the subsequent authorized work created
-connections and deployed/published only the Toolbox. That configuration step did not
-register Identity clients or perform a hosted-agent deployment, consent flow, MCP call
-or model invocation. The owner subsequently confirmed successful protected
-`register-client` runs for both native clients; those runs were not independently
-inspected. This confirmation does not establish native OAuth compatibility;
+proven. Connection and Toolbox configuration do not register Identity clients or
+perform a hosted-agent deployment, consent flow, MCP call or model invocation.
+Successful `register-client` runs do not establish native OAuth compatibility;
 two-user hosted isolation remains open
 in [#81](https://github.com/cristofima/AI-Banking-Assistant-AgentFramework/issues/81).
 
@@ -376,8 +347,7 @@ never tag-based discovery.
 
 The existing secret-scoped Identity `database-url` grant is reconciled with
 `azurerm_role_assignment.identity_key_vault_secrets_user["database-url"]` in the
-approved remote Terraform state. Its targeted plan reported no changes, and the
-subsequent `azd provision` was confirmed successful. If provisioning reports
+approved remote Terraform state. If provisioning reports
 `409 RoleAssignmentExists` for a pre-existing grant, verify its principal, role and
 secret scope, then import its full role-assignment resource ID at the matching
 Terraform address in the correct backend and workspace. Review the plan before

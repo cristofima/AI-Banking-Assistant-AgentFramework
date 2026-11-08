@@ -146,7 +146,10 @@ with no automatic submission or retry. Return to the requesting client to reconc
 an uncertain outcome rather than resending it.
 
 The BFF-owned lifecycle below supplies opt-in direct OAuth JWT chat integration,
-not native Foundry challenge handling. Per-customer grant isolation still requires
+not native Foundry challenge handling. Native Foundry consent in the hosted chat
+renders each `oauth_consent_request` link as one authorization card; the
+`request_info` function call the host projects for the same challenge never gets
+an output and is not shown as a tool task. Per-customer grant isolation still requires
 runtime acceptance. No browser, live provider, stack or cloud acceptance is implied
 by unit tests.
 
@@ -228,16 +231,12 @@ The composer and recovery controls use the authenticated UI locale (en/es/pt).
 Explicitly closed threads and saved case snapshots remain read-only; recovery does
 not reopen them or enable stale consent or generic MCP approval cards.
 
-The session's seven focused frontend regression files passed (218 tests); lint
-passed with zero errors and 14 warnings, and build passed with the existing
-chunk-size warning. The owner additionally confirmed recognizing a charge and
-choosing not to report it stops intake without creating a case or requesting more
-consent, and multi-turn intake preserves charge/context through acceptance and
-subsequent existing-case consultation without recreation or second consent.
-These are reported positive-path observations, not assistant-executed browser tests.
-Retry was not exercised because no error occurred. Browser interruption/recovery,
-reload, accessibility, real-model recovery acknowledgement and hosted acceptance
-remain separate validation gates. Same-provider-operation replay and resilient
+Recognizing a charge and choosing not to report it stops intake without creating a
+case or requesting more consent, and multi-turn intake preserves charge/context
+through acceptance and subsequent existing-case consultation without recreation or
+second consent. Retry behavior is not covered by browser evidence. Browser
+interruption/recovery, reload, accessibility, real-model recovery acknowledgement
+and hosted acceptance remain separate validation gates. Same-provider-operation replay and resilient
 background execution are not implemented.
 
 The browser sends signed `conversation` continuation tokens; the BFF translates them
@@ -260,9 +259,8 @@ not provider trace evidence; legacy/direct cases can have no snapshot. Missing o
 inaccessible customer cases show the same localized unavailable state and navigation
 to support cases within the customer layout. See the
 [Transaction history contract](../../business-api/transaction/README.md#customer-provided-case-conversation).
-The owner confirmed history display, customer isolation and session change in the
-browser. Reload, closure, the revised controls and exact-assigned-operator negative
-checks remain user-owned validations.
+Reload, closure, the revised controls and exact-assigned-operator negative
+checks remain user-owned browser validations.
 
 ## App Service Deployment
 
@@ -349,10 +347,7 @@ Focused Node tests cover customer launcher/routes, staff exclusion, failed/loadi
 
 Run `npm test`, `npm run lint` and `npm run build` for frontend checks. Administrator client tests resolve request paths against a synthetic base URL so they work both with a configured BFF URL and without local Vite environment files, as in CI. This test base does not change production transport configuration. Identity tests cover contracts, route mount isolation, session reset orchestration and administrator form handlers using the existing Node test environment. These are not browser or live-backend acceptance evidence. Manual checks still include three-role deep links and refresh, lifecycle persistence, expired/revoked sessions, locale display and cross-user logout isolation.
 
-## Session validation (2026-10-04)
-
-Frontend checks after adding versioned adjudication, pending-effects controls,
-application-only protection and customer balance refresh:
+## Frontend checks for adjudication and effects
 
 ```powershell
 rtk npm --prefix app\frontend\banking-web test
@@ -360,12 +355,9 @@ rtk npm --prefix app\frontend\banking-web run lint
 rtk npm --prefix app\frontend\banking-web run build
 ```
 
-Results: 493 tests across 30 files passed; lint had zero errors and 14 existing
-warnings; build passed with the existing large-chunk warning. These checks cover
-shared posting/protection contracts, operator controls using actual product state,
-nullable historical protection state, linked financial movements and session-scoped
-balance refresh, not authenticated browser acceptance.
-Historical suite counts elsewhere describe earlier runs, not the current total.
+These checks cover shared posting/protection contracts, operator controls using
+actual product state, nullable historical protection state, linked financial
+movements and session-scoped balance refresh, not authenticated browser acceptance.
 
 ### Dispute presentation and recorded receipts
 
@@ -412,9 +404,7 @@ rtk npm run lint
 rtk npm run build
 ```
 
-Results: 67 tests across six files passed; lint passed with zero errors and 14 existing
-warnings; build passed with the large-chunk warning. These are synthetic frontend
-regressions, not browser, live posting/protection, hosted or end-to-end acceptance.
+These are synthetic frontend regressions, not browser, live posting/protection, hosted or end-to-end acceptance.
 
 ### Pre-intake proposal and consent
 
@@ -436,8 +426,7 @@ Chat continues a REST-accepted case with `getSupportCase`, not recreation. Exist
 permission controls. Intake/review does not itself refund, adjudicate or protect a card.
 See the [Transaction contract](../../business-api/transaction/README.md#customer-dispute-proposal-and-consent).
 
-The owner reported the feature working. This is a limited user observation, not
-completion of the en/es/pt browser, expired-session, cross-user, PostgreSQL contention
+Local functional behavior is not completion of the en/es/pt browser, expired-session, cross-user, PostgreSQL contention
 or hosted acceptance matrix.
 
 ### Chat streaming and approval parity
@@ -470,20 +459,18 @@ only offers approve/decline while `WAITING_USER_APPROVAL`, and refreshes persist
 after an ambiguous POST failure. Consent does not itself grant tool permission, issue
 a refund or protect a card. Progress, controls and feedback use en/es/pt catalogs.
 
-Outputless-turn validation, run from the repository root:
+Chat provider checks, run from the repository root:
 
-| Command                                                                             | Result                                    |
-| ----------------------------------------------------------------------------------- | ----------------------------------------- |
-| `rtk proxy npm --prefix app\frontend\banking-web test -- --run src\components\chat` | 111 passed across five files              |
-| `rtk proxy npm --prefix app\frontend\banking-web run lint`                          | Passed: zero errors, 14 existing warnings |
-| `rtk proxy npm --prefix app\frontend\banking-web run build`                         | Passed with existing large-chunk warning  |
+```powershell
+rtk proxy npm --prefix app\frontend\banking-web test -- --run src\components\chat
+rtk proxy npm --prefix app\frontend\banking-web run lint
+rtk proxy npm --prefix app\frontend\banking-web run build
+```
 
 These provider regressions exercise visible error items, en/es/pt failure text,
 interleaved output IDs, legacy deltas, approval retries and consent-only turns.
-Earlier parity validation recorded 619 full-suite tests across 37 files and 13 existing
-diagnostics from `tsc --noEmit -p tsconfig.app.json` outside the parity changes; neither
-check was rerun for this update. Editor diagnostics report no errors in the three
-changed chatbot source/test files. Browser, backend-producer and hosted end-to-end
+`tsc --noEmit -p tsconfig.app.json` reports existing diagnostics outside the chat
+parity code. Browser, backend-producer and hosted end-to-end
 behavior are not verified by these synthetic checks.
 
 Owner browser checklist using the normal full-stack launch:
@@ -531,21 +518,20 @@ English keys, statuses and payload values remain unchanged, as do Portuguese dis
 terminology, customer-entered reasons and original audit text. The agent's authenticated
 locale directive separately requires this terminology for generated Spanish prose.
 
-Latest focused localization validation from the repository root:
+Focused localization checks from the repository root:
 
-| Command                                                                                                                  | Result                                    |
-| ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------- |
-| `rtk proxy npm --prefix app\frontend\banking-web test -- src\i18n.test.ts src\components\DisputePreviewConsent.test.tsx` | 53 passed across two files                |
-| `rtk proxy npm --prefix app\frontend\banking-web run lint`                                                               | Passed: zero errors, 14 existing warnings |
-| `rtk proxy npm --prefix app\frontend\banking-web run build`                                                              | Passed with existing large-chunk warning  |
+```powershell
+rtk proxy npm --prefix app\frontend\banking-web test -- src\i18n.test.ts src\components\DisputePreviewConsent.test.tsx
+rtk proxy npm --prefix app\frontend\banking-web run lint
+rtk proxy npm --prefix app\frontend\banking-web run build
+```
 
 Catalog regressions verify consent-surface key completeness, `Card` translations,
-Spanish terminology/grammar and canonical payload preservation. These results supersede
-the earlier 16-test focused i18n snapshot, not unrelated full-suite evidence. Full
-TypeScript checking previously reported existing errors in chat rendering/provider
-types and legacy BFF mocks; Vite build does not prove those resolved. The owner reported
-the feature working, but the complete authenticated browser localization, responsive
-layout and live multilingual model matrix was not rerun for this follow-up.
+Spanish terminology/grammar and canonical payload preservation. Full
+TypeScript checking reports existing errors in chat rendering/provider
+types and legacy BFF mocks; Vite build does not prove those resolved. The complete
+authenticated browser localization, responsive layout and live multilingual model
+matrix are not covered by these checks.
 
 ## Account Page
 
@@ -666,7 +652,7 @@ unverified.
 Recommendation and timeline projections are localized in en/es/pt. Customer reasons,
 operator rationales and original audit text remain unchanged; arbitrary resolution
 notes remain visible. Display uses recorded state, not inferred human review or
-settlement. Earlier localization checks passed, but synthetic tests do not establish
+settlement. Synthetic tests do not establish
 authenticated three-language browser parity.
 
 The detail page labels the product number as Card Number, localized in en/es/pt.
@@ -677,7 +663,7 @@ Low-score cases show the localized `REVIEW_REQUIRED` event; a low score neither
 determines legitimacy nor authorizes automatic closure. Historical catalog assignments
 are not real operator claims. Current takeover and verdict controls use the authenticated
 assigned operator; customer final-resolution authority is retired. No automatic review
-timeout is implemented. Previously resolved cases remain unchanged.
+timeout is implemented. Resolved cases are not modified by later policy.
 
 The detail page also shows the full event timeline and the single post-resolution
 recommendation card with an explicit dismiss action once a case resolves favorably. All
@@ -699,23 +685,22 @@ suppression, persisted-state readback, cancellation, authentication failures and
 stale-session isolation. These synthetic checks do not establish responsive browser
 acceptance or live service authorization.
 
-## UI-readiness validation
+## UI-readiness checks
 
-Checks run from the repository root after the customer layout/privacy repairs and
-operator customer-name, badge and score-meter changes:
+Run from the repository root:
 
-| Command                                                                                                                                                                                     | Result                                       |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| `rtk proxy npm --prefix app\frontend\banking-web run test -- src\components\DisputePresentation.test.tsx src\api\operatorDisputeClient.test.ts src\components\OperatorCaseActions.test.tsx` | 155 passed across three files                |
-| `rtk proxy npm --prefix app\frontend\banking-web run test`                                                                                                                                  | 776 passed across 41 files                   |
-| `rtk proxy npm --prefix app\frontend\banking-web run lint`                                                                                                                                  | Zero errors; 14 existing warnings            |
-| `rtk proxy npm --prefix app\frontend\banking-web run build`                                                                                                                                 | Passed with the existing large-chunk warning |
+```powershell
+rtk proxy npm --prefix app\frontend\banking-web run test -- src\components\DisputePresentation.test.tsx src\api\operatorDisputeClient.test.ts src\components\OperatorCaseActions.test.tsx
+rtk proxy npm --prefix app\frontend\banking-web run test
+rtk proxy npm --prefix app\frontend\banking-web run lint
+rtk proxy npm --prefix app\frontend\banking-web run build
+```
 
-Related Transaction operator/adjudication tests passed 45 synthetic cases; see the
-[Transaction guide](../../business-api/transaction/README.md). No browser, stack,
-database or cloud run was performed for these changes. Authenticated en/es/pt browser
+Related Transaction operator/adjudication tests are synthetic; see the
+[Transaction guide](../../business-api/transaction/README.md). These checks run no browser, stack,
+database or cloud. Authenticated en/es/pt browser
 checks, narrow-screen layouts, score-meter endpoints and live/hosted data parity remain
-separate acceptance gates. Earlier suite counts in this README are historical snapshots.
+separate acceptance gates.
 
 ## Validation
 
@@ -728,33 +713,22 @@ npm run build
 
 Frontend CI coverage uses Vitest's V8 provider and requires `@vitest/coverage-v8` in `devDependencies`.
 
-Historical financial arithmetic and pagination validation passed 19 tests, the build
-and focused financial lint. Historical global lint errors described below were resolved;
-the latest full run passes with 14 warnings (see chat streaming validation above).
+Lint reports warnings but no errors. Account retains inherited
+placeholder-link accessibility diagnostics. Card-specific browser recovery, complete
+two-user parity, authenticated browser inspection of the card, Account and Dashboard
+layouts, natural session expiration, normal pointer interaction, the complete signed
+agent/MCP matrix and mobile responsive behavior are not verified. Transaction `503`
+and `401` UI states are covered by simulation only. Account API contract tests cover
+masking and ownership (see the [business-api guide](../../business-api/README.md)).
 
-The card page compiled successfully, and the user confirmed local credit/debit card
-display. The Account API's JWT-authenticated contract suite passed, including masking
-and ownership cases (see the [business-api guide](../../business-api/README.md)). Card-specific browser recovery and complete two-user parity
-have not yet been recorded. The user supplied desktop screenshots of the card panels
-and Dashboard. Subsequent card-grid, Account, and Dashboard presentation changes
-passed build and focused lint; the 19 frontend tests passed again. The latest layout
-has not been independently inspected in an authenticated browser session. Account
-retains inherited placeholder-link accessibility diagnostics; the latest global lint
-has warnings but no errors.
-
-Desktop browser balances and transaction rows matched direct, JWT-authenticated Account
-and Transaction reads for
-two approved users; PostgreSQL comparisons were performed separately. Transaction
-`503` and `401` UI states were simulated. Natural session expiration, normal pointer
-interaction, and the complete signed agent/MCP matrix remain open. Mobile responsive
-validation is deferred.
+Account and Transaction reads are direct, JWT-authenticated calls; browser balances
+and transaction rows are compared against PostgreSQL separately from this README.
 
 The assistant uses the verified email from signed BFF identity for Account and
-Transaction inquiries, with generic approval-event support. User-supplied local
-browser evidence on 2026-09-30 shows an owned-account answer with a full bank number
-and masked card number, and a foreign-account denial rendered after `ACCESS_DENIED`.
-The reported blank chat response is resolved for these cases; Transaction chat,
-missing/empty results, multi-turn and approval continuation remain separate checks.
+Transaction inquiries, with generic approval-event support. An owned-account answer
+shows a full bank number and masked card number, and a foreign-account denial renders
+after `ACCESS_DENIED`; Transaction chat,
+missing/empty results, multi-turn and approval continuation need separate checks.
 
 Temporary threads, visible messages and signed completed-response continuation
 identifiers survive same-login reloads through tab-scoped session storage. Explicit

@@ -41,32 +41,27 @@ semantic job for offline contracts/mocked judging and this fixture, with 14-day
 artifacts. Configuration is not proof of a successful GitHub Actions run or a complete
 `eval-quality`/`eval-authz` gate.
 
-### Observed local validation
+### Local validation
 
-On 2026-10-05, the installed Agent environment (Python 3.14.4) passed all **187
-evaluation tests**. The minimal Evals environment previously passed **166 tests
-with 21 optional-framework skips**; SDK-backed coverage requires the Agent/model
-dependencies. These are different environment results, not conflicting totals.
-See the [test guide](tests/README.md) for coverage and environment selection.
+The installed Agent environment runs the full evaluation suite; the minimal Evals
+environment skips tests that need optional frameworks, so SDK-backed coverage requires
+the Agent/model dependencies. See the [test guide](tests/README.md) for coverage and
+environment selection.
 
-The latest local checks, run from repository root, were:
+Run the local checks from repository root:
 
 ```powershell
 $env:OTEL_SDK_DISABLED = 'true'
 rtk proxy uv run --project app\agent --frozen --no-sync python -m pytest evals\tests -q --tb=short
-# Passed: 187 tests.
 
 rtk proxy uv run --project evals --frozen --no-sync python -W error::RuntimeWarning -m banking_evals.semantic.technical --evidence evals\semantic_technical_evidence.json --output evals\results\semantic-technical-validation.json
-# Passed with a fresh output path: eight synthetic traces, zero model calls.
 ```
 
-The technical command was verified with an exclusive session-artifact output path;
-the example above uses a fresh repository-local results path. Do not reuse an
-existing output file. RuntimeWarning-as-error completed successfully, and
-`git diff --check` found no whitespace errors. Mocked verdicts verify forwarding,
-validation and reporting, not whether a real judge agrees with independent reviewers.
-No model calls, remote Foundry submission or remote semantic CI run occurred during
-this validation; the rubric remains uncalibrated.
+The technical command evaluates eight synthetic traces with zero model calls. Use a
+fresh repository-local output path; do not reuse an existing output file. Mocked
+verdicts verify forwarding, validation and reporting, not whether a real judge agrees
+with independent reviewers. These checks make no model calls, remote Foundry submission
+or remote semantic CI run; the rubric remains uncalibrated.
 
 ### Opt-in capture and saved-evidence judging
 
@@ -111,12 +106,11 @@ development-exposed synthetic confirmation set, not untouched held-out evidence.
 expanded inputs, case count, and source dependencies. Dependency hashing normalizes
 CRLF to LF for portability; dataset hashing remains exact. The scoped
 `.gitattributes` rule keeps the frozen dataset checkout in LF on Windows too.
-Freeze revision 4 records the approved `src` package relocation and responsibility
+Freeze revision 4 covers the `src` package layout and responsibility
 splits, with transitive Agent/evaluation source membership enforced. It preserves both
-the exact dataset hash and revision-3 expanded-input hash. Revision 3 recorded the
-reviewed `dispute-consent-v3` expansion for pre-intake
-consent, production preview/location models, and asynchronous SDK tool invocation.
-Revision 2 previously reviewed additive ADR 0009 projections and unexecuted defaults.
+the exact dataset hash and the `dispute-consent-v3` expanded-input hash, which covers
+pre-intake consent, production preview/location models, and asynchronous SDK tool
+invocation, plus the additive ADR 0009 projections and unexecuted defaults.
 The 25 source scenarios, labels, dataset version, and exact dataset bytes remain
 unchanged; canonical expanded inputs deliberately change to reflect the consent
 contract. Workload or expansion changes require a new documented version/freeze.
@@ -177,71 +171,55 @@ $env:OTEL_SDK_DISABLED = "true"
 rtk proxy uv run --project evals --frozen --no-sync python -m pytest app\agent\tests evals\tests -q
 ```
 
-Verified locally: **25 tests passed**, offline comparator **25/25 structured passes**,
-and saved-evidence rescoring **25/25 passes**. These are synthetic results only.
-The existing replay tests now bind paired fixtures to the current scorer and frozen
+The offline comparator, saved-evidence rescoring and replay tests produce synthetic
+results only. The replay tests bind paired fixtures to the current scorer and frozen
 expanded inputs, reject missing/stale fingerprints, and check controlled nested
 errors without retaining arbitrary exception text. The combined offline regression
-command passed **57 tests** (32 existing replay tests and 25 alignment tests):
+command covers the existing replay tests and the alignment tests:
 
 ```powershell
 rtk proxy uv run --project app\agent --frozen --no-sync python -m pytest app\agent\tests\test_dispute_replay.py app\agent\tests\test_mcp_replay.py evals\tests -q --tb=short
 ```
 
-The comparator's 25/25 is synthetic comparator completion, not model-quality evidence.
-These are historical session results recorded before subsequent operator/model-contract
-changes, not a rerun against the current worktree. Validate the freeze before reuse.
+The comparator's structured passes measure synthetic comparator completion, not
+model-quality evidence. Validate the freeze before reusing saved results.
 
-## Migration offline regression evidence
+## Migration offline regression scope
 
-Revision 4 validation passed **48 tests with 3 optional SDK skips** in the standalone
-`offline` environment and **51 tests** in the Agent-backed environment. The Agent
-suite passed **164 tests** and the BFF suite passed **135 tests**. These overlapping
-suites are not additive coverage. All three wheels built successfully. Baseline and
-saved-evidence rescoring completed without model execution. This does not establish
-semantic quality, locale correctness, service authorization or live acceptance.
+The standalone `offline` environment skips tests that need the optional SDK; the
+Agent-backed environment runs them. Overlapping suites are not additive coverage.
+Baseline and saved-evidence rescoring run without model execution. These checks do not
+establish semantic quality, locale correctness, service authorization or live
+acceptance.
 
-## Reviewed freeze alignment
+## Freeze alignment
 
-Freeze revision 20 updates only three reviewed transport dependency hashes: the
-Agent entrypoint, banking identity middleware and historical hosted diagnostic.
-Hosted requests now separate the opaque platform partition from signed banking
+The freeze pins reviewed transport dependency hashes: the
+Agent entrypoint, banking identity middleware and hosted diagnostic.
+Hosted requests separate the opaque platform partition from signed banking
 claims in the forwarded `x-client-banking-identity` header; local identity,
 signature validation, real platform call IDs and the native OAuth Toolbox gate
-remain unchanged. Exact dataset bytes, consent expansions and dependency coverage
-are preserved. The review is recorded in [dispute_freeze.json](dispute_freeze.json); offline validation
+are unchanged by that separation. Exact dataset bytes, consent expansions and dependency coverage
+are preserved. Reviewed changes are recorded in [dispute_freeze.json](dispute_freeze.json); offline validation
 does not establish deployed header forwarding, impersonation permission, native
 Toolbox grant binding, hosted readiness, model quality or live-data parity.
 
-## Historical offline regression evidence
+## Offline regression scope
 
-With freeze revision 3, the requested combined offline suites passed **77 tests**
-with no warnings reported. The run used repository-root `PYTHONPATH` and
-`OTEL_SDK_DISABLED=true`:
+The combined offline suites run from the repository root with `OTEL_SDK_DISABLED=true`:
 
 ```powershell
 rtk proxy uv run --project app\agent --frozen --no-sync python -m pytest evals\tests app\agent\tests\test_dispute_replay.py app\agent\tests\test_mcp_replay.py app\agent\tests\test_replay_summary.py -q --tb=short
+rtk proxy uv run --directory app\agent python -m pytest tests ..\..\evals\tests -q --tb=short
 ```
 
-This includes consent regressions and existing tamper/freeze tests. No source
-scenario or label was changed for this repair. It is offline synthetic evidence,
-not real-model, live authorization, PostgreSQL, browser, or hosted acceptance.
+They include consent regressions and tamper/freeze tests, covering instruction
+contracts, mocked workflow behavior and synthetic replay/freeze guards. This is offline
+synthetic evidence, not real-model discovery, semantic quality, locale correctness,
+live authorization, PostgreSQL, browser, financial settlement, hosted identity
+transport or hosted acceptance. It runs no billable inference or cloud evaluation.
 
-Historical results before Plan 11: after the reviewed projection fingerprint update and LF freeze restoration, the
-following repository-root commands passed. Both used repository-root `PYTHONPATH`
-and `OTEL_SDK_DISABLED=true`:
-
-| Command                                                                                                                                                             | Result                                                 |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `rtk proxy uv run --directory app\agent python -m pytest tests\test_hosted_workflow.py tests\test_dispute_replay.py ..\..\evals\tests\test_offline_alignment.py -q` | 91 passed, 24 existing Azure SDK deprecation warnings  |
-| `rtk proxy uv run --directory app\agent python -m pytest tests ..\..\evals\tests -q --tb=short`                                                                     | 134 passed, 24 existing Azure SDK deprecation warnings |
-
-These checks cover instruction contracts, mocked workflow behavior and synthetic
-replay/freeze guards. They do not establish real-model discovery, semantic quality,
-locale correctness, service authorization, financial settlement or hosted identity
-transport. No billable inference or cloud evaluation was run for this continuation.
-
-## Consultation safeguards and session evidence
+## Consultation safeguards
 
 Existing-case inquiries are read-only. Triage routes case lists, status, timelines,
 and follow-ups to Transaction. Use customer/tool-supplied IDs, request selection for
@@ -251,21 +229,19 @@ missing and foreign cases remain equivalently unavailable. Consent or IN_REVIEW
 never establishes operator takeover or a verdict. User-facing prose follows the
 signed locale; underscore/hyphen machine codes remain unchanged.
 
-Historical session validation recorded:
+Focused commands from repository root, with `OTEL_SDK_DISABLED=true`:
 
-| Focused command from repository root                                                                          | Result    | Evidence boundary                                                |
-| ------------------------------------------------------------------------------------------------------------- | --------- | ---------------------------------------------------------------- |
-| `rtk proxy uv run --directory app\responses-bff pytest tests\test_responses.py -q`                            | 23 passed | Mock Identity/upstream continuation and staff-denial regressions |
-| `rtk proxy uv run --directory app\agent python -m pytest tests\test_hosted_workflow.py -q`                    | 16 passed | Instruction-contract and mocked workflow checks                  |
-| `rtk proxy uv run --directory app\business-api\transaction python -m pytest tests\test_dispute_service.py -q` | 43 passed | Seeded SQLite lifecycle/ownership checks                         |
+| Command                                                                                                       | Evidence boundary                                                |
+| ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `rtk proxy uv run --directory app\responses-bff pytest tests\test_responses.py -q`                            | Mock Identity/upstream continuation and staff-denial regressions |
+| `rtk proxy uv run --directory app\agent python -m pytest tests\test_hosted_workflow.py -q`                    | Instruction-contract and mocked workflow checks                  |
+| `rtk proxy uv run --directory app\business-api\transaction python -m pytest tests\test_dispute_service.py -q` | Seeded SQLite lifecycle/ownership checks                         |
 
-The agent command used repository-root PYTHONPATH and OTEL_SDK_DISABLED=true.
-Continuation tests re-introspected Identity and stopped revoked/version/role changes
-or outages before a second agent request; operator/admin denial made zero agent
+Continuation tests re-introspect Identity and stop revoked/version/role changes
+or outages before a second agent request; operator/admin denial makes zero agent
 upstream calls. Instruction assertions prove safeguards are present, not real-model
-compliance. These results are not live service/authz, PostgreSQL parity, browser,
-locale-quality, or hosted-transport acceptance; no such run was performed for this
-documentation update.
+compliance. These tests are not live service/authz, PostgreSQL parity, browser,
+locale-quality, or hosted-transport acceptance.
 
 [Hosted Agent CI](../.github/workflows/ci-hosted-agent.yml) configures offline dispute
 tests, comparator execution, separate rescoring artifacts, and 14-day retention.
@@ -359,16 +335,15 @@ rtk proxy uv run --project app\agent --frozen --no-sync python -m pytest app\age
 These tests cover policy wiring, SDK-marked refusal localization, mocked MCP runner
 behavior and existing offline evaluation contracts. They are not semantic guardrail
 acceptance or a new proposed-system dispute replay result. The historical
-proposed-system **0/25** remains historical evidence, not a reproduced current
-failure or a result superseded by these tests.
+proposed-system **0/25** is not a reproduced current failure or a result superseded
+by these tests.
 
-The owner confirmed browser guardrail refusals and chat case creation as limited
-positive-path observations. Browser refusal localization remains broken: the supplied
-stream carries English ordinary `output_text`, outside the marked-refusal middleware
+Browser guardrail refusals and chat case creation work in the positive path.
+Browser refusal localization remains broken: the stream carries English ordinary
+`output_text`, outside the marked-refusal middleware
 contract. See the [agent limitation and research findings](../app/agent/README.md#grounding-and-confidentiality).
-Further locale debugging is deferred. Semantic guardrail evaluation, a fresh
-authorized proposed-system dispute replay, and browser/hosted locale acceptance
-remain open.
+Semantic guardrail evaluation, an authorized proposed-system dispute replay, and
+browser/hosted locale acceptance remain open.
 
 ## PR smoke check
 
@@ -379,14 +354,11 @@ artifacts, and publishes controlled statuses in a persistent PR comment. Fork mo
 replay is explicitly not executed. Missing evidence or failed protocol checks fail
 the job. The existing Dispute Replay job remains offline; it does not add real-model
 dispute execution. This is not a semantic guardrail or dispute quality/authz gate.
-[CI run 37264970360](https://github.com/cristofima/factored-hackathon-2026-cristopher-coronado/actions/runs/37264970360)
-passed agent build/tests, PR/OIDC/real-model MCP protocol smoke, report validation,
-evidence upload and PR reporting at commit `ee40605859f3ae7c2e047182025c8c304bead418`.
-Its Dispute Replay job also passed offline alignment regressions, deterministic
-comparator and saved-evidence rescoring checks. These offline checks do not establish
+No runner creates a remote Foundry evaluation; local display names are not remote IDs.
+The existing Dispute Replay job runs offline alignment regressions, the deterministic
+comparator and saved-evidence rescoring. These offline checks do not establish
 real-model dispute quality, semantics, real ownership, business approval, persisted
 financial effects or hosted identity transport.
-No runner creates a remote Foundry evaluation; local display names are not remote IDs.
 
 ## Historical diagnostics
 
@@ -396,8 +368,8 @@ baseline and keyword classifier for historical diagnostics only. Obsolete automa
 resolution labels are not current acceptance expectations. Full redacted per-turn
 responses are retained, and execution continues after controlled failures.
 Local live mode requires an explicitly supplied password and an existing BFF stack;
-hosted direct mode is diagnostic, not browser/BFF topology acceptance. Neither live
-mode ran for this alignment. Historical numbers are not v2 results.
+hosted direct mode is diagnostic, not browser/BFF topology acceptance. Historical
+numbers are not v2 results.
 
 ## Remaining acceptance gates
 

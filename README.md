@@ -117,28 +117,26 @@ implementation from evidence still needed; it is not a claim of production readi
 | Machine Learning   | Deterministic comparator, synthetic replay/scoring, held-out scenario definitions and offline fraud-threshold analysis. [Evaluation guide](evals/README.md)                   | No newly trained fraud model or paired real-model improvement is claimed; stored synthetic scores are inputs, not discovered fraud.                                |
 | Data Analytics     | Customer-scoped product history, filters, currency-aware totals and labeled reconstructed snapshots. [Frontend guide](app/frontend/banking-web/README.md)                     | Transaction activity does not establish support demand or savings; measured safe-resolution impact, latency, cost and segment/language comparisons remain pending. |
 
-## Evaluation and observed evidence
+## Evaluation and evidence limits
 
 - **Automated service tests:** seeded fixtures exercise ownership, consent, routing,
-  operator verdicts, posting and duplicate-compensation protection. Historical
-  isolated localhost PostgreSQL checks cover concurrency/rollback; complete runtime
-  acceptance remains a separate gate.
-- **Selected local observations:** owner-confirmed customer/operator positive E2E
-  flows and selected two-user financial comparisons are recorded. These do not close
-  all error/retry, session-isolation, locale, data-parity or hosted matrices.
-- **Verified CI protocol and structured replay checks:**
-  [CI run 37264970360](https://github.com/cristofima/factored-hackathon-2026-cristopher-coronado/actions/runs/37264970360)
-  passed Hosted Agent build/tests, real-model MCP protocol smoke with Azure login and
-  evidence artifacts, and **offline Dispute Replay** alignment, comparator and
-  rescoring checks. Offline dispute checks are not real-model dispute evaluation;
-  this run does not establish semantic quality, human verdicts, recorded financial
-  effects, live authorization or hosted end-to-end acceptance.
-- **Semantic evaluation implementation and local checks:** eight synthetic en/es/pt
+  operator verdicts, posting and duplicate-compensation protection. Isolated localhost
+  PostgreSQL checks cover concurrency/rollback; complete runtime acceptance remains a
+  separate gate.
+- **Local browser and financial checks:** positive customer/operator E2E flows and
+  two-user financial comparisons do not close all error/retry, session-isolation,
+  locale, data-parity or hosted matrices.
+- **CI protocol and structured replay checks:** Hosted Agent CI runs the build/tests,
+  a real-model MCP protocol smoke with Azure login and evidence artifacts, and
+  **offline Dispute Replay** alignment, comparator and rescoring checks. Offline
+  dispute checks are not real-model dispute evaluation; they do not establish semantic
+  quality, human verdicts, recorded financial effects, live authorization or hosted
+  end-to-end acceptance.
+- **Semantic evaluation:** eight synthetic en/es/pt
   cases separate confidentiality, helpfulness, injection resistance, groundedness,
   relevance and locale. Credential-free deterministic checks and opt-in model
-  capture/judging are implemented. On 2026-10-05, all **187 evaluation tests passed**
-  in the Agent environment (Python 3.14.4), and the authored technical fixture passed
-  **8/8 traces with zero model calls**. See the [evaluation guide](evals/README.md#observed-local-validation)
+  capture/judging are implemented, and the authored technical fixture runs with zero
+  model calls. See the [evaluation guide](evals/README.md#local-validation)
   and [test guide](evals/tests/README.md) for commands and coverage. Mocked judgments
   and fixture success do not establish real-model quality; the rubric remains
   uncalibrated, and remote semantic execution/CI acceptance remain unverified.
@@ -175,6 +173,8 @@ stack locally does not imply inference is offline or free.
    [Account/Transaction](app/business-api/README.md), [agent](app/agent/README.md#local-setup),
    [BFF](app/responses-bff/README.md) and [web](app/frontend/banking-web/README.md).
    There is no root dotenv file; the BFF must not receive database credentials.
+   Do not run `azd provision` merely to start locally; provisioning changes Azure
+   resources and is a separate deployment operation.
 3. In VS Code, press **F5 → DEV - Full Stack Ordered**. Its `noDebug` launch runs
    **prepare full stack dev**, then exits a lightweight Node completion command.
    Ctrl+Shift+B or **Tasks: Run Task → prepare full stack dev** remain alternatives.
@@ -191,7 +191,10 @@ stack locally does not imply inference is offline or free.
    enables `ENABLE_SENSITIVE_DATA` and GenAI message-content capture for debugging,
    so backend logs can contain conversation content.
 
-Focused checks are listed in [AGENTS.md](AGENTS.md#focused-checks). Configuration,
+Focused checks are listed in [AGENTS.md](AGENTS.md#focused-checks). For interactive
+agent validation outside the browser, use a supported visual tool such as DevUI or
+Microsoft 365 Agents Playground, not a console-only validation application.
+Configuration,
 bootstrap and pipeline details belong to the component guides, not this landing page.
 
 ## Deployment and operational limits
@@ -220,18 +223,17 @@ Terraform's scoped declarations do not account for every inherited assignment.
 
 ### Native Foundry OAuth configuration and remaining gates
 
-Development configuration on 2026-10-19 created the independent `account-mcp` and
-`transaction-mcp` OAuth2 connections with `mcp.access` and obtained their actual
-platform callbacks. `banking-tools` version `3` was deployed and explicitly published
-as default; version `2` remains available for rollback. No agent YAML changes or
-hosted-agent deployment were needed for that configuration step. The verified
-version-pinned Toolbox endpoint is persisted in local agent azd only.
+The independent `account-mcp` and `transaction-mcp` OAuth2 connections use the
+`mcp.access` scope and their actual platform callbacks. `banking-tools` is deployed and
+explicitly published as the default Toolbox version; republishing an earlier version
+rolls back. Connection and Toolbox configuration needs no agent YAML change or
+hosted-agent deployment. The version-pinned Toolbox endpoint is persisted in local
+agent azd only.
 
-This is configuration evidence, not usable native OAuth or hosted acceptance:
+This is configuration, not usable native OAuth or hosted acceptance:
 
-- The owner confirmed successful protected workflow registrations for both native
-  clients after merging the workflow. This is owner-reported operation evidence,
-  not independently captured native OAuth acceptance.
+- Protected workflow registration of both native clients is not independently captured
+  native OAuth acceptance.
 - Set `TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT` in the Development GitHub Environment.
   Hosted CD checks that the dependency endpoint is nonblank and exports it before
   agent-only deployment, without enforcing its URL format. The consumer endpoint
@@ -251,9 +253,10 @@ for the endpoint variable and handoff; and [#81](https://github.com/cristofima/A
 for native acceptance. [#78](https://github.com/cristofima/AI-Banking-Assistant-AgentFramework/issues/78)
 owns local OAuth UX/operations and renewal policy. Supported local direct-MCP OAuth
 and default HMAC compatibility remain unchanged; invalid OAuth never falls back to
-HMAC. No native consent, MCP call or model invocation was performed by this
-configuration step. Provisioning, registration, rollout and billable tests require
-applicable explicit authorization.
+HMAC. Native consent works for a single user; binding to the banking user and
+two-user isolation are not established (see the
+[agent guide](app/agent/README.md#native-oauth-consent-behavior)). Provisioning,
+registration, rollout and billable tests require applicable explicit authorization.
 
 ### Operational limits
 

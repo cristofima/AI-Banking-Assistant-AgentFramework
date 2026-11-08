@@ -62,9 +62,8 @@ to version-scoped signing-key role assignments. Terraform used the key's version
 Identity Key Vault Crypto User; `OAUTH_SIGNING_KEY_URI` remains pinned to the exact
 key version. Do not broaden access to the whole vault or rotate the key to bypass this.
 
-The bounded Terraform repair was applied and both replacement assignments were
-verified in Azure. The owner subsequently confirmed successful Development migration
-and `init-oauth`. This does not verify consumer Key Vault reference resolution,
+With the corrected assignments, the migration and `init-oauth` workflows can complete.
+This does not verify consumer Key Vault reference resolution,
 Foundry connection setup or hosted/two-user OAuth acceptance. See the
 [infrastructure OAuth guide](../infra/README.md) for permission ownership.
 
@@ -91,7 +90,7 @@ established by the manual workflow CLI fixes or offline diagnostic tests.
 | Error                                                                                     | Diagnosis and next check                                                                                                                                                                                                                                                                                                                                                                                                               |
 | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Key Vault reference OAUTH_JWKS must be Resolved before deployment` with `SecretNotFound` | The referenced `oauth-jwks` is missing. Complete authorized OAuth initialization, then verify the App Service reference resolves under its own managed identity. Keep the preflight fail-closed; refreshing references requires an authorized rollout.                                                                                                                                                                                 |
-| `AADSTS700213: No matching federated identity record`                                     | Compare the actual GitHub assertion's subject, issuer and audience with the configured Azure federation, including repository/environment identity changes. A later run passed login, but that does not prove every workflow principal is configured correctly.                                                                                                                                                                        |
+| `AADSTS700213: No matching federated identity record`                                     | Compare the actual GitHub assertion's subject, issuer and audience with the configured Azure federation, including repository/environment identity changes. A successful later login does not prove every workflow principal is configured correctly.                                                                                                                                                                                  |
 | `TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT is not set`                                           | Hosted-agent deployment lacks resolved Toolbox dependency metadata. For local deployment, check the selected agent azd environment and dependency deployment. Hosted CD requires a nonblank Toolbox endpoint in the Development GitHub Environment before exporting to azd; it does not enforce URL format or probe availability. Use the consumer endpoint for the published default or a version-specific endpoint for pinned tests. |
 
 Toolbox provisioning is separate from banking-user OAuth binding. The runtime rejects

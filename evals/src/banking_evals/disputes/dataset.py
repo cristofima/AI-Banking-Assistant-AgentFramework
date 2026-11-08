@@ -20,10 +20,6 @@ TRANSACTION_PACKAGE_NAME = "banking_transaction"
 TRANSACTION_MODULE_NAME = f"{TRANSACTION_PACKAGE_NAME}.models.transactions"
 TRANSACTION_PACKAGE_ROOT = ROOT / "app/business-api/transaction/src/banking_transaction"
 
-
-# The local-only OAuth binding probe is not part of the replayed workflow or CI checkout.
-LOCAL_ONLY_PREFIXES = ("oauth_binding_probe", "oauth_probe_telemetry")
-
 DISPLAY_VALUES = {
     "WAITING_USER_APPROVAL": ("awaiting approval", "pendiente de aprobación", "aguardando aprovação"),
     "IN_REVIEW": ("in review", "en revisión", "em análise"),
@@ -109,7 +105,6 @@ def required_dependencies() -> set[str]:
         path.relative_to(ROOT).as_posix()
         for directory in (ROOT / "evals/src/banking_evals", ROOT / "app/agent/src/app")
         for path in directory.rglob("*.py")
-        if not path.name.startswith(LOCAL_ONLY_PREFIXES)
     }
     paths.update({
         "app/agent/main.py",

@@ -103,23 +103,15 @@ migration marker or revert its retained tables. Do not stamp, downgrade, recreat
 withdrawn migration or remove retained refresh tables implicitly; lineage recovery
 requires separate authorization.
 
-The authorized local recovery and populated migration were completed on 2026-10-05:
-the owner had removed the empty withdrawn refresh tables, then the migration marker
-was corrected to `20261004_0011` and upgraded to `20261005_0012`. Verification
-preserved seven cases, 34 events, the empty posting/protection tables and all 13
-other public-table counts. The new conversation table was empty with its restrictive
-foreign key. The local backup catalog was validated; restore was not tested.
-This is local migration evidence only, not deployed-schema, browser, authorization,
-contention or financial-effect acceptance. Other environments require independent
-lineage inspection and authorization; do not repeat marker correction by default.
+Local migration results are not deployed-schema, browser, authorization, contention or
+financial-effect acceptance. Other environments require independent lineage inspection
+and authorization; do not correct migration markers by default.
 
-The OAuth upgrade was applied to the verified loopback PostgreSQL database on
-2026-10-17, from `20261005_0012` to `20261017_0013`, without marker correction.
-The first verification confirmed existing managed-table counts before encountering
-SQLAlchemy's default-schema reflection normalization. Follow-up read-only verification
-confirmed the applied marker, three empty OAuth tables and all four restrictive foreign
-keys; no client, token or user was provisioned. This does not establish remote migration,
-OAuth client compatibility, concurrency or Foundry grant isolation.
+Revision `20261017_0013` creates the OAuth tables (three, empty until clients and codes
+are registered) with restrictive foreign keys, and does not provision a client, token or
+user. Applying it locally does not establish remote migration, OAuth client
+compatibility, concurrency or Foundry grant isolation. SQLAlchemy reflection normalizes
+the default schema, so verify managed-table counts with that in mind.
 
 Revision 0010 archives simulated reviewers and former operator mappings, preserving
 historical case references and audit text without inventing real ownership.

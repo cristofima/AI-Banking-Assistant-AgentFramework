@@ -27,27 +27,24 @@ test is not verified SDK coverage. Test doubles prevent model calls in either la
 
 ## Coverage map
 
-| Tests | Contract exercised |
-| ----- | ------------------ |
-| [Semantic contracts](test_semantic_contracts.py) | Strict evidence/judgment schemas, safe data, finite JSON and valid citations. |
-| [Semantic dataset](test_semantic_dataset.py) | Eight synthetic cases, rubric consistency and fingerprints. |
-| [Semantic judge](test_semantic_judge.py) | Evidence preparation, injected verdicts, bounded concurrency and controlled failures. |
-| [Semantic reports](test_semantic_reports.py) | Separate criteria, technical failure precedence and uncalibrated acceptance. |
-| [Semantic CLI](test_semantic_cli.py) | Capture/judge separation, authorization/configuration validation, provenance and output behavior. |
-| [Semantic provider](test_semantic_provider.py) | Mocked SDK transport, structured output, retry classification and shared call budgets. |
-| [Semantic technical evaluator](test_semantic_technical.py) | Calls, arguments, ordered traces, complete answers, malformed evidence and zero-call reports. |
-| [Offline alignment](test_offline_alignment.py) | Frozen dispute inputs, source integrity, comparator and saved-report scoring. |
-| [Consent replay](test_consent_replay.py) | Synthetic multi-turn preview, explicit consent and legacy approval behavior. |
-| [Migration contracts](test_migration_contracts.py) | Package and compatibility contracts supporting replay. |
+| Tests                                                      | Contract exercised                                                                                |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| [Semantic contracts](test_semantic_contracts.py)           | Strict evidence/judgment schemas, safe data, finite JSON and valid citations.                     |
+| [Semantic dataset](test_semantic_dataset.py)               | Eight synthetic cases, rubric consistency and fingerprints.                                       |
+| [Semantic judge](test_semantic_judge.py)                   | Evidence preparation, injected verdicts, bounded concurrency and controlled failures.             |
+| [Semantic reports](test_semantic_reports.py)               | Separate criteria, technical failure precedence and uncalibrated acceptance.                      |
+| [Semantic CLI](test_semantic_cli.py)                       | Capture/judge separation, authorization/configuration validation, provenance and output behavior. |
+| [Semantic provider](test_semantic_provider.py)             | Mocked SDK transport, structured output, retry classification and shared call budgets.            |
+| [Semantic technical evaluator](test_semantic_technical.py) | Calls, arguments, ordered traces, complete answers, malformed evidence and zero-call reports.     |
+| [Offline alignment](test_offline_alignment.py)             | Frozen dispute inputs, source integrity, comparator and saved-report scoring.                     |
+| [Consent replay](test_consent_replay.py)                   | Synthetic multi-turn preview, explicit consent and legacy approval behavior.                      |
+| [Migration contracts](test_migration_contracts.py)         | Package and compatibility contracts supporting replay.                                            |
 
-## Observed results and limits
+## Scope and limits
 
-- **2026-10-05:** all 187 evaluation tests passed in the Agent environment using
-  Python 3.14.4 and the command above.
-- The minimal Evals environment previously passed 166 tests with 21 intentional
-  optional-framework skips.
-- The [technical fixture](../semantic_technical_evidence.json) passed all eight
-  traces with RuntimeWarning treated as an error and zero model calls.
+- The minimal Evals environment skips tests that need optional frameworks.
+- The [technical fixture](../semantic_technical_evidence.json) is evaluated with
+  RuntimeWarning treated as an error and zero model calls.
 - [Hosted Agent CI](../../.github/workflows/ci-hosted-agent.yml) configures seven
   semantic test modules and the deterministic fixture on Python 3.11. Local results
   do not establish a successful remote run or Python 3.11 certification.
