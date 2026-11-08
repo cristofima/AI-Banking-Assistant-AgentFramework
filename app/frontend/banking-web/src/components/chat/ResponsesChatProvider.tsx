@@ -349,7 +349,7 @@ export function ChatProvider({
           setHasReceivedStreamEvent(true);
           // The link is shown to the customer only; the turn is never replayed automatically.
           addItem(threadId, {
-            id: `consent_${threadId}_${item.id ?? link}`, thread_id: threadId, created_at: now(),
+            id: `consent_${threadId}_${link}`, thread_id: threadId, created_at: now(),
             type: "assistant_message",
             content: [{
               type: "output_text", annotations: [],
