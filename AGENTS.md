@@ -143,6 +143,15 @@ CI-specific commands and prerequisites live in:
   [offline comparator guide](evals/README.md#offline-comparator-and-scoring): offline
   evaluation tests, fresh deterministic baseline and rescoring. Real-model replay
   is a separate opt-in check, not part of the default commands above.
+- SonarQube ([Python](sonar-project.python.properties) and
+  [frontend](sonar-project.frontend.properties) properties): test files are declared
+  through `sonar.tests`/`sonar.test.inclusions` and excluded from sources and coverage,
+  so test-only changes add no uncovered new code. Add new test directories to
+  `sonar.tests` and its source exclusions. The
+  [Python Sonar workflow](.github/workflows/sonarqube-python.yml) generates
+  `coverage.xml` per project with `pytest-cov` and rewrites filenames to repository-root
+  paths; `banking_shared` coverage is not measured separately. Frontend coverage comes
+  from the Vitest LCOV artifact.
 
 ## Instruction ownership
 
