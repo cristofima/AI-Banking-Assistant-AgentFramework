@@ -32,9 +32,11 @@ async def _upstream_headers(
     oauth: OAuthClient = request.app.state.oauth_client
     grant = None
     if oauth.config.mcp_identity_mode == "oauth":
-        grant = oauth.current(session_binding(request, user))
-        if grant is None:
-            raise HTTPException(403, detail={"code": "ACCESS_DENIED"})
+        # Foundry upstream uses the platform's native per-user consent, not a BFF-held grant.
+        if settings.responses_upstream_mode != "foundry":
+            grant = oauth.current(session_binding(request, user))
+            if grant is None:
+                raise HTTPException(403, detail={"code": "ACCESS_DENIED"})
     elif oauth.config.mcp_identity_mode != "hmac":
         raise HTTPException(503, detail={"code": "SERVICE_UNAVAILABLE"})
     internal_identity = create_internal_identity(user, settings.internal_identity_secret, grant)

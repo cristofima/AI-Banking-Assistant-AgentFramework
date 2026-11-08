@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from typing import Annotated, Any
 
 import httpx
@@ -47,6 +48,13 @@ async def create_response(
         upstream_payload["previous_response_id"] = _previous_response(
             requested_conversation, user.sub, settings
         )
+
+    if settings.responses_upstream_mode == "local":
+        # The local host scopes workflow checkpoints by session; without a stable one,
+        # each turn derives a different session and cannot restore the previous checkpoint.
+        upstream_payload["agent_session_id"] = hashlib.sha256(
+            f"local-session:{user.sub}".encode()
+        ).hexdigest()
 
     client: httpx.AsyncClient = request.app.state.http_client
     upstream_request = client.build_request(

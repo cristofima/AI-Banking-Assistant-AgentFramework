@@ -451,10 +451,11 @@ async def test_two_turns_translate_customer_token_to_previous_response(
                 "/responses", headers=headers,
                 json={"input": "Next", "conversation": token, "stream": stream},
             )
+    session = {"agent_session_id": hashlib.sha256(b"local-session:user-a").hexdigest()} if mode == "local" else {}
     assert first.status_code == second.status_code == 200
     assert captured == [
-        {"input": "First", "stream": stream},
-        {"input": "Next", "stream": stream, "previous_response_id": "resp_first"},
+        {"input": "First", "stream": stream, **session},
+        {"input": "Next", "stream": stream, "previous_response_id": "resp_first", **session},
     ]
 
 

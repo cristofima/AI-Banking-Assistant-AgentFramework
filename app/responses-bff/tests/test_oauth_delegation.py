@@ -65,14 +65,15 @@ async def test_customer_callback_and_signed_delegation_remain_server_owned(mode:
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://bff",
                                     headers={"Authorization": "Bearer " + browser}) as client:
             status = await client.get("/oauth/status")
-            assert status.json() == {"required": True, "ready": False}
+            required = mode == "local"
+            assert status.json() == {"required": required, "ready": False}
             start = await client.post("/oauth/start")
             assert start.status_code == 200 and start.headers["cache-control"] == "no-store"
             state = parse_qs(urlsplit(start.json()["authorize_url"]).query)["state"][0]
             callback = await client.post("/oauth/callback", json={"code": "code", "state": state})
             assert callback.json() == {"ready": True}
             assert access not in callback.text and access not in start.text
-            assert (await client.get("/oauth/status")).json() == {"required": True, "ready": True}
+            assert (await client.get("/oauth/status")).json() == {"required": required, "ready": True}
             replay = await client.post("/oauth/callback", json={"code": "code", "state": state})
             assert replay.status_code == 400 and exchanges == ["/oauth/token"]
             anonymous = await client.get("/oauth/status", headers={"Authorization": ""})
@@ -83,12 +84,14 @@ async def test_customer_callback_and_signed_delegation_remain_server_owned(mode:
             identity_header = "x-client-banking-identity" if mode == "foundry" else "x-agent-user-id"
             encoded = headers[identity_header].split(".")[1]
             if mode == "foundry":
-                assert len(headers[identity_header]) > 256
                 assert len(headers["x-ms-user-identity"]) <= 256
                 assert access not in headers["x-ms-user-identity"]
                 assert "demo" not in headers["x-ms-user-identity"]
                 assert "x-agent-user-id" not in headers
             envelope = json.loads(base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)))
-            assert envelope["oauth_access_token"] == access
-            assert envelope["oauth_expires_at"] == now + 300
+            if mode == "foundry":
+                assert "oauth_access_token" not in envelope
+            else:
+                assert envelope["oauth_access_token"] == access
+                assert envelope["oauth_expires_at"] == now + 300
             assert ("Authorization" in headers) == (mode == "foundry")
