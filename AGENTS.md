@@ -338,7 +338,7 @@ map and accepted ADRs for current decisions.
 - Administrator pages `/admin/operators`, `/admin/operators/create` and
   `/admin/customers` reuse the customer frontend's shared components and styles.
   Creation is a dedicated protected page; lifecycle/password actions use shared
-  centered AlertDialog modals. The user confirmed local UI validation, not the
+  centered AlertDialog modals. Local UI behavior is not the
   complete hosted or authorization acceptance matrix. `/operator` redirects to
   `/operator/support-cases`; its workspace supports real assigned review, versioned
   verdicts, recorded-effects retries and case-specific protection. Identity role
@@ -348,7 +348,7 @@ map and accepted ADRs for current decisions.
   frontend intentionally bypasses the BFF for Account/Transaction REST reads (direct
   JWT-authenticated calls per the locked architecture above); that bypass is scoped
   to those two services only, never to the agent/Responses path.
-- The local signed BFF-to-agent identity and 60-second agent-to-MCP bearer are validated.
+- The local signed BFF-to-agent identity and 60-second agent-to-MCP bearer are supported locally.
   Do not describe `x-ms-user-identity` hosted transport as supported until a hosted test proves it.
 
 ## Data ingestion workflow
@@ -494,10 +494,10 @@ Keep incomplete checks open; do not close acceptance from source inspection alon
   remain deferred, requiring separate approval. Checkpoints/background execution alone
   do not make mutation resend safe. Browser failure/recovery, reload, accessibility and
   hosted acceptance remain open; the original stream failure cause remains unproven.
-- Owner-confirmed recognized-charge/no-report abandonment and multi-turn existing-case
-  consultation without recreation/second consent cover observed positive paths only.
-  Retry was not exercised because no error occurred. Owner-confirmed history, isolation
-  and session switching are limited local evidence.
+- Recognized-charge/no-report abandonment and multi-turn existing-case
+  consultation without recreation/second consent work in the positive path only.
+  Error-driven retry, history, isolation and session switching are limited local
+  behavior, not acceptance.
   Full browser/operator/locale, PostgreSQL contention, hosted transport, financial E2E
   and real-data parity remain separate acceptance gates. Issue #64 tracks remaining
   recognition acceptance; do not close it or other backlog issues from commits/offline
@@ -549,9 +549,8 @@ blind resubmission. REST-accepted cases continue in chat through `getSupportCase
 without recreation or second consent. Legacy `WAITING_USER_APPROVAL` cases retain
 approval/decline and audit history. No migration or new configuration was required.
 Browser, real-model consent/locale, broad PostgreSQL concurrency and hosted/data parity
-acceptance remain separate gates; the bounded local accepted-intake contention check
-passed and is tracked as closed in issue #65. Owner functional confirmation is limited
-evidence.
+acceptance remain separate gates; bounded local accepted-intake contention is tracked as
+closed in issue #65. Owner functional checks are limited evidence.
 
 Service duplicate checks and active-case uniqueness guard intake. Resolved transactions
 can be disputed again. Intake accepts only debit/credit-card
