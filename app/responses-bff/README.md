@@ -146,7 +146,9 @@ exposed. All browser authentication and administration stays behind this BFF.
 An uncached, three-second Identity client validates active status and token version
 for protected requests. Inactive/stale tokens return 401, wrong roles 403, and
 Identity outages 503. Already admitted Responses streams are not cancelled, and
-use a separate streaming client without that identity-request timeout. Account/card/transaction response shapes,
+use a separate streaming client without that identity-request timeout. That client
+bounds connect (10 s), write (30 s), pool (10 s) and the gap between streamed
+chunks (300 s), not the whole turn. Account/card/transaction response shapes,
 pagination, masking, and ownership rules are documented in the
 [business-api README](../business-api/README.md) now that those reads live there
 instead of in the BFF.
