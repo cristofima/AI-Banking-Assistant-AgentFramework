@@ -25,10 +25,10 @@ services:
         sku:
           name: GlobalStandard
           capacity: 10
-  banking-tools:
+  account-tools:
     host: azure.ai.toolbox
     description: >
-      Customer MCP tools through OAuth project connections using mcp.access.
+      Account MCP tools through an OAuth project connection using mcp.access.
     tools:
       - type: mcp
         server_label: account
@@ -41,6 +41,11 @@ services:
           - getCreditCards
           - discoverCardsBySuffix
           - getCardDetails
+  transaction-tools:
+    host: azure.ai.toolbox
+    description: >
+      Transaction MCP tools through an OAuth project connection using mcp.access.
+    tools:
       - type: mcp
         server_label: transaction
         server_url: ${TRANSACTION_MCP_URL}
@@ -67,7 +72,8 @@ services:
       dependencyResolution: remote_build
     uses:
       - ai-project
-      - banking-tools
+      - account-tools
+      - transaction-tools
     kind: hosted
     name: home-banking-agent
     metadata:

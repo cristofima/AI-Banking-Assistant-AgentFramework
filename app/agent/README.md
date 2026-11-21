@@ -76,7 +76,8 @@ configured grants, hosted identity transport or end-to-end runtime acceptance.
 
 ## Remote OAuth Toolbox target and no-auth/HMAC limits
 
-[azure.yaml](azure.yaml) and [toolbox.yaml](toolbox.yaml) reference `account-mcp`
+[azure.yaml](azure.yaml), [toolbox-account.yaml](toolbox-account.yaml) and
+[toolbox-transaction.yaml](toolbox-transaction.yaml) reference `account-mcp`
 and `transaction-mcp` project connections with the existing customer-tool allowlists.
 Both connections must be configured as OAuth2 with `mcp.access`; references alone do
 not change existing no-auth connections. Verify exact callbacks, PKCE
@@ -85,15 +86,16 @@ on the agent-to-Toolbox hop is separate from downstream customer OAuth.
 
 The following describes the no-auth/HMAC route, not the
 approved OAuth configuration or proof of OAuth acceptance.
-`AGENT_RUNTIME=foundry` uses the project's experimental `banking-tools` Toolbox
-endpoint, with separate Account and Transaction allowlists and no direct-MCP
+`AGENT_RUNTIME=foundry` uses the project's experimental `account-tools` and
+`transaction-tools` Toolbox endpoints, one per MCP connection so consent is requested
+only for the services a request uses, with no direct-MCP
 fallback. `AGENT_RUNTIME=local`
 requires `ACCOUNT_MCP_URL` and `TRANSACTION_MCP_URL` and connects
 directly to those MCP services using the existing fresh customer-scoped HMAC bearer.
 Local execution still uses Foundry models and its local Azure credential selection;
 it is not an offline mode. Restart the local agent to pick up routing changes.
 This routing does not prove runtime readiness or authorize automatic model calls.
-The hosted manifest explicitly selects `foundry` and depends on `banking-tools`.
+The hosted manifest explicitly selects `foundry` and depends on `account-tools` and `transaction-tools`.
 No additional Settings field is required. Direct synthetic MCP session injection
 in isolated tests remains unchanged.
 OAuth2 is excluded from the no-auth/HMAC route, not from the current remote
@@ -135,7 +137,9 @@ explicit authorization before further deployment.
 
 `ToolboxConsentMiddleware` surfaces the connect-time `CONSENT_REQUIRED` challenge as
 `oauth_consent_request` output; the failed `tools/list` it logs before the user
-consents is expected. After consent, Account and Transaction reads run under the
+consents is expected. `ToolboxCallConsentMiddleware` surfaces the same challenge when
+it arrives during `tools/call` (`-32006` with a plain-text consent URL) by aborting the
+run, so the model never sees it as a tool failure. After consent, Account and Transaction reads run under the
 consenting user's grant, including the handoff to `TransactionHistoryAgent`.
 Banking-user/caller/grant binding and two-user isolation are not established.
 
@@ -217,14 +221,15 @@ credentials in command arguments.
 
 ```powershell
 $env:AZURE_DEV_USER_AGENT = "microsoft_foundry_skill"
-rtk proxy azd deploy banking-tools --cwd app\agent
-rtk proxy azd ai toolbox show banking-tools --cwd app\agent
-rtk proxy azd ai toolbox versions list banking-tools --cwd app\agent
+rtk proxy azd deploy account-tools --cwd app\agent
+rtk proxy azd deploy transaction-tools --cwd app\agent
+rtk proxy azd ai toolbox show account-tools --cwd app\agent
+rtk proxy azd ai toolbox versions list account-tools --cwd app\agent
 ```
 
 Deployment creates an immutable version but does not automatically promote it.
 Test the new version's MCP endpoint, then select it with
-`azd ai toolbox publish banking-tools <version> --cwd app\agent` before testing
+`azd ai toolbox publish <toolbox> <version> --cwd app\agent` before testing
 the unversioned consumer endpoint.
 
 Before agent integration, test a separate diagnostic MCP with non-secret changing
@@ -245,7 +250,8 @@ rtk proxy azd deploy home-banking-agent --cwd app\agent
 Provisioning can create or update model deployments declared in the manifest; it is
 not needed merely to redeploy an already provisioned agent. Deploying the current
 source activates the experimental Toolbox route. The alternative
-[toolbox.yaml](toolbox.yaml) requires named `account-mcp` and `transaction-mcp`
+[toolbox-account.yaml](toolbox-account.yaml) and [toolbox-transaction.yaml](toolbox-transaction.yaml)
+require named `account-mcp` and `transaction-mcp`
 project connections created with `--auth-type none`; use either that imperative
 path or the declarative service, not both for the same Toolbox.
 

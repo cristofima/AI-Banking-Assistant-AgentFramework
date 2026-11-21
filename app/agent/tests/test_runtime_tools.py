@@ -68,7 +68,7 @@ def test_runtime_uses_only_scoped_toolbox_endpoints(
     assert len(calls) == 2
     for call, service in zip(calls, ["account", "transaction"], strict=True):
         assert call["url"] == (
-            "https://example.test/api/projects/bank/toolboxes/banking-tools/mcp?api-version=v1"
+            f"https://example.test/api/projects/bank/toolboxes/{service}-tools/mcp?api-version=v1"
         )
         assert all(name.startswith(f"{service}___") for name in call["allowed_tools"])
         assert call["header_provider"]({}) == {
