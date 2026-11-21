@@ -452,8 +452,9 @@ For hosted provisioning with `azd`, make sure the agent environment includes at 
 - `FOUNDRY_PROJECT_ENDPOINT`
 - `AZURE_AI_PROJECT_ID`
 - `MODEL_DEPLOYMENT_NAME`
-- `ACCOUNT_MCP_URL`
-- `TRANSACTION_MCP_URL`
+- `ACCOUNT_MCP_URL` and `TRANSACTION_MCP_URL`: substituted into the Toolbox services'
+  `server_url`; the hosted container does not receive them, because the `foundry`
+  runtime reaches the MCP services only through Toolbox.
 - `INTERNAL_IDENTITY_SECRET`: the existing BFF transport signer, at least 32 characters.
 
 Local tasks load the agent's own `.env` and use Azure CLI credentials when
