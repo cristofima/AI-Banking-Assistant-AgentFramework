@@ -30,6 +30,7 @@ import { readToolCase, readToolPreview, toolOutputFailed, toolProgressKey, type 
 
 import { useAuth } from "@/context/AuthContext";
 import { useOAuthReadiness } from "@/context/OAuthReadinessContext";
+import { registerConsentLink, setConsentClosedHandler } from "./consentPopup";
 import { clearChatSnapshot, markChatInterrupted, persistChatSnapshot, readChatSnapshot, recordedDecisionSchema } from "./sessionHistory";
 import { getSupportCase } from "@/api/disputeClient";
 import { ApiError } from "@/api/errors";
@@ -119,6 +120,8 @@ export function ChatProvider({
   const assistantTextRef = useRef(false);
   const reportedErrorRef = useRef(false);
   const lastMessageRef = useRef<string | null>(null);
+  const consentThreadRef = useRef<string | null>(null);
+  const resumeAfterConsentRef = useRef<() => void>(() => undefined);
   const { t } = useTranslation();
   const toolCallsRef = useRef(new Map<string, { id: string; name: string }>());
   const streamOutcomeRef = useRef<"success" | "error" | "cancelled">("error");
@@ -345,6 +348,8 @@ export function ChatProvider({
           const link = typeof item.consent_link === "string" ? item.consent_link : "";
           if (!link.startsWith("https://")) return;
           consentRequestedRef.current = true;
+          consentThreadRef.current = threadId;
+          registerConsentLink(link);
           visibleOutputRef.current = true;
           setHasReceivedStreamEvent(true);
           // The link is shown to the customer only; the turn is never replayed automatically.
@@ -486,11 +491,23 @@ export function ChatProvider({
     setCurrentRequest(null);
     assistantItemsRef.current.clear();
     streamingThreadRef.current = null;
+    // A consent pause ends the turn before any business work ran, so the thread stays usable.
+    const consentPause = consentRequestedRef.current && !streamFailedRef.current;
     const settle = actionRef.current;
     actionRef.current = null;
     const outcome = settle?.(streamOutcomeRef.current) ?? streamOutcomeRef.current;
-    if (outcome === "success") recoveryBlockedRef.current.delete(threadId);
-    else {
+    if (outcome === "success" || (consentPause && !settle)) {
+      recoveryBlockedRef.current.delete(threadId);
+      if (consentPause) {
+        // The paused turn advanced the agent's workflow head, so the previous token is stale.
+        continuationsRef.current.delete(threadId);
+        setThreads(previous => previous.map(thread => {
+          if (thread.id !== threadId || typeof thread.metadata?.conversationId !== "string") return thread;
+          const { conversationId: _stale, ...metadata } = thread.metadata;
+          return { ...thread, metadata };
+        }));
+      }
+    } else {
       recoveryBlockedRef.current.add(threadId);
       uncertainThreadsRef.current.add(threadId);
       setThreads(previous => previous.map(thread => thread.id === threadId && thread.status.type !== "closed"
@@ -608,6 +625,19 @@ export function ChatProvider({
     },
     [activeThreadId, activeThread, scope, addItem, createLocalThread, onMessageSent, reportStreamError, submitInput],
   );
+
+  // The consent popup closing is the only completion signal Foundry exposes.
+  resumeAfterConsentRef.current = () => {
+    const threadId = consentThreadRef.current;
+    consentThreadRef.current = null;
+    const message = lastMessageRef.current;
+    if (threadId && threadId === activeThreadId && message && !streamingThreadRef.current) sendMessage(message);
+  };
+
+  useEffect(() => {
+    setConsentClosedHandler(() => resumeAfterConsentRef.current());
+    return () => setConsentClosedHandler(null);
+  }, []);
 
   const sendWidgetAction = useCallback(
     (threadId: string, itemId: string, action: ActionConfig): Promise<"success" | "error" | "cancelled"> => {

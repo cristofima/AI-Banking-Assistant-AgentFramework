@@ -232,6 +232,23 @@ describe("Responses provider visible output", () => {
     expect(text).toContain(link);
   });
 
+  it("keeps the thread usable after a consent pause", () => {
+    start();
+    event({ type: "response.output_item.added", item: { type: "oauth_consent_request", id: "consent-1", consent_link: "https://consent.example.test/a" } });
+    event({ type: "response.incomplete" });
+    event({ type: "error", code: "CONTINUATION_UNAVAILABLE", allow_retry: false });
+    finish();
+    expect(JSON.stringify(render().threads)).not.toContain("locked");
+  });
+
+  it("drops the stale continuation after a consent pause", () => {
+    start();
+    event({ type: "response.output_item.added", item: { type: "oauth_consent_request", id: "consent-1", consent_link: "https://consent.example.test/a" } });
+    event({ type: "response.incomplete" });
+    finish();
+    expect(JSON.stringify(render().threads)).not.toContain("conversationId");
+  });
+
   it("shows one consent card per link and no unavailable-tool task for the consent call", () => {
     start();
     const link = "https://consent.example.test/authorize?token=abc";
