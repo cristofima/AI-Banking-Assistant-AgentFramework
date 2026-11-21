@@ -12,6 +12,10 @@ FAVORABLE_RESOLUTION_OUTCOMES = {"fast_tracked_provisional_credit", "fraud_confi
 
 def effects(session: Session, case: SupportCase) -> dict[str, str] | None:
     posting = session.exec(select(RuntimePosting).where(RuntimePosting.case_id == case.case_id)).first()
+    return _effects_payload(posting)
+
+
+def _effects_payload(posting: RuntimePosting | None) -> dict[str, str] | None:
     if posting is None:
         return None
     return {"movementId": posting.movement_id, "destinationProductId": posting.product_id,
@@ -20,7 +24,10 @@ def effects(session: Session, case: SupportCase) -> dict[str, str] | None:
 
 
 def protection(session: Session, case: SupportCase) -> dict[str, object] | None:
-    record = session.get(CardProtection, case.product_id)
+    return _protection_payload(session.get(CardProtection, case.product_id))
+
+
+def _protection_payload(record: CardProtection | None) -> dict[str, object] | None:
     if record is None:
         return None
     return {"blocked": record.blocked, "priorStatus": record.prior_status,
@@ -38,8 +45,6 @@ def product_protection_status(session: Session, case: SupportCase) -> str | None
     return "Blocked" if record is not None and record.blocked else product.product_status
 
 
-protection_details = protection
-
 def _product_display_number(product: Product | None) -> str | None:
     if product is None:
         return None
@@ -51,7 +56,7 @@ def _product_display_number(product: Product | None) -> str | None:
 
 def _to_dispute_case(session: Session, case: SupportCase, product: Product | None) -> DisputeCase:
     posting = session.exec(select(RuntimePosting).where(RuntimePosting.case_id == case.case_id)).first()
-    protection = session.get(CardProtection, case.product_id)
+    card_protection = session.get(CardProtection, case.product_id)
     return DisputeCase(
         caseId=case.case_id,
         productNumber=_product_display_number(product),
@@ -62,13 +67,13 @@ def _to_dispute_case(session: Session, case: SupportCase, product: Product | Non
         resolutionOutcome=case.resolution_outcome,
         resolutionNotes=case.resolution_notes,
         financialEffectsStatus="EXECUTED" if posting else ("PENDING" if case.status == "PENDING_EFFECTS" else "NOT_EXECUTED"),
-        cardProtectionStatus="BLOCKED" if protection and protection.blocked else "NOT_BLOCKED",
+        cardProtectionStatus="BLOCKED" if card_protection and card_protection.blocked else "NOT_BLOCKED",
         caseVersion=case.case_version,
         verdict=case.verdict,
         rationale=case.resolution_notes,
         effectCode=case.effect_code,
-        effects=effects(session, case),
-        cardProtection=protection_details(session, case),
+        effects=_effects_payload(posting),
+        cardProtection=_protection_payload(card_protection),
         recommendationType=case.recommendation_type,
         recommendationRationale=case.recommendation_rationale,
         recommendationOptedOut=case.recommendation_opted_out,

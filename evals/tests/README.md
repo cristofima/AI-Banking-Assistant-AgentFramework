@@ -13,12 +13,14 @@ rtk proxy uv run --project evals --extra offline python -m pytest evals\tests -q
 ```
 
 SDK-backed provider and production-workflow integration tests need the optional
-Agent Framework dependencies. Use the existing configured Agent environment for
-complete local coverage:
+Agent Framework dependencies. Install the Evals environment with the `model` extra,
+which adds the Agent, for complete local coverage; the Agent environment does not
+install `banking_evals`:
 
 ```powershell
 $env:OTEL_SDK_DISABLED = 'true'
-rtk proxy uv run --project app\agent --frozen --no-sync python -m pytest evals\tests -q --tb=short
+rtk proxy uv sync --project evals --extra offline --extra model --locked
+rtk proxy uv run --project evals --frozen --no-sync python -m pytest evals\tests -q --tb=short
 ```
 
 `--no-sync` assumes dependencies are already installed. Missing optional framework

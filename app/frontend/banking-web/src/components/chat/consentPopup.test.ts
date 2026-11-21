@@ -39,6 +39,26 @@ describe("consent popup", () => {
     expect(handler).toHaveBeenCalledTimes(1);
   });
 
+  it("watches only the latest popup when the named window is reused", () => {
+    vi.useFakeTimers();
+    const first = { closed: false } as Window;
+    const second = { closed: false } as Window;
+    const popups = [first, second];
+    stubWindow(() => popups.shift()!);
+    const handler = vi.fn();
+    setConsentClosedHandler(handler);
+    registerConsentLink("https://consent.example.test/c");
+    registerConsentLink("https://consent.example.test/d");
+    openConsentPopup("https://consent.example.test/c");
+    openConsentPopup("https://consent.example.test/d");
+    Object.assign(first, { closed: true });
+    vi.advanceTimersByTime(1000);
+    expect(handler).not.toHaveBeenCalled();
+    Object.assign(second, { closed: true });
+    vi.advanceTimersByTime(1000);
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
   it("falls back to normal navigation when the popup is blocked", () => {
     stubWindow(() => null);
     registerConsentLink("https://consent.example.test/b");

@@ -10,16 +10,6 @@ class PaymentMethodSummary(BaseModel):
     expirationDate: Optional[str] = None
 
 
-class PaymentMethod(BaseModel):
-    type: str
-    activationDate: Optional[str] = None
-    expirationDate: Optional[str] = None
-    availableBalance: Optional[float] = None
-    cardNumber: Optional[str] = None
-    #blocked,active, expired
-    status: Optional[str] = None
-
-
 class Card(BaseModel):
     #credit,debit,recharge
     type: str

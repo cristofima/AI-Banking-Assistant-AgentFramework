@@ -4,10 +4,12 @@ from copy import deepcopy
 
 import pytest
 
-from banking_evals.dispute_replay import (
+pytest.importorskip("banking_evals", reason="requires the evals environment used by CI")
+
+from banking_evals.dispute_replay import (  # noqa: E402
     DATASET, ROOT, expanded_fingerprint, fingerprint, load_cases, score_case,
 )
-from banking_evals.run_dispute_replay import (
+from banking_evals.run_dispute_replay import (  # noqa: E402
     case_latency, compare_reports, execute_case, rescore, run_baseline, sanitize,
 )
 

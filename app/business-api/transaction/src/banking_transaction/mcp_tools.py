@@ -100,7 +100,7 @@ async def report_transaction_dispute(
 ) -> dict[str, Any]:
     case = await run_in_threadpool(
         dispute_service.accept_transaction_dispute, preview_token,
-        await run_in_threadpool(get_customer_id, headers, mutation=True),
+        await run_in_threadpool(get_customer_id, headers),
     )
     return case.model_dump(mode="json")
 
@@ -139,7 +139,7 @@ def respond_to_dispute_approval(
     headers: dict[str, str] = CurrentHeaders(),
 ):
     return dispute_service.respond_to_approval(
-        case_id, get_customer_id(headers, mutation=True), approved,
+        case_id, get_customer_id(headers), approved,
     )
 
 

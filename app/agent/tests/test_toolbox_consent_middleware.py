@@ -21,7 +21,9 @@ from app.adapters.checkpointed_handoff import CheckpointedHandoffBuilder
 from app.adapters.handoff_middleware import HandoffNarrationMiddleware
 from app.adapters.no_history_provider import NoHistoryProvider
 from app.adapters.responses_turn import parse_response
-from app.adapters.toolbox_consent_middleware import ToolboxCallConsentMiddleware, ToolboxConsentMiddleware
+from app.adapters.toolbox_consent_middleware import (
+    ToolboxCallConsentMiddleware, ToolboxCallConsentRequired, ToolboxConsentMiddleware,
+)
 from app.agents.azure_chat.hosted_workflow import _has_completed_agent_response
 
 CONSENT_URL = "https://consent.example.test/oauth/start?state=synthetic"
@@ -215,6 +217,56 @@ async def test_tool_call_consent_becomes_consent_content() -> None:
     assert consent_links(contents) == [CONSENT_URL]
     assert contents[0].additional_properties["server_label"] == "account"
     assert calls == 1
+
+
+async def test_all_pending_challenges_are_returned_together() -> None:
+    class FakeToolbox:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+        async def connect(self) -> None:
+            raise consent_exception(f"{CONSENT_URL}&n={self.name}", self.name)
+
+    account, transaction = FakeToolbox("account"), FakeToolbox("transaction")
+    middleware = ToolboxConsentMiddleware([account, transaction])
+    await account.connect()
+    await transaction.connect()
+    context = AgentContext(agent=MagicMock(), messages=[], stream=False)
+
+    async def run() -> None:
+        raise AssertionError("the deferred challenges must replace the run")
+
+    await middleware.process(context, run)
+    contents = [content for message in context.result.messages for content in message.contents]
+    assert consent_links(contents) == [f"{CONSENT_URL}&n=account", f"{CONSENT_URL}&n=transaction"]
+
+
+async def test_tool_call_consent_is_found_in_cause_chain() -> None:
+    raised = ToolExecutionException("Failed to call tool.")
+    raised.__cause__ = MCPError(-32006, f"User consent is required. Please visit: {CONSENT_URL}.")
+    context = FunctionInvocationContext(function=MagicMock(), arguments={})
+    context.function.name = "transaction___getTransactions"
+
+    async def run() -> None:
+        raise raised
+
+    with pytest.raises(ToolboxCallConsentRequired) as caught:
+        await ToolboxCallConsentMiddleware().process(context, run)
+    assert caught.value.consent_url == CONSENT_URL
+    assert caught.value.server_label == "transaction"
+
+
+async def test_tool_call_text_with_url_is_not_treated_as_consent() -> None:
+    raised = ToolExecutionException(f"Failed to call tool. User consent is required. Visit: {CONSENT_URL}")
+    context = FunctionInvocationContext(function=MagicMock(), arguments={})
+    context.function.name = "transaction___getTransactions"
+
+    async def run() -> None:
+        raise raised
+
+    with pytest.raises(ToolExecutionException) as caught:
+        await ToolboxCallConsentMiddleware().process(context, run)
+    assert caught.value is raised
 
 
 async def test_tool_call_failures_other_than_consent_are_not_swallowed() -> None:

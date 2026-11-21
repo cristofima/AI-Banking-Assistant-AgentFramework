@@ -22,6 +22,11 @@ _CONSENT_ERROR_CODE = -32006
 _URL_PATTERN = re.compile(r"https://[^\s'\"\\)]+")
 
 
+def _consent_url(message: str) -> str | None:
+    match = _URL_PATTERN.search(message)
+    return match.group(0).rstrip(".,;") if match else None
+
+
 class ToolboxCallConsentRequired(MiddlewareFailure):
     """Consent challenge raised by a Toolbox tool call, carried to the agent middleware."""
 
@@ -33,10 +38,15 @@ class ToolboxCallConsentRequired(MiddlewareFailure):
 
 def _call_consent_error(exc: BaseException) -> str | None:
     # A tool call reports consent as plain text, without the JSON that tool discovery uses.
-    for arg in exc.args:
-        if isinstance(arg, MCPError) and arg.error.code == _CONSENT_ERROR_CODE:
-            match = _URL_PATTERN.search(arg.error.message)
-            return match.group(0) if match else None
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        candidates = [current, *current.args]
+        for candidate in candidates:
+            if isinstance(candidate, MCPError) and candidate.error.code == _CONSENT_ERROR_CODE:
+                return _consent_url(candidate.error.message)
+        current = current.__cause__
     return None
 
 
@@ -163,12 +173,18 @@ class ToolboxConsentMiddleware(AgentMiddleware):
 
         tool.connect = deferred_connect
 
-    def _take_pending(self) -> BaseException | None:
-        pending = None
+    def _take_pending(self) -> list[Content]:
+        # Every connection needs its own consent, so all pending challenges are returned together.
+        contents: list[Content] = []
+        links: set[str] = set()
         for tool in self._tools:
-            pending = pending or getattr(tool, _PENDING_ATTR, None)
+            pending = getattr(tool, _PENDING_ATTR, None)
             setattr(tool, _PENDING_ATTR, None)
-        return pending
+            for content in (_consent_contents(pending) if pending is not None else None) or []:
+                if content.consent_link not in links:
+                    links.add(content.consent_link)
+                    contents.append(content)
+        return contents
 
     async def process(
         self,
@@ -176,9 +192,10 @@ class ToolboxConsentMiddleware(AgentMiddleware):
         call_next: Callable[[], Awaitable[None]],
     ) -> None:
         pending = self._take_pending()
+        if pending:
+            context.result = _consent_stream(pending) if context.stream else _consent_response(pending)
+            return
         try:
-            if pending is not None:
-                raise pending
             await call_next()
         except _TOOLBOX_ERRORS as exc:
             contents = _consent_contents(exc)

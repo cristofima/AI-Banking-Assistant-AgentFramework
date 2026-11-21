@@ -13,8 +13,6 @@ from authlib.oauth2.rfc6749.grants import AuthorizationCodeGrant
 from authlib.oauth2.rfc6749.requests import BasicOAuth2Payload
 from authlib.oauth2.rfc7636 import CodeChallenge
 from fastapi import HTTPException
-from joserfc import jwt
-from joserfc.jwk import RSAKey
 from pwdlib.exceptions import UnknownHashError
 from sqlmodel import Session, select, update
 
@@ -216,21 +214,18 @@ class OAuthServer(AuthorizationServer):
                   "exp": issued + OAUTH_TTL_SECONDS, "jti": token_urlsafe(24),
                   "client_id": kwargs["client"].client_id, "scope": OAUTH_SCOPE}
         token = self.identity.oauth_signer.encode(claims)
+        # "exp" is consumed by save_token and never returned in the token response.
         return {"access_token": token, "token_type": "Bearer",
-                "expires_in": OAUTH_TTL_SECONDS, "scope": OAUTH_SCOPE}
+                "expires_in": OAUTH_TTL_SECONDS, "scope": OAUTH_SCOPE, "exp": claims["exp"]}
 
     def save_token(self, token: dict[str, object], request: ProtocolRequest) -> None:
+        expires_at = datetime.fromtimestamp(int(token.pop("exp")), tz=timezone.utc)
         profile = self.identity.customer_profile(self.session, request.user)
         self.session.add(OAuthAccessToken(
             token_hash=digest(str(token["access_token"])), client_id=request.client.client_id,
             user_id=request.user.id, identity_version=request.user.identity_version,
             profile_snapshot=self.snapshot(profile), scope=OAUTH_SCOPE,
-            expires_at=datetime.fromtimestamp(
-                jwt.decode(str(token["access_token"]), RSAKey.import_key(
-                    self.identity.oauth_signer.jwks["keys"][0],
-                ), algorithms=["RS256"]).claims["exp"],
-                tz=timezone.utc,
-            ),
+            expires_at=expires_at,
         ))
 
     def introspect(self, token: str) -> CustomerProfile:

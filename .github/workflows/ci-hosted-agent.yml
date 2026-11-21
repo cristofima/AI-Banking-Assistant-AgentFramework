@@ -108,7 +108,7 @@ jobs:
           cd ..
           "$package_dir/.venv/bin/python" -c "import app; from importlib.resources import files; assert all('site-packages' in path for path in app.__path__); assert files('app').joinpath('logging-default.yaml').is_file()"
       - name: Install agent and evaluation dependencies
-        run: uv sync --project evals --extra offline --extra model --frozen
+        run: uv sync --project evals --extra offline --extra model --locked
       - name: Compile agent source
         run: uv run --project evals --frozen --no-sync python -m compileall -q app/agent/src
       - name: Run agent tests

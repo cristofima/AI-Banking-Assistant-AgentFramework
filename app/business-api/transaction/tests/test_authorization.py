@@ -159,6 +159,21 @@ def test_recipient_and_type_filters_use_persisted_fields(
     ]
 
 
+def test_recipient_and_type_searches_are_bounded(
+    session_factory: Callable[[], Session], monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("banking_transaction.services.transactions.MAX_SEARCH_RESULTS", 2)
+    service = TransactionService(session_factory)
+
+    recipient_matches = service.get_transactions_by_recipient_name(
+        "ACCOUNT-NUMBER", "merchant", "customer-owned",
+    )
+    type_matches = service.get_transactions_by_type("ACCOUNT-NUMBER", "customer-owned")
+
+    assert [transaction.id for transaction in recipient_matches] == ["account-tx-4", "account-tx-3"]
+    assert [transaction.id for transaction in type_matches] == ["account-tx-5", "account-tx-4"]
+
+
 def test_duplicate_owned_numbers_are_denied(session_factory: Callable[[], Session]) -> None:
     with session_factory() as session:
         session.add(Product(

@@ -50,7 +50,7 @@ def oauth_token(oauth_mode: None, signing_key: str) -> str:
 def test_transaction_locally_validates_jwt_for_reads_and_mutations(oauth_token: str) -> None:
     headers = {"authorization": "Bearer " + oauth_token}
     assert get_customer_id(headers) == "owned-customer"
-    assert get_customer_id(headers, mutation=True) == "owned-customer"
+    assert get_customer_id(headers) == "owned-customer"
 
 
 async def test_verified_customer_mutations_dispatch(

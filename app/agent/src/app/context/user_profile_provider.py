@@ -1,8 +1,8 @@
 """User profile context provider for agent framework.
 
 Provides logged user details and current timestamp to agents via the
-Agent Framework context provider mechanism. Delegates user identity
-resolution to ``UserProfileHelper``.
+Agent Framework context provider mechanism. Resolves user identity from
+the verified request principal.
 """
 
 from datetime import datetime

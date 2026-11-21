@@ -97,13 +97,12 @@ and hosted, with a per-request workflow factory and a 100-item history boundary.
 `agents/azure_chat/hosted_workflow.py` builds the single `HandoffBuilder` workflow;
 `account_agent.py` and `transaction_agent.py` own specialist definitions. The host
 reuses `FoundryChatClient` instances by model deployment, not mutable workflow state.
-`tools/` holds direct MCP client wiring; `adapters/runtime_tools.py` selects Foundry
+`adapters/runtime_tools.py` builds direct MCP client tools and selects Foundry
 Toolbox allowlists and explicitly rejects its unverified OAuth passthrough.
 `common/internal_identity.py` verifies signed BFF identity and supplies the selected
 MCP bearer. `context/user_profile_provider.py` injects authenticated profile/locale.
 Transaction intake requires separate preview/consent; existing cases use readback.
-The ZIP installs `src/app` noneditably and starts root `main.py`; package `routers/`
-is not the Responses host entrypoint. History, checkpoints and mutation recovery
+The ZIP installs `src/app` noneditably and starts root `main.py`. History, checkpoints and mutation recovery
 have separate contracts.
 
 ### `app/business-api/account/src/banking_account/` and `app/business-api/transaction/src/banking_transaction/`

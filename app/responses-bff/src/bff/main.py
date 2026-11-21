@@ -23,6 +23,8 @@ from bff.routers.admin import customer_router, router as admin_router
 
 
 CredentialFactory = Callable[[Settings], AsyncCredential]
+# Read bounds the gap between streamed chunks, not the whole turn, so tool-heavy turns still complete.
+RESPONSES_TIMEOUT = httpx.Timeout(connect=10.0, read=300.0, write=30.0, pool=10.0)
 
 
 def create_app(
@@ -43,7 +45,7 @@ def create_app(
             base_url=app_settings.auth_users_endpoint,
             timeout=3.0, transport=auth_transport, follow_redirects=False,
         )
-        app.state.http_client = httpx.AsyncClient(timeout=None, transport=transport)
+        app.state.http_client = httpx.AsyncClient(timeout=RESPONSES_TIMEOUT, transport=transport)
         for client in (app.state.auth_client, app.state.http_client):
             HTTPXClientInstrumentor.instrument_client(
                 client, tracer_provider=tracer_provider, meter_provider=meter_provider

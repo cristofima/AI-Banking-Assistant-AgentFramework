@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, model_validator
-from typing import Literal, Optional
+from typing import Optional
 
 from banking_transaction.models.conversation import CaseConversation, ConversationMessage
 

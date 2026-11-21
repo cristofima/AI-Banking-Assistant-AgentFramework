@@ -4,7 +4,7 @@ from agent_framework import Agent, BaseChatClient, MCPStreamableHTTPTool
 from mcp import Client
 
 from app.agents.azure_chat.guardrails import BANKING_GUARDRAILS
-from app.common.internal_identity import mcp_header_provider
+from app.adapters.runtime_tools import build_mcp_tool
 from app.adapters.tool_error_middleware import OwnershipErrorMiddleware
 from app.adapters.refusal_locale_middleware import RefusalLocaleMiddleware
 from app.adapters.toolbox_consent_middleware import ToolboxCallConsentMiddleware, ToolboxConsentMiddleware
@@ -62,12 +62,9 @@ class AccountAgent :
       logger.info("Initializing Account Agent connection for account api ")
 
       logger.info("Initializing Account MCP server tools for AccountAgent ")
-      account_mcp_server = self.account_tool if self.account_tool is not None else MCPStreamableHTTPTool(
-                name="Account MCP server client",
-                url=self.account_mcp_server_url if self.account_mcp_client is None else None,
-                mcp_client=self.account_mcp_client,
-                header_provider=(mcp_header_provider(self.internal_identity_secret)
-                                 if self.account_mcp_client is None else None),
+      account_mcp_server = self.account_tool if self.account_tool is not None else build_mcp_tool(
+          "Account MCP server client", self.account_mcp_server_url,
+          self.internal_identity_secret, self.account_mcp_client,
       )
 
       return Agent(

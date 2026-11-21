@@ -7,7 +7,6 @@ from decimal import Decimal
 
 import pytest
 from banking_shared.models import Customer, Product, SQLModel
-from banking_shared.product_types import PRODUCT_TYPE_LABELS
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from fastmcp import Client
@@ -220,27 +219,6 @@ def test_foreign_product_numbers_are_denied(session_factory: Callable[[], Sessio
     assert debit is not None
     assert debit.type == "debit"
     assert debit.name == "Debit Card"
-
-
-@pytest.mark.parametrize(("canonical", "legacy"), PRODUCT_TYPE_LABELS.items())
-def test_payment_method_type_is_normalized(
-    session_factory: Callable[[], Session], canonical: str, legacy: str,
-) -> None:
-    for label in (canonical, legacy):
-        with session_factory() as session:
-            product = session.get(Product, "card-owned")
-            assert product is not None
-            product.product_type = label
-            session.add(product)
-            session.commit()
-
-        method = AccountService(session_factory).get_payment_method_details(
-            "4111111111111111", "customer-owned",
-        )
-        assert method is not None
-        assert method.type == {"Credit Card": "credit", "Debit Card": "debit"}.get(
-            canonical, canonical,
-        )
 
 
 @pytest.mark.parametrize(

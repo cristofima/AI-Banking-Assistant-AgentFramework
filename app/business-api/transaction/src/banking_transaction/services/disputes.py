@@ -20,8 +20,6 @@ from decimal import Decimal
 
 from banking_shared.database import create_session
 from banking_shared.models import (
-    CardProtection,
-    RuntimePosting,
     Product,
     SupportCase,
     SupportCaseEvent,
@@ -35,7 +33,6 @@ from banking_transaction.consent.preview import (
     DisputePreviewError, configured_preview_secret, evidence_digest, issue_preview, read_preview,
 )
 from banking_transaction.projections.transactions import to_transaction
-from banking_transaction.projections.cases import effects, protection as protection_details
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
@@ -55,18 +52,7 @@ ACTIVE_PRODUCT_STATUS = "Active"
 TRIAGE_FAST_TRACK = "fast_track"
 TRIAGE_ESCALATED = "escalated"
 TRIAGE_INSUFFICIENT_SIGNAL = "insufficient_signal"
-
-# Legacy outcome codes retained for recommendation compatibility.
-# These codes do not establish a legitimacy verdict or an executed financial effect.
-FAVORABLE_RESOLUTION_OUTCOMES = {"fast_tracked_provisional_credit", "fraud_confirmed_refund_issued"}
-
-# Single guardrailed post-resolution recommendation: suggest enabling transaction
-# alerts, the one product feature directly relevant to a resolved fraud dispute.
-RECOMMENDATION_TYPE_TRANSACTION_ALERTS = "transaction_alerts"
-RECOMMENDATION_RATIONALE_TRANSACTION_ALERTS = (
-    "This dispute involved an unrecognized charge. Enabling instant transaction "
-    "alerts can help you spot similar charges sooner."
-)
+MAX_TIMELINE_EVENTS = 100
 
 
 class ActiveDisputeError(ValueError):
@@ -280,6 +266,7 @@ class SupportCaseService:
                 select(SupportCaseEvent)
                 .where(SupportCaseEvent.case_id == case_id)
                 .order_by(SupportCaseEvent.created_at.asc())
+                .limit(MAX_TIMELINE_EVENTS)
             )
             return [_to_dispute_case_event(event) for event in session.exec(statement).all()]
 
@@ -500,14 +487,6 @@ def _triage(fraud_score: Decimal | None) -> str:
     if fraud_score >= FRAUD_SCORE_ESCALATION_THRESHOLD:
         return TRIAGE_ESCALATED
     return TRIAGE_FAST_TRACK
-
-
-def _apply_recommendation(case: SupportCase) -> None:
-    """Set the single post-resolution recommendation, only for a favorable outcome."""
-    if case.resolution_outcome not in FAVORABLE_RESOLUTION_OUTCOMES:
-        return
-    case.recommendation_type = RECOMMENDATION_TYPE_TRANSACTION_ALERTS
-    case.recommendation_rationale = RECOMMENDATION_RATIONALE_TRANSACTION_ALERTS
 
 
 def _add_event(

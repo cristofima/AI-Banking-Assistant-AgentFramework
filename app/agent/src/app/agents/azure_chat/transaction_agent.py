@@ -4,7 +4,7 @@ from agent_framework import Agent, BaseChatClient, MCPStreamableHTTPTool
 from mcp import Client
 
 from app.agents.azure_chat.guardrails import BANKING_GUARDRAILS
-from app.common.internal_identity import mcp_header_provider
+from app.adapters.runtime_tools import build_mcp_tool
 from app.adapters.tool_error_middleware import OwnershipErrorMiddleware
 from app.adapters.refusal_locale_middleware import RefusalLocaleMiddleware
 from app.adapters.toolbox_consent_middleware import ToolboxCallConsentMiddleware, ToolboxConsentMiddleware
@@ -194,21 +194,15 @@ class TransactionHistoryAgent :
 
       logger.info("Initializing Account MCP, Transaction MCP server tools for TransactionHistoryAgent ")
 
-      account_mcp_server = self.account_tool if self.account_tool is not None else MCPStreamableHTTPTool(
-          name="Account MCP server client",
-          url=self.account_mcp_server_url if self.account_mcp_client is None else None,
-          mcp_client=self.account_mcp_client,
-          header_provider=(mcp_header_provider(self.internal_identity_secret)
-                           if self.account_mcp_client is None else None),
-       )
+      account_mcp_server = self.account_tool if self.account_tool is not None else build_mcp_tool(
+          "Account MCP server client", self.account_mcp_server_url,
+          self.internal_identity_secret, self.account_mcp_client,
+      )
 
-      transaction_mcp_server = self.transaction_tool if self.transaction_tool is not None else MCPStreamableHTTPTool(
-          name="Transaction MCP server client",
-          url=self.transaction_mcp_server_url if self.transaction_mcp_client is None else None,
-          mcp_client=self.transaction_mcp_client,
-          header_provider=(mcp_header_provider(self.internal_identity_secret)
-                           if self.transaction_mcp_client is None else None),
-     )
+      transaction_mcp_server = self.transaction_tool if self.transaction_tool is not None else build_mcp_tool(
+          "Transaction MCP server client", self.transaction_mcp_server_url,
+          self.internal_identity_secret, self.transaction_mcp_client,
+      )
 
       return Agent(
           client=self.azure_chat_client,

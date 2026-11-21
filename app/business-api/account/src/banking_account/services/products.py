@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Callable
-from decimal import Decimal
 
 from banking_shared.database import create_session
 from banking_shared.models import Customer, Product
@@ -11,8 +10,6 @@ from banking_shared.runtime import project_runtime, project_runtime_many
 from banking_shared.product_types import (
     ACCOUNT_PRODUCT_TYPES,
     CARD_PRODUCT_TYPES,
-    card_type,
-    normalize_product_type,
 )
 from banking_account.services.errors import OperationUnavailable
 from banking_account.models.products import (
@@ -23,8 +20,6 @@ from banking_account.models.products import (
     CardDiscoveryCandidate,
     CardDiscoveryResult,
     CardSummary,
-    PaymentMethod,
-    PaymentMethodSummary,
 )
 from sqlalchemy import func
 from sqlmodel import Session, select
@@ -32,14 +27,9 @@ from sqlmodel import Session, select
 from banking_account.projections.products import (
     _to_account,
     _masked_card_number,
-    _to_payment_method_summary,
-    _to_payment_method,
     _to_account_summary,
     _to_card_summary,
     _to_card,
-    _date_value,
-    _decimal_float,
-    _decimal_text,
 )
 
 logger = logging.getLogger(__name__)
@@ -74,20 +64,6 @@ class AccountService:
             )
             projected = project_runtime_many(session, [account_product, *cards])
             return _to_account(projected[0], customer, projected[1:])
-
-    def get_payment_method_details(
-        self,
-        payment_method_id: str,
-        customer_id: str,
-    ) -> PaymentMethod | None:
-        logger.info(
-            "Request to get_payment_method_details with payment_method_id: %s",
-            payment_method_id,
-        )
-        _require_identifier(payment_method_id, "PaymentMethodId")
-        with self._session_factory() as session:
-            product = _get_owned_product(session, payment_method_id, customer_id)
-            return _to_payment_method(project_runtime(session, product))
 
     def get_registered_beneficiary(
         self,

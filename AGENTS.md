@@ -148,8 +148,10 @@ CI-specific commands and prerequisites live in:
   so test-only changes add no uncovered new code. Add new test directories to
   `sonar.tests` and its source exclusions. The
   [Python Sonar workflow](.github/workflows/sonarqube-python.yml) generates
-  `coverage.xml` per project with `pytest-cov` and rewrites filenames to repository-root
-  paths; `banking_shared` coverage is not measured separately. Frontend coverage comes
+  `coverage.xml` per project with `pytest-cov` and rewrites each report's `<source>` to the
+  repository root and prefixes filenames with the project's `src/` path, so Sonar resolves
+  them; BFF and Identity run with the OpenTelemetry SDK enabled and evals runs from the
+  repository root; `banking_shared` coverage is not measured separately. Frontend coverage comes
   from the Vitest LCOV artifact.
 
 ## Instruction ownership
@@ -623,8 +625,9 @@ real-time fraud detection or discover anything new.
   orchestration. ZIP staging copies installed application and Shared packages from `src/`
   and cleans temporary staging after deployment, rather than restoring flat source files.
 - Use [AGENTS.md focused checks](AGENTS.md#focused-checks) and component guides for
-  current commands. Evals has an independent environment; offline CI can also run its
-  tests from the Agent environment. Packaging checks should include wheel/noneditable
+  current commands. Evals has an independent environment whose `model` extra installs
+  the Agent; CI runs the Agent suite from it, and `evals/uv.lock` must be regenerated
+  when Agent dependencies change. The Agent environment skips evals-dependent tests. Packaging checks should include wheel/noneditable
   imports from outside the checkout when package structure or dependencies change.
 - Type-annotate every function signature, including return types. Prefer modern typing
   syntax (`list[str]`, `str | None`).

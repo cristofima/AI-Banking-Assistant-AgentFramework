@@ -8,15 +8,12 @@ import hmac
 import json
 import os
 import time
-from typing import Annotated
-
-from fastapi import Header, HTTPException, status
 
 
 INVALID_IDENTITY_MESSAGE = "Invalid customer identity"
 
 
-def get_customer_id(headers: dict[str, str], *, mutation: bool = False) -> str:
+def get_customer_id(headers: dict[str, str]) -> str:
     """Verify the customer for existing MCP reads and dispute mutations."""
     mode = os.environ.get("MCP_IDENTITY_MODE", "hmac")
     if mode == "oauth":
@@ -62,16 +59,3 @@ def get_customer_id(headers: dict[str, str], *, mutation: bool = False) -> str:
     if expires_at <= int(time.time()):
         raise PermissionError("Customer identity has expired")
     return customer_id
-
-
-def get_http_customer_id(
-    authorization: Annotated[str | None, Header()] = None,
-) -> str:
-    """Resolve the internal principal for FastAPI routes."""
-    try:
-        return get_customer_id({"authorization": authorization or ""})
-    except (PermissionError, RuntimeError) as error:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(error),
-        ) from error

@@ -43,16 +43,18 @@ artifacts. Configuration is not proof of a successful GitHub Actions run or a co
 
 ### Local validation
 
-The installed Agent environment runs the full evaluation suite; the minimal Evals
-environment skips tests that need optional frameworks, so SDK-backed coverage requires
-the Agent/model dependencies. See the [test guide](tests/README.md) for coverage and
-environment selection.
+The Evals environment with the `model` extra installs the Agent and runs the full
+evaluation suite; with only the `offline` extra it skips tests that need optional
+frameworks. The Agent environment does not install `banking_evals` and cannot run
+these tests. See the [test guide](tests/README.md) for coverage and environment
+selection.
 
 Run the local checks from repository root:
 
 ```powershell
 $env:OTEL_SDK_DISABLED = 'true'
-rtk proxy uv run --project app\agent --frozen --no-sync python -m pytest evals\tests -q --tb=short
+rtk proxy uv sync --project evals --extra offline --extra model --locked
+rtk proxy uv run --project evals --frozen --no-sync python -m pytest evals\tests -q --tb=short
 
 rtk proxy uv run --project evals --frozen --no-sync python -W error::RuntimeWarning -m banking_evals.semantic.technical --evidence evals\semantic_technical_evidence.json --output evals\results\semantic-technical-validation.json
 ```
@@ -158,10 +160,16 @@ does not authorize billable runs.
 For the complete agent suite and evaluation integration regressions, use both
 extras from the repository root. The agent's deployment environment intentionally
 does not install `banking-evals`; the dependency points from evaluations to the
-agent so the hosted package remains self-contained.
+agent so the hosted package remains self-contained. In the Agent environment, the
+replay modules `test_dispute_replay.py`, `test_mcp_replay.py` and
+`test_replay_summary.py` skip through `pytest.importorskip("banking_evals")`.
+
+`evals/uv.lock` also pins the Agent's dependencies. After changing
+`app/agent/pyproject.toml`, regenerate it with `rtk proxy uv lock --project evals`;
+Hosted Agent CI installs it with `--locked` and fails on a stale lock.
 
 ```powershell
-rtk proxy uv sync --project evals --extra offline --extra model --frozen
+rtk proxy uv sync --project evals --extra offline --extra model --locked
 $env:OTEL_SDK_DISABLED = "true"
 rtk proxy uv run --project evals --frozen --no-sync python -m pytest app\agent\tests evals\tests -q
 ```
@@ -173,7 +181,7 @@ errors without retaining arbitrary exception text. The combined offline regressi
 command covers the existing replay tests and the alignment tests:
 
 ```powershell
-rtk proxy uv run --project app\agent --frozen --no-sync python -m pytest app\agent\tests\test_dispute_replay.py app\agent\tests\test_mcp_replay.py evals\tests -q --tb=short
+rtk proxy uv run --project evals --frozen --no-sync python -m pytest app\agent\tests\test_dispute_replay.py app\agent\tests\test_mcp_replay.py evals\tests -q --tb=short
 ```
 
 The comparator's structured passes measure synthetic comparator completion, not
@@ -193,8 +201,8 @@ acceptance.
 The combined offline suites run from the repository root with `OTEL_SDK_DISABLED=true`:
 
 ```powershell
-rtk proxy uv run --project app\agent --frozen --no-sync python -m pytest evals\tests app\agent\tests\test_dispute_replay.py app\agent\tests\test_mcp_replay.py app\agent\tests\test_replay_summary.py -q --tb=short
-rtk proxy uv run --directory app\agent python -m pytest tests ..\..\evals\tests -q --tb=short
+rtk proxy uv run --project evals --frozen --no-sync python -m pytest evals\tests app\agent\tests\test_dispute_replay.py app\agent\tests\test_mcp_replay.py app\agent\tests\test_replay_summary.py -q --tb=short
+rtk proxy uv run --project evals --frozen --no-sync python -m pytest app\agent\tests evals\tests -q --tb=short
 ```
 
 They include consent and integrity regressions, covering instruction
@@ -313,7 +321,7 @@ Run the focused offline regressions from the repository root:
 
 ```powershell
 $env:OTEL_SDK_DISABLED = 'true'
-rtk proxy uv run --project app\agent --frozen --no-sync python -m pytest app\agent\tests\test_refusal_locale_middleware.py app\agent\tests\test_hosted_workflow.py app\agent\tests\test_internal_identity.py app\agent\tests\test_mcp_replay.py evals\tests -q --tb=short
+rtk proxy uv run --project evals --frozen --no-sync python -m pytest app\agent\tests\test_refusal_locale_middleware.py app\agent\tests\test_hosted_workflow.py app\agent\tests\test_internal_identity.py app\agent\tests\test_mcp_replay.py evals\tests -q --tb=short
 ```
 
 These tests cover policy wiring, SDK-marked refusal localization, mocked MCP runner

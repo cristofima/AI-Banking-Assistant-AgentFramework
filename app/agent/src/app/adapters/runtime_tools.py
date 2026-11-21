@@ -1,4 +1,4 @@
-"""Build experimental Foundry-only Toolbox tools."""
+"""Build direct MCP tools and experimental Foundry-only Toolbox tools."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from agent_framework.foundry import FoundryToolbox
 from azure.ai.agentserver.core import get_request_context
 from azure.core.credentials import TokenCredential
 from azure.core.credentials_async import AsyncTokenCredential
+from mcp import Client
 
 from app.common.internal_identity import mcp_header_provider
 
@@ -24,6 +25,22 @@ TRANSACTION_TOOLS = (
     "reportTransactionDispute", "recoverTransactionDispute", "respondToDisputeApproval",
     "listSupportCases", "getSupportCase", "getSupportCaseTimeline",
 )
+
+
+def build_mcp_tool(
+    name: str,
+    url: str,
+    identity_secret: str,
+    mcp_client: Client | None = None,
+) -> MCPStreamableHTTPTool:
+    """Build a direct MCP tool, or wrap a caller-supplied session without dynamic headers."""
+    # The SDK rejects dynamic header providers for caller-supplied MCP sessions.
+    return MCPStreamableHTTPTool(
+        name=name,
+        url=url if mcp_client is None else None,
+        mcp_client=mcp_client,
+        header_provider=mcp_header_provider(identity_secret) if mcp_client is None else None,
+    )
 
 
 def build_toolbox_tools(

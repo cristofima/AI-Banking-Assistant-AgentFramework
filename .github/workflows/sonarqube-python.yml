@@ -5,25 +5,25 @@ on:
     branches:
       - main
       - develop
-      - 'feature/**'
-      - 'refactor/**'
-      - 'chore/**'
+      - "feature/**"
+      - "refactor/**"
+      - "chore/**"
     paths:
-      - 'app/agent/**'
-      - 'app/business-api/**'
-      - 'app/responses-bff/**'
-      - 'evals/**'
-      - 'sonar-project.python.properties'
-      - '.github/workflows/sonarqube-python.yml'
+      - "app/agent/**"
+      - "app/business-api/**"
+      - "app/responses-bff/**"
+      - "evals/**"
+      - "sonar-project.python.properties"
+      - ".github/workflows/sonarqube-python.yml"
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
-      - 'app/agent/**'
-      - 'app/business-api/**'
-      - 'app/responses-bff/**'
-      - 'evals/**'
-      - 'sonar-project.python.properties'
-      - '.github/workflows/sonarqube-python.yml'
+      - "app/agent/**"
+      - "app/business-api/**"
+      - "app/responses-bff/**"
+      - "evals/**"
+      - "sonar-project.python.properties"
+      - ".github/workflows/sonarqube-python.yml"
 
 jobs:
   sonarqube:
@@ -46,20 +46,26 @@ jobs:
       - name: Collect Python coverage
         shell: bash
         env:
-          OTEL_SDK_DISABLED: "true"
+          UV_PYTHON: "3.11"
         run: |
           set -uo pipefail
+          root="$PWD"
           for project in app/agent app/responses-bff app/business-api/identity app/business-api/account app/business-api/transaction app/business-api/data evals; do
+            # BFF and Identity tracing tests require the SDK enabled; the other suites run without export
+            otel="true"
+            case "$project" in app/responses-bff|app/business-api/identity) otel="false";; esac
             extra=""
             if [ "$project" = "evals" ]; then extra="--extra offline"; fi
-            if (cd "$project" && uv run --frozen $extra --with pytest-cov python -m pytest -q tests --cov=src --cov-report=xml:coverage.xml); then
+            # Evals tests resolve their artifact paths from the repository root
+            if [ "$project" = "evals" ]; then workdir="$root"; target="evals/tests"; else workdir="$root/$project"; target="tests"; fi
+            if (cd "$workdir" && OTEL_SDK_DISABLED="$otel" uv run --project "$root/$project" --frozen $extra --with pytest-cov python -m pytest -q "$target" --cov="$root/$project/src" --cov-report=xml:"$root/$project/coverage.xml"); then
               :
             else
               echo "::warning::Tests failed or produced partial coverage for $project"
             fi
             if [ -f "$project/coverage.xml" ]; then
-              # Coverage filenames are relative to src; Sonar resolves them from the repository root
-              sed -i "s#filename=\"#filename=\"$project/src/#g" "$project/coverage.xml"
+              # Filenames are relative to the declared source directory; make them resolve from the repository root
+              sed -i -e "s#<source>[^<]*</source>#<source>$root</source>#" -e "s#filename=\"#filename=\"$project/src/#g" "$project/coverage.xml"
             fi
           done
       - name: Cache SonarQube packages

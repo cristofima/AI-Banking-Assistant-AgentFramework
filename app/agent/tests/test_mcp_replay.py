@@ -10,8 +10,11 @@ from agent_framework import MCPStreamableHTTPTool
 from app.agents.azure_chat.account_agent import AccountAgent
 from app.agents.azure_chat.transaction_agent import TransactionHistoryAgent
 from app.agents.azure_chat.hosted_workflow import build_hosted_workflow
-from banking_evals.mcp_replay import ReplayReply, ReplayServer, load_contracts
-from banking_evals.mcp.runner import evaluation_names, run_case
+
+pytest.importorskip("banking_evals", reason="requires the evals environment used by CI")
+
+from banking_evals.mcp_replay import ReplayReply, ReplayServer, load_contracts  # noqa: E402
+from banking_evals.mcp.runner import evaluation_names, run_case  # noqa: E402
 
 
 async def test_replay_discovers_contracts_and_executes_without_http() -> None:
@@ -66,25 +69,15 @@ async def test_workflow_passes_injected_sessions_to_all_mcp_clients() -> None:
     account = ReplayServer("account", [])
     transaction = ReplayServer("transaction", [])
     async with account.connect() as account_session, transaction.connect() as transaction_session:
-        with patch("app.agents.azure_chat.account_agent.MCPStreamableHTTPTool") as account_tool:
-            with patch("app.agents.azure_chat.transaction_agent.MCPStreamableHTTPTool") as transaction_tool:
-                account_tool.return_value = MCPStreamableHTTPTool(
-                    name="account", url=None, mcp_client=account_session,
-                )
-                transaction_tool.return_value = MCPStreamableHTTPTool(
-                    name="transaction", url=None, mcp_client=transaction_session,
-                )
-                build_hosted_workflow(
-                    MagicMock(), "in-memory://account", "in-memory://transaction",
-                    "test-secret-key-with-at-least-32-bytes",
-                    account_mcp_client=account_session, transaction_mcp_client=transaction_session,
-                )
-        assert account_tool.call_args.kwargs["mcp_client"] is account_session
-        assert transaction_tool.call_args_list[0].kwargs["mcp_client"] is account_session
-        assert transaction_tool.call_args_list[1].kwargs["mcp_client"] is transaction_session
-        assert account_tool.call_args.kwargs["header_provider"] is None
-        assert all(call.kwargs["header_provider"] is None
-                   for call in transaction_tool.call_args_list)
+        with patch("app.adapters.runtime_tools.MCPStreamableHTTPTool", wraps=MCPStreamableHTTPTool) as tool:
+            build_hosted_workflow(
+                MagicMock(), "in-memory://account", "in-memory://transaction",
+                "test-secret-key-with-at-least-32-bytes",
+                account_mcp_client=account_session, transaction_mcp_client=transaction_session,
+            )
+        clients = [call.kwargs["mcp_client"] for call in tool.call_args_list]
+        assert clients == [account_session, account_session, transaction_session]
+        assert all(call.kwargs["header_provider"] is None for call in tool.call_args_list)
 
 
 @pytest.mark.parametrize("specialist", ["account", "transaction"])
@@ -96,9 +89,8 @@ async def test_specialist_invokes_injected_mcp_tools_without_http_identity(
     )])
     transaction = ReplayServer("transaction", [ReplayReply("listSupportCases", {}, [])])
     async with account.connect() as account_session, transaction.connect() as transaction_session:
-        module = f"app.agents.azure_chat.{specialist}_agent.MCPStreamableHTTPTool"
-        with patch(module, wraps=MCPStreamableHTTPTool) as constructor, patch(
-            f"app.agents.azure_chat.{specialist}_agent.mcp_header_provider",
+        with patch("app.adapters.runtime_tools.MCPStreamableHTTPTool", wraps=MCPStreamableHTTPTool) as constructor, patch(
+            "app.adapters.runtime_tools.mcp_header_provider",
             return_value=lambda _: {"Authorization": "synthetic-replay-only"},
         ):
             if specialist == "account":
@@ -123,13 +115,10 @@ async def test_specialist_invokes_injected_mcp_tools_without_http_identity(
 
 
 def test_production_mcp_clients_retain_signed_header_providers() -> None:
-    with patch("app.agents.azure_chat.account_agent.MCPStreamableHTTPTool") as account_tool:
-        with patch("app.agents.azure_chat.transaction_agent.MCPStreamableHTTPTool") as transaction_tool:
-            account_tool.return_value = MCPStreamableHTTPTool(name="account", url="https://example.invalid")
-            transaction_tool.return_value = MCPStreamableHTTPTool(name="transaction", url="https://example.invalid")
-            build_hosted_workflow(MagicMock(), "https://account.invalid", "https://transaction.invalid",
-                                  "test-secret-key-with-at-least-32-bytes")
-    calls = [account_tool.call_args, *transaction_tool.call_args_list]
+    with patch("app.adapters.runtime_tools.MCPStreamableHTTPTool", wraps=MCPStreamableHTTPTool) as tool:
+        build_hosted_workflow(MagicMock(), "https://account.invalid", "https://transaction.invalid",
+                              "test-secret-key-with-at-least-32-bytes")
+    calls = tool.call_args_list
     assert len(calls) == 3
     assert all(call.kwargs["mcp_client"] is None for call in calls)
     assert all(callable(call.kwargs["header_provider"]) for call in calls)
