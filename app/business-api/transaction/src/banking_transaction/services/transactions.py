@@ -19,6 +19,7 @@ from banking_transaction.services.recognition import get_recognition_context
 logger = logging.getLogger(__name__)
 
 SessionFactory = Callable[[], Session]
+MAX_SEARCH_RESULTS = 100
 
 
 class TransactionService:
@@ -48,7 +49,7 @@ class TransactionService:
             product = _get_owned_product(session, account_id, customer_id)
             statement = _transaction_statement(product.product_id, customer_id).where(
                 TransactionRecord.merchant_name.ilike(f"%{name.strip()}%")
-            )
+            ).limit(MAX_SEARCH_RESULTS)
             return _execute_transactions(session, statement, product)
 
     def get_transactions(self, account_id: str, customer_id: str) -> list[Transaction]:
@@ -74,12 +75,11 @@ class TransactionService:
             card_id,
         )
         with self._session_factory() as session:
-            _get_owned_product(session, account_id, customer_id)
-            product = (
-                _get_owned_product(session, card_id, customer_id, CARD_PRODUCT_TYPES)
-                if card_id
-                else _get_owned_product(session, account_id, customer_id)
-            )
+            if card_id:
+                _get_owned_product(session, account_id, customer_id)
+                product = _get_owned_product(session, card_id, customer_id, CARD_PRODUCT_TYPES)
+            else:
+                product = _get_owned_product(session, account_id, customer_id)
             statement = _transaction_statement(product.product_id, customer_id)
             if transaction_type:
                 statement = statement.where(
@@ -87,7 +87,7 @@ class TransactionService:
                 )
             if payment_type:
                 statement = statement.where(TransactionRecord.channel == payment_type)
-            return _execute_transactions(session, statement, product)
+            return _execute_transactions(session, statement.limit(MAX_SEARCH_RESULTS), product)
 
     def notify_transaction(
         self,

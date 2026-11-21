@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import uuid4
 
-from banking_shared.models import CardProtection, Product, RuntimePosting, SupportCase, SupportCaseEvent, TransactionRecord
+from banking_shared.models import Product, RuntimePosting, SupportCase, SupportCaseEvent, TransactionRecord
 from banking_shared.runtime import effective_balance
 from banking_shared.identity_models import Operator
 from sqlmodel import Session, select

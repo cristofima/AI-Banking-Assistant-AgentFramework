@@ -110,6 +110,7 @@ def test_code_exchange_hashing_single_use_and_profile(configured: None, client: 
     assert response.json()["expires_in"] == 3600
     assert response.json()["scope"] == "mcp.access"
     assert "refresh_token" not in response.json()
+    assert "exp" not in response.json()
     token = response.json()["access_token"]
     metadata = client.get("/.well-known/oauth-authorization-server").json()
     assert metadata["jwks_uri"] == settings.oauth_issuer + "/oauth/jwks"

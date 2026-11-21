@@ -35,13 +35,6 @@ def get_account_details(
     return account_service.get_account_details(product_number, get_customer_id(headers))
 
 
-
-# @mcp.tool(name="getPaymentMethodDetails", description="Get payment method detail with available balance")
-# def get_payment_method_details(paymentMethodId: Annotated[str, "Unique identifier for the payment method"]):
-#     logger.info("Request to getPaymentMethodDetails with paymentMethodId: %s", paymentMethodId)
-#     return account_service.get_payment_method_details(paymentMethodId)
-
-
 @mcp.tool(name="getRegisteredBeneficiary", description="Get list of registered beneficiaries for a specific account")
 def get_registered_beneficiary(
     product_number: Annotated[str, "Account product number; never a product id"],

@@ -29,7 +29,7 @@ def test_hmac_mutation_preserves_verified_identity(
     monkeypatch.setenv("INTERNAL_IDENTITY_SECRET", TEST_SECRET)
 
     assert get_customer_id(
-        {"authorization": _authorization(int(time.time()) + 60)}, mutation=True,
+        {"authorization": _authorization(int(time.time()) + 60)},
     ) == "local-customer"
 
 
@@ -41,7 +41,7 @@ def test_hmac_mutation_rejects_invalid_identity(
     monkeypatch.setenv("INTERNAL_IDENTITY_SECRET", TEST_SECRET)
 
     with pytest.raises(PermissionError):
-        get_customer_id({"authorization": authorization}, mutation=True)
+        get_customer_id({"authorization": authorization})
 
 
 def test_oauth_read_resolves_customer(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -68,7 +68,7 @@ def test_oauth_mutation_resolver_rejection_never_falls_back_to_hmac(
 
     with pytest.raises(PermissionError, match="Invalid OAuth grant"):
         get_customer_id(
-            {"authorization": _authorization(int(time.time()) + 60)}, mutation=True,
+            {"authorization": _authorization(int(time.time()) + 60)},
         )
     assert resolver.call_count == 1
 
@@ -79,7 +79,7 @@ def test_unknown_mode_rejects_mutation(monkeypatch: pytest.MonkeyPatch) -> None:
 
     with pytest.raises(RuntimeError, match="Unsupported MCP identity mode"):
         get_customer_id(
-            {"authorization": _authorization(int(time.time()) + 60)}, mutation=True,
+            {"authorization": _authorization(int(time.time()) + 60)},
         )
 
 

@@ -1,32 +1,17 @@
 from __future__ import annotations
 
-import logging
 import re
-from collections.abc import Callable
 from decimal import Decimal
 
-from banking_shared.database import create_session
 from banking_shared.models import Customer, Product
-from banking_shared.runtime import project_runtime
-from banking_shared.product_types import (
-    ACCOUNT_PRODUCT_TYPES,
-    CARD_PRODUCT_TYPES,
-    card_type,
-    normalize_product_type,
-)
+from banking_shared.product_types import card_type, normalize_product_type
 from banking_account.models.products import (
     Account,
     AccountSummary,
-    Beneficiary,
     Card,
-    CardDiscoveryCandidate,
-    CardDiscoveryResult,
     CardSummary,
-    PaymentMethod,
     PaymentMethodSummary,
 )
-from sqlalchemy import func
-from sqlmodel import Session, select
 
 def _to_account(product: Product, customer: Customer, cards: list[Product]) -> Account:
     full_name = " ".join(
@@ -64,17 +49,6 @@ def _to_payment_method_summary(product: Product) -> PaymentMethodSummary:
         type=card_type(product.product_type),
         activationDate=_date_value(product.opening_date),
         expirationDate=_date_value(product.expiration_date),
-    )
-
-
-def _to_payment_method(product: Product) -> PaymentMethod:
-    return PaymentMethod(
-        type=card_type(product.product_type),
-        cardNumber=_masked_card_number(product.product_number),
-        activationDate=_date_value(product.opening_date),
-        expirationDate=_date_value(product.expiration_date),
-        availableBalance=_decimal_float(product.current_balance),
-        status=product.product_status,
     )
 
 
