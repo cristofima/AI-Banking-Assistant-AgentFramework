@@ -18,7 +18,6 @@ from app.common.internal_identity import (
     BankingIdentityMiddleware, create_mcp_authorization, get_internal_principal,
 )
 from starlette.types import Receive, Scope, Send
-from app.context.user_profile_helper import UserProfileHelper
 from app.context.user_profile_provider import UserProfileProvider
 
 
@@ -155,7 +154,7 @@ async def test_concurrent_profiles_use_each_requests_verified_email() -> None:
         try:
             await asyncio.sleep(0)
             await provider.before_run(agent=None, session=None, context=context, state={})
-            assert UserProfileHelper.get_user_id(SECRET) == email
+            assert get_internal_principal(SECRET).sub == email
             return context
         finally:
             current_identity.reset(token)
