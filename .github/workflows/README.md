@@ -363,20 +363,20 @@ Required:
 - `MODEL_DEPLOYMENT_NAME`
 - `ACCOUNT_MCP_URL`
 - `TRANSACTION_MCP_URL`
-- `TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT`
+- `TOOLBOX_ACCOUNT_TOOLS_MCP_ENDPOINT`
+- `TOOLBOX_TRANSACTION_TOOLS_MCP_ENDPOINT`
+  The agent manifest fixes `AGENT_RUNTIME=foundry` and `MCP_IDENTITY_MODE=oauth`;
+  no OAuth private key, browser-client secret or public JWKS is consumed by the hosted
+  adapter. Do not copy these App Service settings into the agent or browser.
+  `account-mcp` and `transaction-mcp` must already be owner-managed OAuth2 project
+  connections in the selected Foundry project, using exactly `mcp.access` and separately
+  registered native confidential clients/platform callbacks. Local azd values alone do
+  not configure these connections, and CD does not register clients or replace connections.
 
-The agent manifest fixes `AGENT_RUNTIME=foundry` and `MCP_IDENTITY_MODE=oauth`;
-no OAuth private key, browser-client secret or public JWKS is consumed by the hosted
-adapter. Do not copy these App Service settings into the agent or browser.
-`account-mcp` and `transaction-mcp` must already be owner-managed OAuth2 project
-connections in the selected Foundry project, using exactly `mcp.access` and separately
-registered native confidential clients/platform callbacks. Local azd values alone do
-not configure these connections, and CD does not register clients or replace connections.
-
-The manifest also declares `banking-tools` as an agent dependency. Before agent-only
-CD, a separately authorized setup must deploy that Toolbox and resolve its dependency
-metadata. Set `TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT` in the **Development** GitHub
-Environment to the Toolbox consumer endpoint, which serves its default version, or
+The manifest also declares `account-tools` and `transaction-tools` as agent dependencies. Before agent-only
+CD, a separately authorized setup must deploy those Toolboxes and resolve their dependency
+metadata. Set `TOOLBOX_ACCOUNT_TOOLS_MCP_ENDPOINT` and `TOOLBOX_TRANSACTION_TOOLS_MCP_ENDPOINT` in the **Development** GitHub
+Environment to the Toolbox consumer endpoints, which serve their default versions, or
 an explicit version endpoint for pinned tests. CD checks only that the value is
 present and nonblank, then exports it to the runner's agent azd environment. It does
 not enforce URL format or probe endpoint availability. CD neither deploys nor
@@ -386,10 +386,11 @@ endpoint follows the published default without changing the variable.
 This is dependency metadata, not native runtime OAuth support, and requires no new
 agent YAML mapping while the runtime adapter remains gated.
 
-For the Development Toolbox consumer endpoint:
+For the Development Toolbox consumer endpoints:
 
 ```dotenv
-TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT=https://aifdevelopment58b174.services.ai.azure.com/api/projects/foundry-development/toolboxes/banking-tools/mcp?api-version=v1
+TOOLBOX_ACCOUNT_TOOLS_MCP_ENDPOINT=https://aifdevelopment58b174.services.ai.azure.com/api/projects/foundry-development/toolboxes/account-tools/mcp?api-version=v1
+TOOLBOX_TRANSACTION_TOOLS_MCP_ENDPOINT=https://aifdevelopment58b174.services.ai.azure.com/api/projects/foundry-development/toolboxes/transaction-tools/mcp?api-version=v1
 ```
 
 Offline regressions run in hosted CI and in hosted CD before Azure configuration:
@@ -401,7 +402,7 @@ rtk proxy node --test .github\actions\appservice-preflight\hosted.test.cjs .gith
 See [deployment troubleshooting](../../docs/troubleshooting.md#deployment-oauth-and-federation-blockers)
 for the missing-endpoint failure.
 
-The OAuth2 connections and the `banking-tools` Toolbox default version are configured in
+The OAuth2 connections and the `account-tools`/`transaction-tools` Toolbox default versions are configured in
 the Foundry project; the version-pinned endpoint lives in the selected local agent azd
 environment only. See the [infrastructure configuration](../../infra/README.md#native-oauth-compatibility-gate)
 for the exact callbacks, client IDs, secret names and endpoint. Protected
