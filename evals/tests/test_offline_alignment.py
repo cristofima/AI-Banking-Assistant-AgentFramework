@@ -156,7 +156,9 @@ def test_collision_safe_output(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(Path, "exists", lambda path: path == requested.with_suffix(".xml"))
     alternative = available_output(requested)
     assert alternative != requested and alternative.parent == requested.parent
-    assert unique_output(requested.parent, "run") != unique_output(requested.parent, "run")
+    first = unique_output(requested.parent, "run")
+    second = unique_output(requested.parent, "run")
+    assert first != second
 
 
 @pytest.mark.asyncio
