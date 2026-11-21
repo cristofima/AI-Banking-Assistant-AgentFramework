@@ -623,8 +623,9 @@ real-time fraud detection or discover anything new.
   orchestration. ZIP staging copies installed application and Shared packages from `src/`
   and cleans temporary staging after deployment, rather than restoring flat source files.
 - Use [AGENTS.md focused checks](AGENTS.md#focused-checks) and component guides for
-  current commands. Evals has an independent environment; offline CI can also run its
-  tests from the Agent environment. Packaging checks should include wheel/noneditable
+  current commands. Evals has an independent environment whose `model` extra installs
+  the Agent; CI runs the Agent suite from it, and `evals/uv.lock` must be regenerated
+  when Agent dependencies change. The Agent environment skips evals-dependent tests. Packaging checks should include wheel/noneditable
   imports from outside the checkout when package structure or dependencies change.
 - Type-annotate every function signature, including return types. Prefer modern typing
   syntax (`list[str]`, `str | None`).
