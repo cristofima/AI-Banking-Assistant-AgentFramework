@@ -43,6 +43,17 @@ describe("shared session-scoped readiness", () => {
     h.focus?.(); await settle(); vi.advanceTimersByTime(30_000); await settle();
     expect(h.status).toHaveBeenCalledTimes(4); expect(h.start).not.toHaveBeenCalled();
   });
+  it("shares an in-flight focus check instead of reporting not ready", async () => {
+    h.status.mockResolvedValue({ required: true, ready: false }); render(); await settle();
+    let finish!: (value: unknown) => void;
+    h.status.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    h.focus?.();
+    const result = render().verify();
+    finish({ required: true, ready: true });
+    expect(await result).toBe(true); expect(h.status).toHaveBeenCalledTimes(2);
+    // A later check is a fresh request, not the settled shared result.
+    expect(await render().verify()).toBe(false); expect(h.status).toHaveBeenCalledTimes(3);
+  });
   it("removes formerly ready status on 503 and allows only explicit read-only recheck", async () => {
     h.status.mockResolvedValue({ required: true, ready: true }); render(); await settle();
     expect(render().status?.ready).toBe(true);

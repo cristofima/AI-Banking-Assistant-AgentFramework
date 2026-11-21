@@ -21,32 +21,42 @@ export function OAuthReadinessProvider({ children }: { children: ReactNode }) {
   currentScope.current = scope;
   const pending = useRef<AbortController | null>(null);
   const starting = useRef<string | null>(null);
+  const checking = useRef<Promise<boolean> | null>(null);
   const [result, setResult] = useState<{ scope: string; token: string | null; status: OAuthStatus } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const status = result?.scope === scope && result.token === getAuthToken() ? result.status : null;
 
-  const verify = useCallback(async (): Promise<boolean> => {
-    if (!user || user.role !== "customer" || loading || pending.current) return false;
+  const verify = useCallback((): Promise<boolean> => {
+    if (!user || user.role !== "customer" || loading) return Promise.resolve(false);
+    // A focus check may already be in flight when a caller needs the answer (for example the
+    // consent popup closing refocuses this window); share it instead of reporting not ready.
+    if (checking.current) return checking.current;
+    if (pending.current) return Promise.resolve(false);
     const controller = new AbortController();
     pending.current = controller;
     const token = getAuthToken();
     setBusy(true);
-    try {
-      const value = await getOAuthStatus(controller.signal);
-      if (controller.signal.aborted || currentScope.current !== scope || getAuthToken() !== token) return false;
-      setResult({ scope, token, status: value });
-      setError(false);
-      return !value.required || value.ready;
-    } catch (cause) {
-      if (!controller.signal.aborted && currentScope.current === scope) {
-        setResult(null); setError(true);
-        if (cause instanceof ApiError && cause.code === "AUTH_REQUIRED") logout();
+    const check = (async () => {
+      try {
+        const value = await getOAuthStatus(controller.signal);
+        if (controller.signal.aborted || currentScope.current !== scope || getAuthToken() !== token) return false;
+        setResult({ scope, token, status: value });
+        setError(false);
+        return !value.required || value.ready;
+      } catch (cause) {
+        if (!controller.signal.aborted && currentScope.current === scope) {
+          setResult(null); setError(true);
+          if (cause instanceof ApiError && cause.code === "AUTH_REQUIRED") logout();
+        }
+        return false;
+      } finally {
+        if (pending.current === controller) { pending.current = null; setBusy(false); }
       }
-      return false;
-    } finally {
-      if (pending.current === controller) { pending.current = null; setBusy(false); }
-    }
+    })();
+    checking.current = check;
+    void check.finally(() => { if (checking.current === check) checking.current = null; });
+    return check;
   }, [user, loading, scope, logout]);
 
   const authorize = useCallback(async (): Promise<void> => {
