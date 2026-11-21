@@ -159,6 +159,9 @@ Customer chat shares a session-scoped readiness provider across Support and the
 floating assistant. `GET /oauth/status` must return `{required, ready}`. HMAC mode
 (`required: false`) retains chat functionality. Missing or failed status blocks
 chat; status is rechecked on focus, every 30 seconds and before Responses dispatch.
+Concurrent checks share one in-flight request, so a dispatch that coincides with a
+focus check (for example the resend after the consent popup closes) receives that
+check's result instead of being rejected as not ready.
 An explicit authorize action calls `POST /oauth/start` and accepts only a relative,
 same-origin `/oauth/consent` URL passing the existing strict query parser.
 All lifecycle calls use the existing application JWT, no-store and no redirects.
