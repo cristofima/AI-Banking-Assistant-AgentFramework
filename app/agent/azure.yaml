@@ -9,14 +9,6 @@ services:
     host: azure.ai.project
     endpoint: ${FOUNDRY_PROJECT_ENDPOINT}
     deployments:
-      - name: model-router
-        model:
-          format: OpenAI
-          name: model-router
-          version: "2025-11-18"
-        sku:
-          name: GlobalStandard
-          capacity: 10
       - name: gpt-5.4
         model:
           format: OpenAI
