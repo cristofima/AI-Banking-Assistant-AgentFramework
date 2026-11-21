@@ -148,8 +148,10 @@ CI-specific commands and prerequisites live in:
   so test-only changes add no uncovered new code. Add new test directories to
   `sonar.tests` and its source exclusions. The
   [Python Sonar workflow](.github/workflows/sonarqube-python.yml) generates
-  `coverage.xml` per project with `pytest-cov` and rewrites filenames to repository-root
-  paths; `banking_shared` coverage is not measured separately. Frontend coverage comes
+  `coverage.xml` per project with `pytest-cov` and rewrites each report's `<source>` to the
+  repository root and prefixes filenames with the project's `src/` path, so Sonar resolves
+  them; BFF and Identity run with the OpenTelemetry SDK enabled and evals runs from the
+  repository root; `banking_shared` coverage is not measured separately. Frontend coverage comes
   from the Vitest LCOV artifact.
 
 ## Instruction ownership
