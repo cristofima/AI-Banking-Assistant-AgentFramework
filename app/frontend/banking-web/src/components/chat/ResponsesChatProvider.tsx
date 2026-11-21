@@ -496,9 +496,11 @@ export function ChatProvider({
     const settle = actionRef.current;
     actionRef.current = null;
     const outcome = settle?.(streamOutcomeRef.current) ?? streamOutcomeRef.current;
-    if (outcome === "success" || (consentPause && !settle)) {
+    if (outcome === "success" || consentPause) {
       recoveryBlockedRef.current.delete(threadId);
       if (consentPause) {
+        // A widget action has no chat message to resend after consent.
+        if (settle) consentThreadRef.current = null;
         // The paused turn advanced the agent's workflow head, so the previous token is stale.
         continuationsRef.current.delete(threadId);
         setThreads(previous => previous.map(thread => {
@@ -627,11 +629,13 @@ export function ChatProvider({
   );
 
   // The consent popup closing is the only completion signal Foundry exposes.
+  // The resend repeats the paused input, so it adds no second user message.
   resumeAfterConsentRef.current = () => {
     const threadId = consentThreadRef.current;
     consentThreadRef.current = null;
     const message = lastMessageRef.current;
-    if (threadId && threadId === activeThreadId && message && !streamingThreadRef.current) sendMessage(message);
+    if (!threadId || threadId !== activeThreadId || !message || streamingThreadRef.current) return;
+    submitInput(threadId, [{ role: "user", content: [{ type: "input_text", text: message }] }]);
   };
 
   useEffect(() => {

@@ -5,6 +5,7 @@ import type { StreamEvent } from "./useThreadStream";
 import { ApiError } from "@/api/errors";
 import { getSupportCase } from "@/api/disputeClient";
 import { CHAT_HISTORY_KEY } from "./sessionHistory";
+import { openConsentPopup } from "./consentPopup";
 import type { SupportCase } from "@/models/SupportCase";
 import en from "@/locales/en.json";
 import es from "@/locales/es.json";
@@ -258,6 +259,34 @@ describe("Responses provider visible output", () => {
     event({ type: "response.incomplete" }); finish();
     expect(messages().filter(item => JSON.stringify(item).includes(link))).toHaveLength(1);
     expect(JSON.stringify(messages())).not.toContain("Tool result unavailable");
+  });
+
+  it("resends the paused message after each consent without repeating it in the chat", () => {
+    vi.useFakeTimers();
+    const popup = { closed: false } as Window;
+    vi.stubGlobal("window", {
+      open: vi.fn(() => popup),
+      setInterval: (fn: () => void, ms: number) => setInterval(fn, ms),
+      clearInterval: (id: number) => clearInterval(id),
+    });
+    try {
+      start();
+      for (const link of ["https://consent.example.test/a", "https://consent.example.test/b"]) {
+        event({ type: "response.output_item.added", item: { type: "oauth_consent_request", id: link, consent_link: link } });
+        event({ type: "response.incomplete" }); finish();
+        expect(h.stream.request).toBeNull();
+        Object.assign(popup, { closed: false });
+        expect(openConsentPopup(link)).toBe(true);
+        Object.assign(popup, { closed: true });
+        vi.advanceTimersByTime(1000);
+        render();
+        expect(JSON.stringify(h.stream.request?.payload)).toContain("Review my transaction");
+        expect(render().items.filter(item => item.type === "user_message")).toHaveLength(1);
+      }
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
   });
 
   it("ignores consent links that are not HTTPS", () => {
