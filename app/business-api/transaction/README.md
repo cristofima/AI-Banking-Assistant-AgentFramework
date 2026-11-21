@@ -137,9 +137,7 @@ rtk proxy uv run --project evals --extra offline --frozen python -m pytest evals
 
 The Evals suite runs in its independent offline environment using
 `--extra offline --frozen --no-sync`, including package-aware DTO loading.
-The replay freeze reviews the recognition tool, instructions and package-aware
-DTO dependency graph; scenario bytes and expanded inputs are unchanged. Recognition
-has no exhaustive operator-negative or locale matrix.
+Recognition has no exhaustive operator-negative or locale matrix.
 Real-model clue/locale quality, PostgreSQL read parity and hosted acceptance
 are not established. These checks do not prove reduced operator workload.
 
