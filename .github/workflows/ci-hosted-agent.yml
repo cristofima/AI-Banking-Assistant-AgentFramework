@@ -8,7 +8,6 @@ on:
       - "!app/agent/**/*.md"
       - "evals/**"
       - "!evals/**/*.md"
-      - "evals/dispute_freeze.json"
       - "evals/replay_cases.json"
       - "evals/dispute_cases.json"
       - "app/business-api/account/src/banking_account/mcp_tools.py"
@@ -16,6 +15,7 @@ on:
       - "app/business-api/transaction/src/banking_transaction/models/**"
       - ".github/workflows/ci-hosted-agent.yml"
       - ".github/actions/ci-python/**"
+      - ".github/actions/appservice-preflight/**"
   pull_request:
     branches: ["main", "develop"]
     types: [opened, reopened, synchronize, ready_for_review]
@@ -24,7 +24,6 @@ on:
       - "!app/agent/**/*.md"
       - "evals/**"
       - "!evals/**/*.md"
-      - "evals/dispute_freeze.json"
       - "evals/replay_cases.json"
       - "evals/dispute_cases.json"
       - "app/business-api/account/src/banking_account/mcp_tools.py"
@@ -32,6 +31,7 @@ on:
       - "app/business-api/transaction/src/banking_transaction/models/**"
       - ".github/workflows/ci-hosted-agent.yml"
       - ".github/actions/ci-python/**"
+      - ".github/actions/appservice-preflight/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -40,8 +40,41 @@ concurrency:
 permissions: {}
 
 jobs:
+  changes:
+    name: Detect relevant changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      agent: ${{ steps.filter.outputs.agent }}
+      evals: ${{ steps.filter.outputs.evals }}
+      contracts: ${{ steps.filter.outputs.contracts }}
+      ci: ${{ steps.filter.outputs.ci }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Filter changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            agent:
+              - 'app/agent/**'
+            evals:
+              - 'evals/**'
+            contracts:
+              - 'app/business-api/account/src/banking_account/mcp_tools.py'
+              - 'app/business-api/transaction/src/banking_transaction/mcp_tools.py'
+              - 'app/business-api/transaction/src/banking_transaction/models/**'
+            ci:
+              - '.github/workflows/ci-hosted-agent.yml'
+              - '.github/actions/ci-python/**'
+              - '.github/actions/appservice-preflight/**'
+
   build-and-test:
     name: Build & Test (Hosted Agent)
+    needs: changes
+    if: ${{ needs.changes.outputs.agent == 'true' || needs.changes.outputs.evals == 'true' || needs.changes.outputs.contracts == 'true' || needs.changes.outputs.ci == 'true' }}
     runs-on: ubuntu-latest
     env:
       OTEL_SDK_DISABLED: "true"
@@ -91,6 +124,8 @@ jobs:
 
   dispute-offline:
     name: Dispute Replay (offline structured checks)
+    needs: changes
+    if: ${{ needs.changes.outputs.agent == 'true' || needs.changes.outputs.evals == 'true' || needs.changes.outputs.contracts == 'true' || needs.changes.outputs.ci == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -138,6 +173,8 @@ jobs:
 
   semantic-technical-offline:
     name: Semantic Technical Offline
+    needs: changes
+    if: ${{ needs.changes.outputs.evals == 'true' || needs.changes.outputs.ci == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -173,8 +210,8 @@ jobs:
 
   replay-smoke:
     name: MCP Replay Smoke
-    needs: build-and-test
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    needs: [changes, build-and-test]
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && (needs.changes.outputs.agent == 'true' || needs.changes.outputs.evals == 'true' || needs.changes.outputs.contracts == 'true' || needs.changes.outputs.ci == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     environment: Development

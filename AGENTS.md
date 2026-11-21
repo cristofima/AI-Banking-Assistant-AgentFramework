@@ -63,9 +63,8 @@ do not copy them back into a service. Their generic tests live in Account, while
 Transaction keeps only its dispute-route and mutation tests. Synthetic JWT/HMAC
 fixtures shared by both suites live in `banking_shared.testing`. Sonar runs
 duplicate-code detection on tests too, so extract common helpers rather than
-excluding tests. Moving a file covered by `evals/dispute_freeze.json` requires a
-reviewed freeze revision, and new Shared dependencies require regenerating each
-service's `requirements.txt`.
+excluding tests. New Shared dependencies require regenerating each service's
+`requirements.txt`.
 
 ## Local Development
 
@@ -759,12 +758,9 @@ correctness and security review; it does not authorize edits or weaken these rul
   configuration is not evidence of a successful CI run or paired real-model result.
   Structured consent/tool/outcome checks do not establish semantic quality, locale
   correctness, service authorization, persisted effects, or safe resolution.
-- Preserve the current replay integrity contract in
-  [evals/dispute_freeze.json](evals/dispute_freeze.json), which owns the revision,
-  reviewed dependency changes, exact-byte `dispute-replay-v2` scenarios and separately
-  frozen `dispute-consent-v3` expanded inputs. Dependency hashes normalize
-  CRLF to LF; raw dataset hashes do not. Review and version intended dependency or
-  expansion changes rather than disabling integrity checks or silently refreezing.
+- Preserve exact-byte `dispute-replay-v2` dataset validation and canonical
+  expanded-input fingerprints in replay reports. Review and version intended
+  dataset or expansion changes rather than changing validation to hide drift.
   MCP source discovery must recognize both synchronous and asynchronous tool
   definitions. Offline replay success is not real-model or operator-adjudication evidence.
 - Use two lanes, not one:

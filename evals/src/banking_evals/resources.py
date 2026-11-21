@@ -10,7 +10,7 @@ def repository_root() -> Path:
     """Use an explicit root or discover a unique checkout above the working directory."""
     configured = os.getenv("BANKING_EVALS_ROOT")
     candidates = [Path(configured).resolve()] if configured else [Path.cwd(), *Path.cwd().parents]
-    matches = [root for root in candidates if (root / "evals" / "dispute_freeze.json").is_file()
+    matches = [root for root in candidates if (root / "evals" / "dispute_cases.json").is_file()
                and (root / "app" / "agent" / "pyproject.toml").is_file()]
     if len(matches) != 1:
         raise ValueError("Set BANKING_EVALS_ROOT to a unique banking repository checkout")

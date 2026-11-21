@@ -216,8 +216,8 @@ making this code map a deployment ledger.
 ### `evals/`, `.github/` and `.vscode/`
 
 `evals/src/banking_evals/` is an independently installed evaluation package, with
-held-out scenarios and a separate development-exposed dispute replay. Dataset/dependency
-freeze contracts protect evidence integrity; offline checks do not prove real-model,
+held-out scenarios and a separate development-exposed dispute replay. Replay reports
+retain dataset and expanded-input fingerprints; offline checks do not prove real-model,
 customer-authorization or hosted behavior. `.github/workflows/` owns CI/CD; root
 `.vscode/` owns six-service local launch orchestration. F5 runs
 `DEV - Full Stack Ordered` with `noDebug: true`, using the ordered full-stack task

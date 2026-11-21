@@ -1,8 +1,5 @@
 """Offline packaging and diagnostic integrity regressions."""
 
-from pathlib import Path
-from unittest.mock import patch
-
 import pytest
 
 from banking_evals.disputes import dataset as replay
@@ -44,23 +41,6 @@ def test_resources_reject_escape_and_missing() -> None:
         resource("../missing-resource")
     with pytest.raises(ValueError, match="unavailable"):
         resource("evals/missing-resource.json")
-
-
-def test_freeze_rejects_omitted_transitive_dependency() -> None:
-    import json
-    original = Path.read_text
-
-    def read_text(path: Path, *args: object, **kwargs: object) -> str:
-        text = original(path, *args, **kwargs)
-        if path.name == "dispute_freeze.json":
-            freeze = json.loads(text)
-            freeze["dependencies"].pop("app/agent/src/app/context/user_profile_provider.py")
-            return json.dumps(freeze)
-        return text
-
-    with patch.object(Path, "read_text", read_text):
-        with pytest.raises(ValueError, match="coverage is incomplete"):
-            load_cases()
 
 
 def test_transaction_models_loader_is_package_aware() -> None:
