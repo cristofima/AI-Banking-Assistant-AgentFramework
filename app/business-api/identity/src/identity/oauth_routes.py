@@ -155,7 +155,7 @@ def oauth_router(config: Settings, identity: IdentityService,
         status, response, headers = server.create_authorization_response(
             request, grant_user=user if body.approved else None, grant=grant,
         )
-        location = dict(headers).get("Location")
+        location = dict(headers or ()).get("Location")
         if status != 302 or not location:
             db.rollback()
             log_protocol_rejection("authorization", response.get("error")
