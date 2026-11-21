@@ -6,7 +6,9 @@ from typing import Any
 
 import pytest
 
-from banking_evals.replay_summary import main, render_summary
+pytest.importorskip("banking_evals", reason="requires the evals environment used by CI")
+
+from banking_evals.replay_summary import main, render_summary  # noqa: E402
 
 
 @pytest.fixture

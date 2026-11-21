@@ -10,8 +10,11 @@ from agent_framework import MCPStreamableHTTPTool
 from app.agents.azure_chat.account_agent import AccountAgent
 from app.agents.azure_chat.transaction_agent import TransactionHistoryAgent
 from app.agents.azure_chat.hosted_workflow import build_hosted_workflow
-from banking_evals.mcp_replay import ReplayReply, ReplayServer, load_contracts
-from banking_evals.mcp.runner import evaluation_names, run_case
+
+pytest.importorskip("banking_evals", reason="requires the evals environment used by CI")
+
+from banking_evals.mcp_replay import ReplayReply, ReplayServer, load_contracts  # noqa: E402
+from banking_evals.mcp.runner import evaluation_names, run_case  # noqa: E402
 
 
 async def test_replay_discovers_contracts_and_executes_without_http() -> None:

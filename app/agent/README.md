@@ -410,10 +410,17 @@ Run the complete agent suite, including evaluation integration tests, from the
 repository root using the combined evaluation environment:
 
 ```powershell
-rtk proxy uv sync --project evals --extra offline --extra model --frozen
+rtk proxy uv sync --project evals --extra offline --extra model --locked
 $env:OTEL_SDK_DISABLED = "true"
 rtk proxy uv run --project evals --frozen --no-sync python -m pytest app\agent\tests -q
 ```
+
+The agent's own environment (`uv run --directory app\agent python -m pytest tests`)
+skips the three replay modules that import `banking_evals`. `evals/uv.lock` pins this
+project's dependencies too; regenerate it with `rtk proxy uv lock --project evals`
+whenever `pyproject.toml` changes. [Tests conftest](tests/conftest.py) points
+`AGENTSERVER_STATE_ROOT` at a per-test temporary directory so Responses host state
+never reaches `~/.agentserver` or collides between concurrent runs.
 
 Hosted-agent CI also restores an isolated copy of this project's dependencies on
 Python 3.13, without the repository-root evaluation directory, before running tests.
@@ -525,7 +532,7 @@ models.
 ## Validation
 
 ```powershell
-uv run python -m pytest tests/test_hosted_workflow.py tests/test_internal_identity.py tests/test_settings.py tests/test_model_configuration.py tests/test_mcp_replay.py -q
+uv run python -m pytest tests/test_hosted_workflow.py tests/test_internal_identity.py tests/test_settings.py tests/test_model_configuration.py -q
 ```
 
 The focused suite covers handoff completion, safe ownership
