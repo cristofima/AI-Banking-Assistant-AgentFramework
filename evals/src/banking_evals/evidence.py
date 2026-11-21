@@ -56,7 +56,7 @@ def sanitize(value: Any) -> Any:
 
 def financial_claim(answer: str) -> bool:
     """Conservative phrase gate, not a semantic safety or translation evaluator."""
-    effects = r"refund|credit|reimburse|card.{0,12}block|reembols|cr[eé]dit|cart[aã]o.{0,12}bloque|tarjeta.{0,12}bloque"
+    effects = r"refund|reimburse|card.{0,12}block|reembols|cr[eé]dit|cart[aã]o.{0,12}bloque|tarjeta.{0,12}bloque"
     positive = r"issued|posted|applied|credited|refunded|blocked|emitido|aplicado|reembolsado|bloquead[ao]|creditado"
     for sentence in re.split(r"[.!?\n]", answer.lower()):
         if re.search(r"\b(no|not|never|cannot|can't|without|n[oã]o|sin|sem|ning[uú]n)\b", sentence):

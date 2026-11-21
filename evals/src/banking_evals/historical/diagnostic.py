@@ -313,7 +313,8 @@ def run_proposed(
                         token = bff_client.login(customer["email"], password)
                         body, conversation = bff_client.send_turn(token, turn, conversation)
                     else:
-                        assert hosted_client is not None
+                        if hosted_client is None:
+                            raise RuntimeError("No evaluation client is configured")
                         body, conversation = hosted_client.send_turn(customer, turn, conversation)
                     final_text = sanitize(_extract_output_text(body))
                     entry.update(response=sanitize(body), final_answer=final_text, completed=True)
