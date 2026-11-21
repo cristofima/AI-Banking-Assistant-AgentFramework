@@ -22,7 +22,7 @@ required package resources in the source ZIP. Follow the
 [agent packaging contract](../app/agent/README.md#hosted-source-dependency-installation),
 not the App Service staging procedure below.
 
-Hosted CD exports a nonblank `TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT` from the Development
+Hosted CD exports nonblank `TOOLBOX_ACCOUNT_TOOLS_MCP_ENDPOINT` and `TOOLBOX_TRANSACTION_TOOLS_MCP_ENDPOINT` from the Development
 GitHub Environment without format or availability checks. The consumer endpoint
 follows the published default; a version-specific endpoint pins experiments. CD
 neither publishes the Toolbox nor registers clients. The manifest's `foundry/oauth`

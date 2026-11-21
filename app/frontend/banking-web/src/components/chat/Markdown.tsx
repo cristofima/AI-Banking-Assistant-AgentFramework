@@ -1,6 +1,7 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/common/utils";
+import { openConsentPopup } from "./consentPopup";
 
 interface MarkdownProps {
   content: string;
@@ -37,7 +38,14 @@ export function Markdown({ content, className }: MarkdownProps) {
         components={{
           // Customize rendering for specific elements if needed
           a: ({ node, ...props }) => (
-            <a {...props} target="_blank" rel="noopener noreferrer" />
+            <a
+              {...props}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(event) => {
+                if (openConsentPopup(props.href)) event.preventDefault();
+              }}
+            />
           ),
           code: ({ node, inline, className, children, ...props }) => {
             if (inline) {

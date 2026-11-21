@@ -1,18 +1,18 @@
 .
 agent-detector==2.0.0 ; sys_platform != 'emscripten'
     # via fastapi-cloud-cli
-agent-framework-core==1.25.0 ; sys_platform != 'emscripten'
+agent-framework-core==1.26.0 ; sys_platform != 'emscripten'
     # via
     #   agent-framework-foundry
     #   agent-framework-foundry-hosting
     #   agent-framework-openai
     #   agent-framework-orchestrations
     #   banking-assistant-agent
-agent-framework-foundry==1.16.1 ; sys_platform != 'emscripten'
+agent-framework-foundry==1.16.2 ; sys_platform != 'emscripten'
     # via banking-assistant-agent
-agent-framework-foundry-hosting==1.0.0b261106 ; sys_platform != 'emscripten'
+agent-framework-foundry-hosting==1.0.0b261112 ; sys_platform != 'emscripten'
     # via banking-assistant-agent
-agent-framework-openai==1.18.1 ; sys_platform != 'emscripten'
+agent-framework-openai==1.18.2 ; sys_platform != 'emscripten'
     # via
     #   agent-framework-foundry
     #   banking-assistant-agent

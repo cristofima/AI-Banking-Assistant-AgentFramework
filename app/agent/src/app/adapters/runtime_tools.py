@@ -38,9 +38,7 @@ def build_toolbox_tools(
         raise ValueError("AGENT_RUNTIME must be foundry for Toolbox")
     if not project_endpoint.strip():
         raise ValueError("FOUNDRY_PROJECT_ENDPOINT is required for Toolbox")
-    endpoint = (
-        f"{project_endpoint.rstrip('/')}/toolboxes/banking-tools/mcp?api-version=v1"
-    )
+    base = project_endpoint.rstrip("/")
     identity_headers = None if native_oauth else mcp_header_provider(identity_secret)
 
     def header_provider(runtime_kwargs: dict[str, Any]) -> dict[str, str]:
@@ -56,9 +54,11 @@ def build_toolbox_tools(
         return {"x-banking-mcp-authorization": headers["Authorization"]}
 
     def toolbox(service: str, names: tuple[str, ...]) -> FoundryToolbox:
+        # Each Toolbox lists only its own connection, so a user is asked to consent to
+        # the connections of the Toolboxes an agent opens, not to every banking one.
         return FoundryToolbox(
             credential,
-            url=endpoint,
+            url=f"{base}/toolboxes/{service}-tools/mcp?api-version=v1",
             name=f"{service} Toolbox",
             allowed_tools=[f"{service}___{name}" for name in names],
             header_provider=header_provider,

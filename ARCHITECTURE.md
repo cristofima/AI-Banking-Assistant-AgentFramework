@@ -189,14 +189,16 @@ acceptance gates; Terraform declarations are not deployed-isolation evidence.
 Two independent `azd` project roots: the root manifest provisions the App Service
 stack via Terraform; `app/agent/azure.yaml` provisions the hosted Foundry agent
 separately. Commands against the agent stack need `--cwd app/agent`.
-`banking-tools` is a separate Toolbox service referencing the `account-mcp` and
-`transaction-mcp` OAuth2 project connections with explicit tool allowlists. Root
+`account-tools` and `transaction-tools` are separate Toolbox services, each referencing
+one of the `account-mcp` and `transaction-mcp` OAuth2 project connections with an
+explicit tool allowlist. One Toolbox per connection scopes OAuth consent to the
+service a request actually uses. Root
 Terraform does not create these connections or register their Identity clients.
 Toolbox deployment creates a version; explicit publication selects the default.
 Version-pinned consumers must also update their endpoint when rolling back.
 
 The hosted CD workflow deploys only `home-banking-agent`. It requires and validates
-`TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT` from the Development GitHub Environment, then
+`TOOLBOX_ACCOUNT_TOOLS_MCP_ENDPOINT` and `TOOLBOX_TRANSACTION_TOOLS_MCP_ENDPOINT` from the Development GitHub Environment, then
 exports that nonblank dependency endpoint to the runner's agent azd environment
 without enforcing its URL format. The consumer endpoint follows the published
 default; a version-specific endpoint pins tests. CD does not deploy or publish the Toolbox. Local azd metadata is not

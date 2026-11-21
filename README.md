@@ -224,8 +224,8 @@ Terraform's scoped declarations do not account for every inherited assignment.
 ### Native Foundry OAuth configuration and remaining gates
 
 The independent `account-mcp` and `transaction-mcp` OAuth2 connections use the
-`mcp.access` scope and their actual platform callbacks. `banking-tools` is deployed and
-explicitly published as the default Toolbox version; republishing an earlier version
+`mcp.access` scope and their actual platform callbacks. `account-tools` and `transaction-tools` are deployed and
+explicitly published as default Toolbox versions; republishing an earlier version
 rolls back. Connection and Toolbox configuration needs no agent YAML change or
 hosted-agent deployment. The version-pinned Toolbox endpoint is persisted in local
 agent azd only.
@@ -234,7 +234,7 @@ This is configuration, not usable native OAuth or hosted acceptance:
 
 - Protected workflow registration of both native clients is not independently captured
   native OAuth acceptance.
-- Set `TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT` in the Development GitHub Environment.
+- Set `TOOLBOX_ACCOUNT_TOOLS_MCP_ENDPOINT` and `TOOLBOX_TRANSACTION_TOOLS_MCP_ENDPOINT` in the Development GitHub Environment.
   Hosted CD checks that the dependency endpoint is nonblank and exports it before
   agent-only deployment, without enforcing its URL format. The consumer endpoint
   follows the published default; version-specific endpoints remain usable for tests.

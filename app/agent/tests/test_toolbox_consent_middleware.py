@@ -8,9 +8,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 from agent_framework import (
     Agent, AgentContext, AgentResponse, AgentResponseUpdate, ChatResponse, ChatResponseUpdate,
-    Content, MCPStreamableHTTPTool, Message, ResponseStream, Workflow,
+    Content, FunctionInvocationContext, FunctionTool, MCPStreamableHTTPTool, Message,
+    ResponseStream, Workflow,
 )
-from agent_framework.exceptions import AgentFrameworkException, ToolException
+from agent_framework.exceptions import AgentFrameworkException, ToolException, ToolExecutionException
 from agent_framework.foundry import FoundryChatClient
 from agent_framework_foundry_hosting import HostedResponseRequest, ResponsesHostServer
 from mcp import MCPError
@@ -20,7 +21,7 @@ from app.adapters.checkpointed_handoff import CheckpointedHandoffBuilder
 from app.adapters.handoff_middleware import HandoffNarrationMiddleware
 from app.adapters.no_history_provider import NoHistoryProvider
 from app.adapters.responses_turn import parse_response
-from app.adapters.toolbox_consent_middleware import ToolboxConsentMiddleware
+from app.adapters.toolbox_consent_middleware import ToolboxCallConsentMiddleware, ToolboxConsentMiddleware
 from app.agents.azure_chat.hosted_workflow import _has_completed_agent_response
 
 CONSENT_URL = "https://consent.example.test/oauth/start?state=synthetic"
@@ -175,6 +176,55 @@ async def test_successful_stream_is_unchanged() -> None:
     await ToolboxConsentMiddleware().process(context, run)
     assert [update.text async for update in context.result] == ["Done."]
     assert (await context.result.get_final_response()).text == "Done."
+
+
+async def test_tool_call_consent_becomes_consent_content() -> None:
+    # A Toolbox tool call reports consent as a bare URL, wrapped by the SDK tool layer.
+    async def account___getAccountsByUserName() -> str:
+        raise ToolExecutionException(
+            f"Failed to call tool. {CONSENT_URL}", MCPError(-32006, f"User consent is required. Please visit: {CONSENT_URL}"),
+        )
+
+    tool = FunctionTool(func=account___getAccountsByUserName, name="account___getAccountsByUserName")
+    calls = 0
+
+    def model_response(_client: Any, *args: Any, **kwargs: Any) -> ResponseStream:
+        nonlocal calls
+        calls += 1
+
+        async def updates() -> AsyncIterator[ChatResponseUpdate]:
+            if calls > 1:
+                raise AssertionError("The model must not see the failed tool call")
+            yield ChatResponseUpdate(role="assistant", contents=[Content.from_function_call(
+                "call-1", "account___getAccountsByUserName", arguments="{}",
+            )])
+
+        return ResponseStream(updates(), finalizer=ChatResponse.from_updates)
+
+    client = FoundryChatClient(
+        project_endpoint="https://example.services.ai.azure.com/api/projects/test",
+        model="test-model", credential=MagicMock(),
+    )
+    agent = Agent(
+        client=client, name="AccountAgent", instructions="Find balances", tools=[tool],
+        middleware=[ToolboxConsentMiddleware(), ToolboxCallConsentMiddleware()],
+    )
+    with patch.object(FoundryChatClient, "_inner_get_response", model_response):
+        result = await agent.run("Show my accounts", stream=True).get_final_response()
+    contents = [content for message in result.messages for content in message.contents]
+    assert consent_links(contents) == [CONSENT_URL]
+    assert contents[0].additional_properties["server_label"] == "account"
+    assert calls == 1
+
+
+async def test_tool_call_failures_other_than_consent_are_not_swallowed() -> None:
+    context = FunctionInvocationContext(function=MagicMock(), arguments={})
+
+    async def run() -> None:
+        raise ToolExecutionException("Failed.", MCPError(-32000, "connection refused"))
+
+    with pytest.raises(ToolExecutionException):
+        await ToolboxCallConsentMiddleware().process(context, run)
 
 
 def test_consent_marks_the_turn_complete() -> None:

@@ -228,7 +228,8 @@ access. Confirm the actual runner identity and inherited access before adding ro
 
 Root Terraform provisions the Foundry account/project, not the OAuth project connections
 or Toolbox. The separate [agent manifest](../app/agent/azure.yaml) declares Account and
-Transaction MCP tools in `banking-tools`, referencing `account-mcp` and `transaction-mcp`.
+Transaction MCP tools in separate `account-tools` and `transaction-tools` Toolboxes,
+referencing `account-mcp` and `transaction-mcp` respectively.
 For a separately authorized configuration/deployment:
 
 1. Create those OAuth2 connections in the selected Foundry project using the public
@@ -236,7 +237,7 @@ For a separately authorized configuration/deployment:
 2. Obtain each connection's actual platform callback and register compatible native
    confidential clients in Identity. Do not guess callbacks or automatically reuse the
    BFF client/secret, whose callback belongs to the frontend.
-3. Deploy and explicitly publish `banking-tools`, then verify its resolved dependency
+3. Deploy and explicitly publish `account-tools` and `transaction-tools`, then verify its resolved dependency
    metadata in the selected agent azd environment. Configuration-only Toolbox deployment
    can precede client registration, but does not make OAuth usable. Before a separately
    authorized `home-banking-agent` rollout, the deployment-only GitHub runner must also
@@ -269,20 +270,22 @@ These callbacks come from the actual connections, not inference. Both clients re
 protected `register-client` execution in Identity; connection creation and enabled
 secrets do not prove registration or callback/S256 interoperability.
 
-`azd deploy banking-tools --no-prompt --cwd app/agent` creates a Toolbox version from the
-agent manifest, with `project_connection_id` references and the existing tool allowlists.
-Deployment does not promote the version: `azd ai toolbox publish banking-tools <version>
---cwd app/agent` makes it the default, and republishing an earlier version rolls back.
+`azd deploy account-tools --no-prompt --cwd app/agent` (and `transaction-tools`) creates a
+Toolbox version from the agent manifest, with `project_connection_id` references and the
+existing tool allowlists. Deployment does not promote the version:
+`azd ai toolbox publish <toolbox> <version> --cwd app/agent` makes it the default, and republishing an earlier version rolls back.
 These commands affect only the Toolbox, not the hosted agent or model deployments.
 Deployment preview is unsupported for the `azure.ai.toolbox` host.
 
-The agent azd environment stores `TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT`. Hosted CD requires
-a nonblank endpoint from the Development GitHub Environment and exports it to its agent
+The agent azd environment stores `TOOLBOX_ACCOUNT_TOOLS_MCP_ENDPOINT` and
+`TOOLBOX_TRANSACTION_TOOLS_MCP_ENDPOINT`. Hosted CD requires
+nonblank endpoints from the Development GitHub Environment and exports it to its agent
 azd environment without enforcing URL format or probing availability. Local azd
 configuration does not populate that GitHub variable; set it explicitly. For
 default-version consumption use
-`https://aifdevelopment58b174.services.ai.azure.com/api/projects/foundry-development/toolboxes/banking-tools/mcp?api-version=v1`;
-use the `.../banking-tools/versions/<version>/mcp?api-version=v1` form for pinned tests.
+`https://aifdevelopment58b174.services.ai.azure.com/api/projects/foundry-development/toolboxes/account-tools/mcp?api-version=v1`
+(and the `transaction-tools` equivalent);
+use the `.../<toolbox>/versions/<version>/mcp?api-version=v1` form for pinned tests.
 Publishing or rolling back the Toolbox default retargets default-version consumers
 without changing that variable. A version-pinned consumer needs its endpoint updated
 on rollback. The mapping is covered by offline regressions, not a successful hosted

@@ -58,7 +58,7 @@ successful protected registrations for both native clients; this is not independ
 runtime verification. See the [configuration record](../infra/README.md#native-oauth-compatibility-gate)
 and [issue #81](https://github.com/cristofima/AI-Banking-Assistant-AgentFramework/issues/81).
 
-For hosted CD, configure `TOOLBOX_BANKING_TOOLS_MCP_ENDPOINT` in the Development
+For hosted CD, configure `TOOLBOX_ACCOUNT_TOOLS_MCP_ENDPOINT` and `TOOLBOX_TRANSACTION_TOOLS_MCP_ENDPOINT` in the Development
 GitHub Environment. CD requires a nonblank value and exports it to its agent azd
 environment; it neither enforces URL format nor probes availability. Prefer the
 consumer endpoint that follows the published default; use a version-specific endpoint
