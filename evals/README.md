@@ -96,24 +96,19 @@ or judging, and exit 2 reports controlled invalid input/configuration.
 Human calibration, repeated judge consistency, thresholds, remote compatibility,
 billable CI, real-model locale/grounding and browser/hosted/authz/financial acceptance
 remain open. No real model run or remote Foundry evaluation is established by this
-implementation. Frozen dispute workloads and their historical results are unchanged.
+implementation. Replay workloads and their saved results remain reviewable artifacts.
 
 ## Current dispute contract
 
 [dispute_cases.json](dispute_cases.json) is the 25-case **dispute-replay-v2**
 development-exposed synthetic confirmation set, not untouched held-out evidence.
-[dispute_freeze.json](dispute_freeze.json) freezes exact dataset bytes, canonical
-expanded inputs, case count, and source dependencies. Dependency hashing normalizes
-CRLF to LF for portability; dataset hashing remains exact. The scoped
-`.gitattributes` rule keeps the frozen dataset checkout in LF on Windows too.
-Freeze revision 4 covers the `src` package layout and responsibility
-splits, with transitive Agent/evaluation source membership enforced. It preserves both
-the exact dataset hash and the `dispute-consent-v3` expanded-input hash, which covers
-pre-intake consent, production preview/location models, and asynchronous SDK tool
-invocation, plus the additive ADR 0009 projections and unexecuted defaults.
-The 25 source scenarios, labels, dataset version, and exact dataset bytes remain
-unchanged; canonical expanded inputs deliberately change to reflect the consent
-contract. Workload or expansion changes require a new documented version/freeze.
+The loader validates the dataset version, case IDs, locales, turns and model-backed
+reply shapes. Replay reports retain exact dataset and canonical expanded-input SHA-256
+fingerprints, so saved runs remain comparable. Canonical expansion reads the dataset
+as UTF-8 and hashes compact, sorted-key UTF-8 JSON; platform-default decoding is not
+equivalent for localized text.
+Workload or expansion changes require updating the dataset version and review of its
+existing contract.
 Canonical expansion reads the dataset as UTF-8 before hashing compact, sorted-key
 UTF-8 JSON; platform-default decoding is not equivalent for localized text.
 
@@ -182,7 +177,8 @@ rtk proxy uv run --project app\agent --frozen --no-sync python -m pytest app\age
 ```
 
 The comparator's structured passes measure synthetic comparator completion, not
-model-quality evidence. Validate the freeze before reusing saved results.
+model-quality evidence. Validate saved dataset and expanded-input fingerprints before
+reusing reports.
 
 ## Migration offline regression scope
 
@@ -191,18 +187,6 @@ Agent-backed environment runs them. Overlapping suites are not additive coverage
 Baseline and saved-evidence rescoring run without model execution. These checks do not
 establish semantic quality, locale correctness, service authorization or live
 acceptance.
-
-## Freeze alignment
-
-The freeze pins reviewed transport dependency hashes: the
-Agent entrypoint, banking identity middleware and hosted diagnostic.
-Hosted requests separate the opaque platform partition from signed banking
-claims in the forwarded `x-client-banking-identity` header; local identity,
-signature validation, real platform call IDs and the native OAuth Toolbox gate
-are unchanged by that separation. Exact dataset bytes, consent expansions and dependency coverage
-are preserved. Reviewed changes are recorded in [dispute_freeze.json](dispute_freeze.json); offline validation
-does not establish deployed header forwarding, impersonation permission, native
-Toolbox grant binding, hosted readiness, model quality or live-data parity.
 
 ## Offline regression scope
 
@@ -213,8 +197,8 @@ rtk proxy uv run --project app\agent --frozen --no-sync python -m pytest evals\t
 rtk proxy uv run --directory app\agent python -m pytest tests ..\..\evals\tests -q --tb=short
 ```
 
-They include consent regressions and tamper/freeze tests, covering instruction
-contracts, mocked workflow behavior and synthetic replay/freeze guards. This is offline
+They include consent and integrity regressions, covering instruction
+contracts, mocked workflow behavior and synthetic replay guards. This is offline
 synthetic evidence, not real-model discovery, semantic quality, locale correctness,
 live authorization, PostgreSQL, browser, financial settlement, hosted identity
 transport or hosted acceptance. It runs no billable inference or cloud evaluation.

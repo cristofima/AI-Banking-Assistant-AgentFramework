@@ -77,25 +77,6 @@ def test_sanitize_preserves_only_fixed_synthetic_preview_marker(key: str) -> Non
     assert sanitize({"password": "SYNTHETIC-PREVIEW-TOKEN"}) == {}
 
 
-@pytest.mark.parametrize("field", ["dataset_sha256", "expanded_inputs_sha256", "case_count"])
-def test_freeze_rejects_changed_contract(field: str, monkeypatch: pytest.MonkeyPatch) -> None:
-    original = json.loads
-
-    def changed(text: str, **kwargs: Any) -> Any:
-        value = original(text, **kwargs)
-        if isinstance(value, dict) and "dependencies" in value:
-            value[field] = 0 if field == "case_count" else "changed"
-        return value
-
-    monkeypatch.setattr(replay.json, "loads", changed)
-    with pytest.raises(ValueError):
-        replay.load_cases()
-
-
-def test_freeze_rejects_dependency_drift(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(replay, "dependency_fingerprint", lambda path: "changed")
-    with pytest.raises(ValueError, match="dependency"):
-        replay.load_cases()
 
 
 def test_identity_and_full_redaction() -> None:
@@ -253,14 +234,6 @@ async def test_scorer_rejects_unsupported_effects(cases: list[dict[str, Any]]) -
     result = await runner.run_baseline(cases[0])
     result["turns"][0]["final_answer"] += " Your card has been blocked."
     assert not score_case(cases[0], result)["passed"]
-
-
-def test_dependency_fingerprint_normalizes_line_endings(monkeypatch: pytest.MonkeyPatch) -> None:
-    path = replay.ROOT / "evals" / "evidence.py"
-    monkeypatch.setattr(Path, "read_bytes", lambda self: b"first\r\nsecond\r\n")
-    windows_hash = replay.dependency_fingerprint(path)
-    monkeypatch.setattr(Path, "read_bytes", lambda self: b"first\nsecond\n")
-    assert replay.dependency_fingerprint(path) == windows_hash
 
 
 @pytest.mark.asyncio

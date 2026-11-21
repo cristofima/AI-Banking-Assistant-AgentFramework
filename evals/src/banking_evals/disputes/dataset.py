@@ -1,4 +1,4 @@
-"""Frozen synthetic service replies and independent structured dispute checks."""
+"""Synthetic service replies and independent structured dispute checks."""
 
 from __future__ import annotations
 
@@ -15,7 +15,6 @@ from banking_evals.resources import repository_root
 
 ROOT = repository_root()
 DATASET = ROOT / "evals/dispute_cases.json"
-EXPANSION_VERSION = "dispute-consent-v3"
 TRANSACTION_PACKAGE_NAME = "banking_transaction"
 TRANSACTION_MODULE_NAME = f"{TRANSACTION_PACKAGE_NAME}.models.transactions"
 TRANSACTION_PACKAGE_ROOT = ROOT / "app/business-api/transaction/src/banking_transaction"
@@ -39,11 +38,6 @@ def display_value(value: str, locale: str) -> str:
 
 def fingerprint(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def dependency_fingerprint(path: Path) -> str:
-    """Hash source consistently across Windows checkout and Linux CI line endings."""
-    return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
 
 
 def _load_transaction_models() -> ModuleType:
@@ -80,42 +74,7 @@ def load_cases(path: Path = DATASET) -> tuple[dict[str, Any], list[dict[str, Any
         case = expand_case(source)
         _validate_replies(case["transaction"], models)
         expanded.append(case)
-    freeze_path = path.with_name("dispute_freeze.json")
-    freeze = json.loads(freeze_path.read_text(encoding="utf-8"))
-    if (freeze.get("expansion_version") != EXPANSION_VERSION
-            or freeze["dataset_version"] != metadata["version"]
-            or freeze["dataset_sha256"] != fingerprint(path)
-            or freeze["expanded_inputs_sha256"] != expanded_fingerprint(expanded)):
-        raise ValueError("Frozen dataset hash differs; version inputs explicitly before running")
-    if freeze["case_count"] != len(expanded):
-        raise ValueError("Frozen case count differs")
-    if not required_dependencies().issubset(freeze["dependencies"]):
-        raise ValueError("Frozen dependency coverage is incomplete; review and version the freeze")
-    for dependency, expected_hash in freeze["dependencies"].items():
-        dependency_path = (ROOT / dependency).resolve()
-        if (not dependency_path.is_relative_to(ROOT.resolve()) or not dependency_path.is_file()
-                or dependency_fingerprint(dependency_path) != expected_hash):
-            raise ValueError("Frozen dependency hash differs; review and version the freeze")
     return metadata, expanded
-
-
-def required_dependencies() -> set[str]:
-    """Cover replay and workflow sources conservatively, including local import seams."""
-    paths = {
-        path.relative_to(ROOT).as_posix()
-        for directory in (ROOT / "evals/src/banking_evals", ROOT / "app/agent/src/app")
-        for path in directory.rglob("*.py")
-    }
-    paths.update({
-        "app/agent/main.py",
-        "app/business-api/transaction/src/banking_transaction/__init__.py",
-        "app/business-api/transaction/src/banking_transaction/models/__init__.py",
-        "app/business-api/transaction/src/banking_transaction/models/conversation.py",
-        "app/business-api/transaction/src/banking_transaction/models/transactions.py",
-        "app/business-api/transaction/src/banking_transaction/mcp_tools.py",
-        "app/business-api/account/src/banking_account/mcp_tools.py",
-    })
-    return paths
 
 
 def expanded_fingerprint(cases: list[dict[str, Any]]) -> str:

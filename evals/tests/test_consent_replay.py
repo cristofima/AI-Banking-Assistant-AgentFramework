@@ -1,4 +1,4 @@
-"""Constructed consent protocol regressions, independent of freeze approval."""
+"""Constructed consent protocol regressions."""
 
 import json
 from copy import deepcopy
@@ -29,7 +29,7 @@ def expanded_sources() -> list[dict[str, Any]]:
 
 
 @pytest.mark.asyncio
-async def test_expanded_sources_follow_consent_contract_without_freeze_override() -> None:
+async def test_expanded_sources_follow_consent_contract() -> None:
     cases = expanded_sources()
     assert len(cases) == 25
     for case in cases:

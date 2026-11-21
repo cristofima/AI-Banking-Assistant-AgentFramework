@@ -36,7 +36,7 @@ test is not verified SDK coverage. Test doubles prevent model calls in either la
 | [Semantic CLI](test_semantic_cli.py)                       | Capture/judge separation, authorization/configuration validation, provenance and output behavior. |
 | [Semantic provider](test_semantic_provider.py)             | Mocked SDK transport, structured output, retry classification and shared call budgets.            |
 | [Semantic technical evaluator](test_semantic_technical.py) | Calls, arguments, ordered traces, complete answers, malformed evidence and zero-call reports.     |
-| [Offline alignment](test_offline_alignment.py)             | Frozen dispute inputs, source integrity, comparator and saved-report scoring.                     |
+| [Offline alignment](test_offline_alignment.py)             | Dispute inputs, comparator and saved-report scoring.                                              |
 | [Consent replay](test_consent_replay.py)                   | Synthetic multi-turn preview, explicit consent and legacy approval behavior.                      |
 | [Migration contracts](test_migration_contracts.py)         | Package and compatibility contracts supporting replay.                                            |
 
