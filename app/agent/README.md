@@ -473,7 +473,7 @@ agent's local configuration. The template leaves the optional Application Insigh
 connection string unset. `ENABLE_OTEL` currently has no consumer in the Responses
 entrypoint, so it is not a supported telemetry on/off switch.
 
-Hosted deployment is owned by the [agent manifest](azure.yaml) and uses managed identity. Its `ai-project` service declares `model-router` and `gpt-5.4` deployments for provisioning; the hosted agent references that project. The manifest explicitly maps `FOUNDRY_PROJECT_ENDPOINT` and `INTERNAL_IDENTITY_SECRET` from the selected agent azd environment into the container. The signer must match the existing BFF signer; the agent environment does not inherit the BFF's local dotenv settings. An empty signer prevents startup through `Settings` validation and can surface as HTTP 424 / `session_not_ready`. Synchronize the existing value only with explicit authorization; never print it, rotate it as a workaround, or weaken validation. `AUTH_INTERNAL_SECRET` is a separate Identity introspection secret. Shared and per-agent environment settings select runtime deployments; manifest declarations and local tests do not verify available capacity or hosted end-to-end behavior.
+Hosted deployment is owned by the [agent manifest](azure.yaml) and uses managed identity. Its `ai-project` service declares the `gpt-5.4` deployment for provisioning; the hosted agent references that project. The manifest explicitly maps `FOUNDRY_PROJECT_ENDPOINT` and `INTERNAL_IDENTITY_SECRET` from the selected agent azd environment into the container. The signer must match the existing BFF signer; the agent environment does not inherit the BFF's local dotenv settings. An empty signer prevents startup through `Settings` validation and can surface as HTTP 424 / `session_not_ready`. Synchronize the existing value only with explicit authorization; never print it, rotate it as a workaround, or weaken validation. `AUTH_INTERNAL_SECRET` is a separate Identity introspection secret. Shared and per-agent environment settings select runtime deployments; manifest declarations and local tests do not verify available capacity or hosted end-to-end behavior.
 
 ### Hosted source dependency installation
 
@@ -507,7 +507,7 @@ can be unset when all three overrides are configured. There is no automatic
 runtime deployment default:
 
 ```env
-TRIAGE_MODEL_DEPLOYMENT_NAME=model-router
+TRIAGE_MODEL_DEPLOYMENT_NAME=gpt-5.4
 ACCOUNT_MODEL_DEPLOYMENT_NAME=gpt-5.4
 TRANSACTION_MODEL_DEPLOYMENT_NAME=gpt-5.4
 ```
@@ -518,16 +518,17 @@ match. Direct workflow callers can also pass `account_chat_client` and
 `transaction_chat_client`; omitted clients reuse the triage client. Identity,
 locale, tools, and the Account/Transaction handoff topology remain unchanged.
 
-Microsoft Learn documents [model-router agentic tool support](https://learn.microsoft.com/en-us/azure/foundry/openai/concepts/model-router)
-and [Foundry Responses inference through a router deployment](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/model-router#test-model-router-with-foundry-responses-and-chat-completions).
 The [GPT-5.4 catalog](https://learn.microsoft.com/en-us/azure/foundry/foundry-models/concepts/models-sold-directly-by-azure#gpt-54)
-lists Responses, Chat Completions, and function/tool calling support. Router model
-eligibility and deployment availability depend on region, access, and deployment
-configuration. Configure an eligible tool-capable routing pool; no project
-availability or live end-to-end compatibility is established by offline tests.
+lists Responses, Chat Completions, and function/tool calling support. Deployment
+availability depends on region, access, and deployment configuration; offline tests
+do not establish project availability or live end-to-end compatibility.
+Do not select a [model-router](https://learn.microsoft.com/en-us/azure/foundry/openai/concepts/model-router)
+deployment for triage: with native Toolbox consent, its model stream can fail on the
+turn after a consent pause, surfacing as `Native workflow execution failed`. See
+[troubleshooting](../../docs/troubleshooting.md#native-workflow-execution-failed-after-a-consent-pause).
 The [hosted manifest](azure.yaml) forwards the shared setting and all three optional
-overrides; configure them in the agent azd environment to select the deployed host's
-models.
+overrides. Hosted CD reads them from the Development GitHub Environment variables;
+configure the agent azd environment for local deployments.
 
 ## Validation
 
