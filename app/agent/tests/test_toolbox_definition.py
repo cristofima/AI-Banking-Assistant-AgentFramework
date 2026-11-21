@@ -1,4 +1,4 @@
-"""Offline contract checks for the gated banking Toolbox candidate."""
+"""Offline contract checks for the declarative banking Toolbox services."""
 
 from __future__ import annotations
 
@@ -14,18 +14,14 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 
 
 @pytest.fixture
-def toolbox_definitions() -> dict[str, dict[str, Any]]:
-    return {
-        service: yaml.safe_load(
-            (REPOSITORY_ROOT / "app" / "agent" / f"toolbox-{service}.yaml").read_text(encoding="utf-8")
-        )
-        for service in ("account", "transaction")
-    }
+def manifest() -> dict[str, Any]:
+    manifest_path = REPOSITORY_ROOT / "app" / "agent" / "azure.yaml"
+    return yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
 
 
 @pytest.mark.parametrize("service", ["account", "transaction"])
 def test_toolbox_allowlist_matches_active_mcp_tools(
-    toolbox_definitions: dict[str, dict[str, Any]], service: str,
+    manifest: dict[str, Any], service: str,
 ) -> None:
     source_path = (
         REPOSITORY_ROOT / "app" / "business-api" / service / "src"
@@ -54,28 +50,23 @@ def test_toolbox_allowlist_matches_active_mcp_tools(
                     assert isinstance(exported_name, ast.Constant)
                     assert isinstance(exported_name.value, str)
                     active_tools.add(exported_name.value)
-    server = toolbox_definitions[service]["tools"][0]
+    server = manifest["services"][f"{service}-tools"]["tools"][0]
     assert active_tools
     assert set(server["allowed_tools"]) == active_tools
     assert len(server["allowed_tools"]) == len(active_tools)
 
 
 @pytest.mark.parametrize("service", ["account", "transaction"])
-def test_declarative_toolbox_uses_connection_backed_urls_and_matching_allowlists(
-    toolbox_definitions: dict[str, dict[str, Any]], service: str,
+def test_each_toolbox_contains_only_its_connection_backed_server(
+    manifest: dict[str, Any], service: str,
 ) -> None:
-    manifest_path = REPOSITORY_ROOT / "app" / "agent" / "azure.yaml"
-    manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
     toolbox = manifest["services"][f"{service}-tools"]
     assert toolbox["host"] == "azure.ai.toolbox"
     assert len(toolbox["tools"]) == 1
     server = toolbox["tools"][0]
-    candidate = toolbox_definitions[service]["tools"][0]
     assert server["server_label"] == service
     assert server["server_url"] == f"${{{service.upper()}_MCP_URL}}"
-    assert server["allowed_tools"] == candidate["allowed_tools"]
     assert server["type"] == "mcp"
-    assert server["project_connection_id"] == candidate["project_connection_id"]
     assert server["project_connection_id"] == f"{service}-mcp"
     assert set(server) == {
         "type", "server_label", "server_url", "project_connection_id", "allowed_tools",
@@ -83,19 +74,3 @@ def test_declarative_toolbox_uses_connection_backed_urls_and_matching_allowlists
     assert f"{service}-tools" in manifest["services"]["home-banking-agent"]["uses"]
     assert "banking-tools" not in manifest["services"]
     assert manifest["services"]["home-banking-agent"]["env"]["AGENT_RUNTIME"] == "foundry"
-
-
-@pytest.mark.parametrize("service", ["account", "transaction"])
-def test_each_toolbox_contains_only_its_connection_backed_server(
-    toolbox_definitions: dict[str, dict[str, Any]], service: str,
-) -> None:
-    definition = toolbox_definitions[service]
-    assert definition["name"] == f"{service}-tools"
-    assert len(definition["tools"]) == 1
-    server = definition["tools"][0]
-    assert server["type"] == "mcp"
-    assert server["server_label"] == service
-    assert server["project_connection_id"] == f"{service}-mcp"
-    assert set(server) == {
-        "type", "server_label", "project_connection_id", "allowed_tools",
-    }

@@ -76,8 +76,8 @@ configured grants, hosted identity transport or end-to-end runtime acceptance.
 
 ## Remote OAuth Toolbox target and no-auth/HMAC limits
 
-[azure.yaml](azure.yaml), [toolbox-account.yaml](toolbox-account.yaml) and
-[toolbox-transaction.yaml](toolbox-transaction.yaml) reference `account-mcp`
+The `account-tools` and `transaction-tools` services in [azure.yaml](azure.yaml)
+reference `account-mcp`
 and `transaction-mcp` project connections with the existing customer-tool allowlists.
 Both connections must be configured as OAuth2 with `mcp.access`; references alone do
 not change existing no-auth connections. Verify exact callbacks, PKCE
@@ -249,11 +249,9 @@ rtk proxy azd deploy home-banking-agent --cwd app\agent
 
 Provisioning can create or update model deployments declared in the manifest; it is
 not needed merely to redeploy an already provisioned agent. Deploying the current
-source activates the experimental Toolbox route. The alternative
-[toolbox-account.yaml](toolbox-account.yaml) and [toolbox-transaction.yaml](toolbox-transaction.yaml)
-require named `account-mcp` and `transaction-mcp`
-project connections created with `--auth-type none`; use either that imperative
-path or the declarative service, not both for the same Toolbox.
+source activates the Toolbox route. The manifest's `account-tools` and
+`transaction-tools` services are the single Toolbox definition; they require the
+OAuth2 `account-mcp` and `transaction-mcp` project connections.
 
 ## Grounding and confidentiality
 
@@ -454,8 +452,9 @@ For hosted provisioning with `azd`, make sure the agent environment includes at 
 - `FOUNDRY_PROJECT_ENDPOINT`
 - `AZURE_AI_PROJECT_ID`
 - `MODEL_DEPLOYMENT_NAME`
-- `ACCOUNT_MCP_URL`
-- `TRANSACTION_MCP_URL`
+- `ACCOUNT_MCP_URL` and `TRANSACTION_MCP_URL`: substituted into the Toolbox services'
+  `server_url`; the hosted container does not receive them, because the `foundry`
+  runtime reaches the MCP services only through Toolbox.
 - `INTERNAL_IDENTITY_SECRET`: the existing BFF transport signer, at least 32 characters.
 
 Local tasks load the agent's own `.env` and use Azure CLI credentials when
