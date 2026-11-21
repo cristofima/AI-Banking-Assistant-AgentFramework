@@ -17,6 +17,10 @@ services:
         sku:
           name: GlobalStandard
           capacity: 10
+  # One Toolbox per MCP connection: a Toolbox lists every source, so each user is asked to
+  # consent only to the connections of the Toolboxes the agent actually opens.
+  # Both connections use OAuth2 with scope mcp.access. Never store a static customer
+  # bearer or an internal signer in a connection.
   account-tools:
     host: azure.ai.toolbox
     description: >
