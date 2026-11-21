@@ -98,6 +98,82 @@ unverified Toolbox OAuth passthrough; deploying a Toolbox does not establish sup
 callbacks, per-user grant isolation or hosted OAuth acceptance. Preserve the direct-MCP
 OAuth boundary and do not fall back to HMAC on an OAuth failure.
 
+## Hosted agent chat and native consent
+
+Correlate a captured Responses stream with Application Insights for the failing turn.
+Keep consent links, tokens and customer payloads out of any shared evidence.
+
+### `Native workflow execution failed` after a consent pause
+
+**Symptom:** the first turn after a native OAuth consent (the automatic resend or a
+message such as "continue") ends with `response.failed`:
+`Native workflow execution failed. Validate the typed input and current scoped continuation, or start a fresh workflow lineage.`
+The BFF then emits `CONTINUATION_UNAVAILABLE` with `allow_retry: false` and the chat
+thread locks.
+
+**Cause:** the message names only the hosting phase (`execution`), not the failing
+component. Application Insights records the real exception on `home-banking-agent`:
+a `ChatClientException` wrapping `openai.APIError: There was an issue with your request. Please check your inputs and try again`
+on the triage agent's `chat model-router` span. The router deployment returns HTTP 200
+and then fails inside the stream, before any tool runs. The request carries a fresh
+workflow lineage with a single user message, the same shape that succeeds on other
+turns, so the input and the continuation state are not the cause. The telemetry
+records neither the router's stream error code nor its selected model.
+
+**Resolution:** select a direct deployment for triage. The hosted agent reads
+`TRIAGE_MODEL_DEPLOYMENT_NAME` from the Development GitHub Environment variable during
+[hosted CD](../.github/workflows/cd-hosted-agent.yaml); set it to `gpt-5.4`, keep the
+agent azd environment aligned, and redeploy the agent. The [agent manifest](../app/agent/azure.yaml)
+declares only `gpt-5.4`; removing a deployment from the manifest does not delete an
+existing Foundry deployment.
+
+Diagnostic query:
+
+```kusto
+exceptions
+| where timestamp > ago(3h) and cloud_RoleName == 'home-banking-agent'
+| where type has 'ChatClientException' or outerMessage has 'Native Responses workflow failed'
+| project timestamp, operation_Id, m=substring(outerMessage, 0, 200)
+```
+
+Then list the `chat *` dependencies of the failing `operation_Id` and read
+`microsoft.gen_ai.main_agent.name` and `gen_ai.request.model` to identify the agent
+and deployment.
+
+### Consent popup closes without resending the message
+
+**Symptom:** the consent completes (Identity `/oauth/token` returns 200), the popup
+closes, but no `POST /responses` reaches the BFF until the customer types again. The
+behavior is intermittent.
+
+**Cause:** closing the popup refocuses the window, and the
+[OAuth readiness provider](../app/frontend/banking-web/src/context/OAuthReadinessContext.tsx)
+starts a read-only `GET /oauth/status` on focus. The popup watcher polls every 500 ms
+and its resend calls `verify()` again. When the focus check is still in flight,
+a `verify()` that rejects concurrent calls returns `false`, and `submitInput` drops the
+resend silently. Whether the resend survives depends on which completes first.
+
+**Resolution:** concurrent `verify()` calls share the in-flight status check, so the
+resend receives the real readiness result. An `authorize()` in progress still reports
+not ready. Telemetry shows the defect as one or more `GET /oauth/status` requests after
+the token exchange with no `POST /responses` following them.
+
+### Expected signals during native consent
+
+These are not failures:
+
+| Signal                                                                                   | Meaning                                                                                                                                             |
+| ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tools/list failed ... CONSENT_REQUIRED` and `agentsv2` `tools/list <service>-tools` 500 | Discovery-time consent challenge. It repeats for every agent that opens the Toolbox and appears in turns that never use that agent.                 |
+| `agentsv2` `tools/call <tool>` 500 with `ToolboxCallConsentRequired`                     | Call-time consent challenge (`-32006`), surfaced as an `oauth_consent_request` item.                                                                |
+| `response.incomplete` followed by `CONTINUATION_UNAVAILABLE`                             | Consent pause. The BFF issues no continuation for an incomplete turn; the frontend drops the stored continuation and resends the last message once. |
+| Identity `GET /` 404 after `/oauth/token`                                                | The consent popup's final navigation; unrelated to the grant.                                                                                       |
+| `state_stores` 404, "No handoff configuration found", A365 instrumentation import errors | Startup noise tracked in [#86](https://github.com/cristofima/AI-Banking-Assistant-AgentFramework/issues/86).                                        |
+
+A consent flow is complete only when the turn after authorization ends in
+`response.completed` with a `function_call_output` carrying data for the gated tool.
+That proves a single user's consent, not caller/grant binding or two-user isolation.
+
 ## Python installed-package import errors
 
 After the package migration, a missing `banking_account`, `banking_transaction`,
@@ -144,6 +220,7 @@ and local endpoint checks do not establish chatbot or hosted acceptance.
 
 - [Manual database and OAuth workflow errors](#manual-database-and-oauth-workflow-errors)
 - [Deployment OAuth and federation blockers](#deployment-oauth-and-federation-blockers)
+- [Hosted agent chat and native consent](#hosted-agent-chat-and-native-consent)
 - [Python installed-package import errors](#python-installed-package-import-errors)
 - [Subscription & Access Issues](#subscription--access-issues)
 - [Quota & Capacity Limitations](#quota--capacity-limitations)

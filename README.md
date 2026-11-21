@@ -88,8 +88,9 @@ flowchart LR
   browser storage never receives MCP tokens. No automatic refresh is implemented.
 - **Agent:** Microsoft Agent Framework `HandoffBuilder` with triage, Account and
   Transaction specialists. Disputes are a service workflow, not another specialist.
-  The [hosted manifest](app/agent/azure.yaml) declares `model-router` and `gpt-5.4`
-  deployments. Per-agent deployment settings select models, with a shared fallback;
+  The [hosted manifest](app/agent/azure.yaml) declares the `gpt-5.4` deployment that
+  all three agents select. Per-agent deployment settings select
+  models, with a shared fallback;
   declarations do not establish available cloud capacity. Local MCP can opt into
   Identity-issued RS256 OAuth with a one-hour lifetime; HMAC remains the default
   compatibility mode. OAuth Toolbox stays blocked pending native per-user binding.

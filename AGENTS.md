@@ -845,11 +845,14 @@ the current scenario-by-scenario data-dependency breakdown.
   blocked runtime checks instead of inventing evidence or bypassing the BFF.
 - Keep APIM out of scope: the BFF remains the required browser trust boundary and
   APIM would add another latency layer without replacing BFF-specific logic.
-- The hosted-agent manifest declares `model-router` and `gpt-5.4` deployments with
-  OpenAI format; declarations are not verified cloud provisioning. Triage, Account
+- The hosted-agent manifest declares the `gpt-5.4` deployment with OpenAI format;
+  declarations are not verified cloud provisioning. Triage, Account
   and Transaction independently use their specific `*_MODEL_DEPLOYMENT_NAME` or
   `MODEL_DEPLOYMENT_NAME` as fallback. Shared configuration is not mandatory when
-  all three overrides are supplied. Preserve deployment-keyed client reuse.
+  all three overrides are supplied. Preserve deployment-keyed client reuse. All three
+  agents select `gpt-5.4`; do not select `model-router` for triage, because its stream
+  can fail on the turn after a native consent pause (see docs/troubleshooting.md). Hosted
+  CD reads these settings from the Development GitHub Environment, not local azd state.
 - Approved authentication scope is TTL-only. Identity defaults `ACCESS_TOKEN_MINUTES`
   to 60 and validates explicit overrides within 1–60 minutes. Expiry is absolute from
   issuance, not an inactivity timeout; default newly issued JWTs last 3600 seconds.

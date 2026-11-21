@@ -37,8 +37,8 @@ rtk proxy azd up --cwd app\agent
 ```
 
 - Root `azd up` provisions the Terraform App Service stack and deploys its services.
-- Agent `azd up --cwd app/agent` provisions the `model-router` and `gpt-5.4`
-  deployments declared in the [agent manifest](../app/agent/azure.yaml) for the
+- Agent `azd up --cwd app/agent` provisions the `gpt-5.4`
+  deployment declared in the [agent manifest](../app/agent/azure.yaml) for the
   configured Foundry project, then deploys the hosted workflow. Model access and
   regional capacity remain deployment prerequisites. This command includes dependency
   provisioning; do not use it for an agent-only code rollout.
@@ -152,10 +152,13 @@ the Terraform state and plan first.
 
 ## Model Configuration
 
-The [agent manifest](../app/agent/azure.yaml) declares `model-router` and `gpt-5.4`
-deployments; the root Terraform stack does not provision those model deployments.
-Set the shared `MODEL_DEPLOYMENT_NAME` and optional per-agent overrides in the agent
-azd environment to select runtime deployments. Changing an environment setting
+The [agent manifest](../app/agent/azure.yaml) declares the `gpt-5.4` deployment; the
+root Terraform stack does not provision model deployments. All three agents select
+`gpt-5.4`; do not select a `model-router` deployment for triage (see
+[troubleshooting](troubleshooting.md#native-workflow-execution-failed-after-a-consent-pause)).
+Hosted CD takes the shared `MODEL_DEPLOYMENT_NAME` and the per-agent overrides from
+the Development GitHub Environment variables; set the same values in the agent azd
+environment for local deployments. Changing a setting
 selects a deployment; it does not provision or resize one. See the
 [per-agent model configuration](../app/agent/README.md#optional-per-agent-model-deployments)
 for fallback behavior. Manifest declarations alone do not verify model access,
